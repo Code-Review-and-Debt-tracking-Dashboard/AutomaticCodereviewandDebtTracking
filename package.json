@@ -1,0 +1,5 @@
+{
+    "name": "codehealth",
+    "private": true,
+    "workspaces": ["apps/*", "packages/*"]
+  }
