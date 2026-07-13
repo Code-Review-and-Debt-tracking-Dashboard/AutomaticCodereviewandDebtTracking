@@ -1,0 +1,54 @@
+ID,Section,Task Name,Start Date,End Date,Duration (Days),Assigned To,Predecessors,% Complete
+1,Documentation,Write project proposal,2026-06-22,2026-07-04,13,Team Mate 1,,0
+2,Documentation,Conduct feasibility study and build Gantt chart,2026-06-29,2026-07-11,13,Team Mate 1,,0
+3,Documentation,Write SRS document,2026-07-13,2026-08-08,27,Team Mate 1,,0
+4,Documentation,Write system architecture and design document,2026-07-13,2026-08-08,27,Team Mate 1,,0
+5,Documentation,Write testing document,2026-09-14,2026-09-26,13,Team Mate 1,,0
+6,Documentation,Write final report with before/after comparison,2026-09-28,2026-10-03,6,Team Mate 1,,0
+7,Documentation,Record marketing video and script,2026-09-28,2026-10-03,6,Team Mate 1,,0
+8,Database,Design Prisma schema and run initial migration,2026-07-13,2026-07-26,14,Team Mate 3,,0
+9,Database,Write seed script and set up Prisma client package,2026-07-27,2026-08-09,14,Team Mate 3,8,0
+10,Database,Validate indexes and optimize query performance,2026-08-10,2026-08-16,7,Team Mate 3,9,0
+11,Database,Run schema migrations for ongoing changes,2026-09-07,2026-09-13,7,Team Mate 3,,0
+12,Backend API,Set up monorepo and scaffold Express API with CI,2026-07-13,2026-07-19,7,Team Mate 1,,0
+13,Backend API,Build GitHub OAuth and authentication middleware,2026-07-20,2026-07-26,7,Team Mate 1,,0
+14,Backend API,Build webhook endpoint with HMAC verification and BullMQ dispatch,2026-07-20,2026-08-02,14,Team Mate 1,,0
+15,Backend API,Build repository CRUD and detail endpoints,2026-07-27,2026-08-09,14,Team Mate 1,8 13,0
+16,Backend API,Build analytics endpoints for trends and debt and hotspots,2026-08-03,2026-08-16,14,Team Mate 1,8,0
+17,Backend API,Build quality gate and notification and push endpoints,2026-08-10,2026-08-23,14,Team Mate 1,,0
+18,Backend API,Add validation and rate limiting and write integration tests,2026-09-14,2026-09-27,14,Team Mate 1,,0
+19,Worker Service,Scaffold BullMQ worker with clone and language detection,2026-08-17,2026-08-30,14,Team Mate 1,14,0
+20,Worker Service,Build all analyzer wrappers and output normalizer,2026-08-24,2026-09-06,14,Team Mate 1,19,0
+21,Worker Service,Implement health scoring and quality gate evaluation,2026-09-07,2026-09-13,7,Team Mate 1,20,0
+22,Worker Service,Build PR comment poster and result persistence pipeline,2026-09-14,2026-09-20,7,Team Mate 1,21,0
+23,Worker Service,Build worker Docker image and write unit tests,2026-09-21,2026-09-27,7,Team Mate 1,22,0
+24,Worker Service,Run end-to-end pipeline integration test,2026-09-28,2026-10-02,5,Team Mate 1,23,0
+25,UI/UX Design — Web,Design wireframes and build design system for web dashboard,2026-07-13,2026-07-26,14,Team Mate 2,,0
+26,UI/UX Design — Mobile,Design wireframes and build design system for mobile app,2026-07-20,2026-07-26,7,Team Mate 3,,0
+27,Web Frontend,Scaffold React Vite project and build layout shell with routing,2026-07-20,2026-08-02,14,Team Mate 2,25,0
+28,Web Frontend,Build OAuth login page and repo list page with API client,2026-07-27,2026-08-09,14,Team Mate 2,27,0
+29,Web Frontend,Connect frontend to real backend API and database,2026-08-03,2026-08-09,7,Team Mate 2,13,0
+30,Web Frontend,Build repo detail page with trend charts and debt breakdown,2026-08-10,2026-08-23,14,Team Mate 2,28,0
+31,Web Frontend,Build PR history table and finding drill-down page,2026-08-24,2026-09-06,14,Team Mate 2,30,0
+32,Web Frontend,Build quality gate config and notification UI,2026-09-07,2026-09-13,7,Team Mate 2,,0
+33,Web Frontend,Add loading states and responsive layout and write tests,2026-09-14,2026-09-20,7,Team Mate 2,,0
+34,Web Frontend,Fix bugs and polish final web UI,2026-09-21,2026-09-27,7,Team Mate 2,,0
+35,Mobile App,Scaffold Expo project and build tab navigation,2026-07-27,2026-08-02,7,Team Mate 3,26,0
+36,Mobile App,Build mobile auth flow and API client module,2026-08-03,2026-08-09,7,Team Mate 3,35,0
+37,Mobile App,Build home screen and repo summary screen,2026-08-10,2026-08-23,14,Team Mate 3,36,0
+38,Mobile App,Build notification screen and push notification setup,2026-08-24,2026-09-06,14,Team Mate 3,37,0
+39,Mobile App,Polish mobile UI and fix bugs and run device testing,2026-09-14,2026-09-20,7,Team Mate 3,,0
+40,Testing & QA,Run cross-platform integration testing of all apps,2026-09-14,2026-09-20,7,All,,0
+41,Testing & QA,Execute end-to-end smoke test on staging environment,2026-09-21,2026-09-27,7,All,,0
+42,Testing & QA,Fix integration bugs and retest regressions,2026-09-28,2026-10-02,5,All,,0
+43,Deployment & Release,Deploy backend services and web dashboard to cloud,2026-09-21,2026-09-27,7,All,,0
+44,Deployment & Release,Build and distribute mobile app via Expo EAS,2026-09-21,2026-09-27,7,Team Mate 3,,0
+45,Deployment & Release,Run final production smoke test and prepare demo,2026-09-28,2026-10-02,5,All,43,0
+46,Milestones,Proposal due,2026-07-05,2026-07-05,0,Team Mate 1,,0
+47,Milestones,Feasibility Study due,2026-07-12,2026-07-12,0,Team Mate 1,,0
+48,Milestones,SRS and Architecture due,2026-08-09,2026-08-09,0,Team Mate 1,3 4,0
+49,Milestones,Progress Review 1 demo,2026-08-10,2026-08-14,0,All,29,0
+50,Milestones,Mid Evaluation,2026-08-15,2026-08-30,0,All,,0
+51,Milestones,Testing document due,2026-09-27,2026-09-27,0,Team Mate 1,5,0
+52,Milestones,Progress Review 2,2026-10-02,2026-10-02,0,All,,0
+53,Milestones,Final Evaluation,2026-10-03,2026-10-03,0,All,,0

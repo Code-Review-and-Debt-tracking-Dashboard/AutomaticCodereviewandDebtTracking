@@ -1,0 +1,235 @@
+// ─── Automated Code Review & Technical Debt Tracking Dashboard ───
+// Prisma Schema — PostgreSQL
+// See database_design.md for full ER diagram, rationale, and query analysis.
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── Enums ─────────────────────────────────────────────────────────
+
+enum AnalysisStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum FindingCategory {
+  VULNERABILITY
+  COMPLEXITY
+  DUPLICATION
+  CODE_SMELL
+  MAINTAINABILITY
+}
+
+enum PRStatus {
+  OPEN
+  CLOSED
+  MERGED
+}
+
+// ─── Models ────────────────────────────────────────────────────────
+
+model User {
+  id            String         @id @default(cuid())
+  githubId      Int            @unique
+  username      String
+  email         String?
+  avatarUrl     String?
+  accessToken   String         // encrypted at rest (AES-256)
+  repositories  Repository[]
+  notifications Notification[]
+  sessions      Session[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([githubId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model Repository {
+  id            String           @id @default(cuid())
+  githubRepoId  Int              @unique
+  name          String           // e.g. "my-project"
+  fullName      String           // e.g. "username/my-project"
+  defaultBranch String           @default("main")
+  language      String?          // primary language detected by GitHub
+  webhookId     String?          // GitHub webhook ID for cleanup on unlink
+  isActive      Boolean          @default(true)
+
+  userId        String
+  owner         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pullRequests  PullRequest[]
+  snapshots     HealthSnapshot[]
+  qualityGate   QualityGate?
+  notifications Notification[]
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([githubRepoId])
+  @@index([fullName])
+}
+
+model PullRequest {
+  id              String           @id @default(cuid())
+  prNumber        Int
+  title           String
+  authorLogin     String
+  headBranch      String
+  baseBranch      String
+  headSha         String
+  status          PRStatus         @default(OPEN)
+
+  repoId          String
+  repository      Repository       @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  snapshots       HealthSnapshot[]
+
+  githubCreatedAt DateTime?
+  githubUpdatedAt DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([repoId, prNumber])
+  @@index([repoId])
+  @@index([repoId, prNumber])
+  @@index([status])
+}
+
+model HealthSnapshot {
+  id                 String          @id @default(cuid())
+
+  // ── Core scores ──
+  healthScore        Float           // composite 0-100
+  debtMinutes        Float           @default(0) // total remediation estimate in minutes
+  debtDelta          Float           @default(0) // delta vs previous snapshot on same repo
+
+  // ── Category counts ──
+  vulnerabilityCount Int             @default(0)
+  complexityCount    Int             @default(0)
+  duplicationCount   Int             @default(0)
+  codeSmellCount     Int             @default(0)
+  duplicationPct     Float           @default(0) // 0.0 - 100.0
+
+  // ── Metadata ──
+  totalIssues        Int             @default(0)
+  linesOfCode        Int             @default(0)
+  status             AnalysisStatus  @default(PENDING)
+  triggeredBy        String          @default("webhook") // "webhook" | "manual"
+  errorMessage       String?
+  rawMetrics         Json?           // full per-tool JSON output for debugging/audit
+
+  // ── Relations ──
+  pullRequestId      String?
+  pullRequest        PullRequest?    @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+
+  repoId             String
+  repository         Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  findings           Finding[]
+  notifications      Notification[]
+
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime        @default(now())
+
+  // ── Indexes ──
+  @@index([repoId, createdAt(sort: Desc)])    // trend chart: scores over time
+  @@index([pullRequestId])                     // snapshots for a specific PR
+  @@index([repoId, status])                    // pending/running jobs per repo
+  @@index([status])                            // worker: find all pending jobs
+  @@index([createdAt(sort: Desc)])             // global recent analyses
+}
+
+model Finding {
+  id           String          @id @default(cuid())
+  file         String          // relative file path within repo
+  line         Int             // start line number
+  endLine      Int?            // end line (nullable for single-line findings)
+  severity     Severity
+  category     FindingCategory
+  rule         String          // e.g. "no-unused-vars", "B101", "CyclomaticComplexity"
+  message      String
+  tool         String          // "eslint" | "pylint" | "bandit" | "radon" | "checkstyle" | "pmd" | "cppcheck" | "jscpd"
+  isNew        Boolean         @default(true) // true = introduced by this PR, false = pre-existing
+  debtMinutes  Float           @default(5)    // estimated remediation time in minutes
+
+  snapshotId   String
+  snapshot     HealthSnapshot  @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime        @default(now())
+
+  // ── Indexes ──
+  @@index([snapshotId])                        // all findings for a snapshot
+  @@index([snapshotId, category])              // category-filtered views
+  @@index([snapshotId, severity])              // severity-filtered views
+  @@index([snapshotId, isNew])                 // new vs carried-over split
+  @@index([snapshotId, file])                  // file hotspot analysis
+}
+
+model QualityGate {
+  id                 String   @id @default(cuid())
+  minHealthScore     Float    @default(60)    // fail if healthScore < this
+  maxVulnerabilities Int?                      // fail if vulnerabilityCount > this (null = no limit)
+  maxDuplicationPct  Float?                    // fail if duplicationPct > this (null = no limit)
+  maxComplexityScore Float?                    // fail if complexity sub-score > this (null = no limit)
+  blockPR            Boolean  @default(false)  // if true, post failing GitHub commit status
+
+  repoId             String   @unique
+  repository         Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Notification {
+  id         String          @id @default(cuid())
+  type       String          // "analysis_complete" | "gate_fail" | "score_drop"
+  title      String
+  body       String
+  data       Json?           // optional metadata payload
+  read       Boolean         @default(false)
+
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  repoId     String?
+  repository Repository?     @relation(fields: [repoId], references: [id], onDelete: SetNull)
+
+  snapshotId String?
+  snapshot   HealthSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime        @default(now())
+
+  // ── Indexes ──
+  @@index([userId, read, createdAt(sort: Desc)])  // unread notifications feed
+  @@index([userId, createdAt(sort: Desc)])         // all notifications for user
+}
