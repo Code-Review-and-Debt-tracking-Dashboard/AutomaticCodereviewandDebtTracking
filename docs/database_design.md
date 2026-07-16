@@ -11,12 +11,15 @@
 
 ```mermaid
 erDiagram
-    User ||--o{ Repository : "owns/links"
+    User ||--o{ Repository : "owns/links (as Team Lead)"
     User ||--o{ Notification : "receives"
     User ||--o{ Session : "has"
+    User ||--o{ Device : "registers"
+    User ||--o{ RepositoryMember : "is a member via"
 
     Repository ||--o{ PullRequest : "has"
     Repository ||--o| QualityGate : "has config"
+    Repository ||--o{ RepositoryMember : "has members"
 
     PullRequest ||--o{ HealthSnapshot : "analyzed as"
 
@@ -29,6 +32,25 @@ erDiagram
         string email
         string avatarUrl
         string accessToken "encrypted AES-256"
+        string role "ADMIN/TEAM_LEAD/DEVELOPER, default DEVELOPER"
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    RepositoryMember {
+        string id PK
+        string userId FK
+        string repoId FK
+        datetime addedAt
+    }
+
+    Device {
+        string id PK
+        string expoPushToken UK
+        string platform "ios/android"
+        string deviceName "nullable"
+        boolean active
+        string userId FK
         datetime createdAt
         datetime updatedAt
     }
@@ -84,6 +106,7 @@ erDiagram
         int totalIssues
         int linesOfCode
         string status "PENDING/RUNNING/COMPLETED/FAILED"
+        string gateResult "PASS/FAIL, nullable"
         string triggeredBy "webhook/manual"
         string errorMessage "nullable"
         json rawMetrics "full per-tool output"
@@ -115,7 +138,7 @@ erDiagram
         float minHealthScore "default 60"
         int maxVulnerabilities "nullable"
         float maxDuplicationPct "nullable"
-        float maxComplexityScore "nullable"
+        int maxComplexityCount "nullable"
         boolean blockPR "default false"
         string repoId FK "unique"
         datetime createdAt
@@ -185,22 +208,34 @@ enum PRStatus {
   MERGED
 }
 
+enum UserRole {
+  ADMIN      // platform administrator — sees all repos, access to /api/metrics
+  TEAM_LEAD  // links/unlinks repos, configures quality gates, manages members
+  DEVELOPER  // read-only access to repos they are a member of
+}
+
+enum GateResult {
+  PASS
+  FAIL
+}
+
 // ─── models ────────────────────────────────────────────────────────
 
 model User {
-  id            String         @id @default(cuid())
-  githubId      Int            @unique
+  id            String              @id @default(cuid())
+  githubId      Int                 @unique
   username      String
   email         String?
   avatarUrl     String?
-  accessToken   String         // encrypted at rest (AES-256)
-  repositories  Repository[]
+  accessToken   String              // encrypted at rest (AES-256)
+  role          UserRole            @default(DEVELOPER)
+  repositories  Repository[]        // repos this user owns (as Team Lead)
+  memberships   RepositoryMember[]  // repos this user has been added to
   notifications Notification[]
   sessions      Session[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  @@index([githubId])
+  devices       Device[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 }
 
 model Session {
@@ -216,29 +251,46 @@ model Session {
 }
 
 model Repository {
-  id            String           @id @default(cuid())
-  githubRepoId  Int              @unique
-  name          String           // e.g. "my-project"
-  fullName      String           // e.g. "username/my-project"
-  defaultBranch String           @default("main")
-  language      String?          // primary language detected by GitHub
-  webhookId     String?          // GitHub webhook ID for cleanup on unlink
-  isActive      Boolean          @default(true)
+  id            String              @id @default(cuid())
+  githubRepoId  Int                 @unique
+  name          String              // e.g. "my-project"
+  fullName      String              // e.g. "username/my-project"
+  defaultBranch String              @default("main")
+  language      String?             // primary language detected by GitHub
+  webhookId     String?             // GitHub webhook ID for cleanup on unlink
+  isActive      Boolean             @default(true)
 
-  userId        String
-  owner         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String              // owner (Team Lead) — linked the repo, controls gate config
+  owner         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  members       RepositoryMember[]  // developers with read access to this repo
 
   pullRequests  PullRequest[]
   snapshots     HealthSnapshot[]
   qualityGate   QualityGate?
   notifications Notification[]
 
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([userId])
-  @@index([githubRepoId])
   @@index([fullName])
+}
+
+// Connects a User (typically DEVELOPER role) to a Repository they can view.
+// The owning Team Lead is implicitly a member via Repository.userId and does
+// not need a row here. Created when a Team Lead adds a developer by GitHub
+// username (POST /api/repos/:repoId/members).
+model RepositoryMember {
+  id      String     @id @default(cuid())
+  userId  String
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repoId  String
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  addedAt DateTime   @default(now())
+
+  @@unique([userId, repoId])
+  @@index([repoId])
 }
 
 model PullRequest {
@@ -263,7 +315,6 @@ model PullRequest {
 
   @@unique([repoId, prNumber])
   @@index([repoId])
-  @@index([repoId, prNumber])
   @@index([status])
 }
 
@@ -286,6 +337,7 @@ model HealthSnapshot {
   totalIssues        Int             @default(0)
   linesOfCode        Int             @default(0)
   status             AnalysisStatus  @default(PENDING)
+  gateResult         GateResult?     // PASS/FAIL — set by worker Stage 6 (GATE); null if no gate configured
   triggeredBy        String          @default("webhook") // "webhook" | "manual"
   errorMessage       String?
   rawMetrics         Json?           // full per-tool JSON output for debugging
@@ -342,7 +394,7 @@ model QualityGate {
   minHealthScore    Float    @default(60)    // minimum acceptable health score
   maxVulnerabilities Int?                     // max allowed vulnerability count (null = no limit)
   maxDuplicationPct Float?                    // max allowed duplication % (null = no limit)
-  maxComplexityScore Float?                   // max allowed complexity score (null = no limit)
+  maxComplexityCount Int?                     // max allowed complexity finding count (null = no limit)
   blockPR           Boolean  @default(false)  // whether to post failing commit status
 
   repoId            String   @unique
@@ -373,6 +425,22 @@ model Notification {
 
   @@index([userId, read, createdAt(sort: Desc)])   // user's unread notifications, most recent first
   @@index([userId, createdAt(sort: Desc)])          // all notifications for a user
+}
+
+model Device {
+  id            String   @id @default(cuid())
+  expoPushToken String   @unique
+  platform      String   // "ios" | "android"
+  deviceName    String?
+  active        Boolean  @default(true)
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }
 ```
 
@@ -455,6 +523,39 @@ Each finding carries a `debtMinutes` field estimating remediation effort. Defaul
 | INFO | 2 |
 
 The snapshot's `debtMinutes` is the **sum** of all its findings' `debtMinutes`. This gives a "remediation effort in minutes" metric that non-technical project managers can understand.
+
+### 3.7 User Roles & `RepositoryMember`
+
+The system has three roles, stored on `User.role`:
+
+| Role | Can do | Sees |
+|---|---|---|
+| `ADMIN` | Everything a Team Lead can do, plus access `GET /api/metrics` (platform-wide operational stats) | All repositories, regardless of ownership/membership |
+| `TEAM_LEAD` | Link/unlink repos, configure quality gates, trigger manual analysis, add/remove `RepositoryMember` rows on repos they own | Repos they own (`Repository.userId`) |
+| `DEVELOPER` | Read-only: view findings, trends, hotspots; manage their own notifications and devices | Repos where a `RepositoryMember` row exists for them |
+
+**Why a separate `RepositoryMember` join table instead of a role column directly on `Repository`:** ownership and membership are different relationships. `Repository.userId` identifies the single owner (always a `TEAM_LEAD`, enforced at the application layer, not the DB) who controls gate settings and can unlink the repo. `RepositoryMember` is a many-to-many table so a Team Lead can grant read access to multiple developers, and a developer can be a member of multiple repos owned by different Team Leads. The owner does **not** get a `RepositoryMember` row — ownership already implies full access, and duplicating it would mean two sources of truth to keep in sync.
+
+Authorization check for "can this user see this repo":
+
+```sql
+SELECT 1 FROM "Repository" r
+WHERE r."id" = $1
+  AND (
+    r."userId" = $2                                             -- is owner
+    OR EXISTS (
+      SELECT 1 FROM "RepositoryMember" m
+      WHERE m."repoId" = r."id" AND m."userId" = $2              -- is member
+    )
+  )
+-- OR the requesting user's role = 'ADMIN' (checked in application code, no query needed)
+```
+
+**Decision:** `role` defaults to `DEVELOPER` on signup. The first user of a deployment is expected to be promoted to `ADMIN` manually (there is no self-service admin signup — this mirrors how most internal tools bootstrap their first admin). Promoting a `TEAM_LEAD` happens implicitly: any `DEVELOPER` who links a repository via `POST /api/repos` is auto-upgraded to `TEAM_LEAD` on their first successful link, since owning a repo requires Team Lead permissions.
+
+### 3.8 Why `Device` is Keyed to `User`, Not `Repository`
+
+Push tokens belong to a physical device the user is signed in on, not to any single repository — the same device should receive notifications across every repo the user has access to. `Device.userId` cascades on delete so removing a user cleans up their registered devices automatically. `expoPushToken` is globally unique because Expo issues one token per device+app installation; a `409 Conflict` on duplicate registration (see `api_design.md` §8) reuses the existing row instead of creating a second one.
 
 ---
 
@@ -551,6 +652,21 @@ WHERE qg."repoId" = $1;
 
 ---
 
+### Query 6: Can This User Access This Repository? (Authorization Check)
+
+```sql
+SELECT 1 FROM "RepositoryMember"
+WHERE "repoId" = $1 AND "userId" = $2;
+```
+
+Run only when the requesting user is not the repo's owner (`Repository.userId`, already fetched with the repo) and is not `ADMIN` (checked from the JWT claims, no query needed).
+
+**Index used:** `@@unique([userId, repoId])` on `RepositoryMember` — implemented as a unique B-tree index, so this is a single-row point lookup.
+
+**Verified:** ✅ O(1) lookup. Runs on every protected repo-scoped request, so it must stay index-only — confirmed it is.
+
+---
+
 ### Index Summary Table
 
 | Table | Index | Supports |
@@ -566,8 +682,13 @@ WHERE qg."repoId" = $1;
 | `Finding` | `[snapshotId, file]` | File hotspot analysis |
 | `Notification` | `[userId, read, createdAt DESC]` | Unread notifications feed |
 | `Notification` | `[userId, createdAt DESC]` | All notifications feed |
-| `PullRequest` | `[repoId, prNumber]` (unique) | Upsert on webhook receipt |
+| `PullRequest` | `[repoId, prNumber]` (unique) | Upsert on webhook receipt; also serves plain `repoId` lookups (leftmost prefix), so no separate `[repoId, prNumber]` index is needed |
 | `PullRequest` | `[repoId]` | PR list for a repository |
+| `RepositoryMember` | `[userId, repoId]` (unique) | Repo access check; also serves plain `userId` lookups (leftmost prefix) |
+| `RepositoryMember` | `[repoId]` | Member list for a repository |
+| `Device` | `[userId]` | Devices to push-notify for a given user |
+
+> **Note on removed indexes:** `User.githubId`, `Repository.githubRepoId`, and the old separate `PullRequest.[repoId, prNumber]` index were removed from the schema — each was a plain single/leading-column duplicate of an existing `@unique` constraint, which Postgres already backs with a B-tree index. Keeping both wastes write throughput and storage for no query benefit.
 
 ---
 

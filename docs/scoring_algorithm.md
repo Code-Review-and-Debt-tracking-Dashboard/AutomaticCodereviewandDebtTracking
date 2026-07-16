@@ -97,7 +97,7 @@ if (linesOfCode > 1000) {
 }
 ```
 
-The total finding penalty (excluding duplication) is multiplied by `1 / locScaleFactor` — wait, that would increase penalty for large repos. Instead:
+The total finding penalty (excluding duplication) is multiplied by `locScaleFactor`:
 
 ```
 normalizedFindingPenalty = rawFindingPenalty × locScaleFactor
@@ -183,7 +183,7 @@ debtDelta = currentSnapshot.debtMinutes - previousSnapshot.debtMinutes
 | **Unsupported language only** | healthScore = 100, debtMinutes = 0, flag `analysisLimited = true` in metadata | No findings doesn't mean no issues — it means we couldn't analyze. The flag lets the dashboard show "partial analysis" |
 | **Hundreds of findings** | Score floors at 0 (never negative). Diminishing returns prevent one rule from dominating. LOC normalization prevents large repos from always scoring low. | Ensures the 0–100 range is meaningful |
 | **Duplication percentage** | Treated as a continuous penalty, not discrete findings. Added separately from finding penalties. | jscpd reports a single percentage, not per-location findings. Treating it differently from counted findings is more accurate. |
-| **Same rule 50+ times** | Diminishing factor ensures 50 occurrences of `no-unused-vars` ≈ 12 equivalent full-penalty findings | Prevents a single noisy rule from being worth more than all other categories combined |
+| **Same rule 50+ times** | Diminishing factor ensures 50 occurrences of `no-unused-vars` ≈ 9.7 equivalent full-penalty findings | Prevents a single noisy rule from being worth more than all other categories combined |
 | **No previous snapshot** | debtDelta = 0, all findings marked isNew = true | First analysis has no baseline to compare against |
 | **File renamed between snapshots** | Treated as: old file findings = resolved, new file findings = isNew | True rename detection requires git diff analysis. For MVP, accept this limitation; document it. |
 
@@ -482,8 +482,9 @@ const findings = Array.from({ length: 20 }, (_, i) => ({
 }));
 const input: ScoringInput = { findings, duplicationPct: 0, linesOfCode: 1000 };
 // Without diminishing: penalty = 20 × (0.5 × 1.0 × 1.0) = 10.0
-// With diminishing:    penalty ≈ 4.68 (each successive occurrence penalizes less)
-// Expected: healthScore ≈ 95.3
+// With diminishing:    sum of diminishingFactor for N=1..20 ≈ 6.94
+//                      penalty = 0.5 × 1.0 × 1.0 × 6.94 ≈ 3.47 (each successive occurrence penalizes less)
+// Expected: healthScore ≈ 96.5
 // Expected: debtMinutes = 20 × 5 = 100 (no diminishing on debt)
 ```
 
@@ -629,9 +630,9 @@ The formula `diminishingFactor = 1 / (1 + 0.3 × (N - 1))` is a **hyperbolic dec
 | **Hyperbolic (ours)** | factor = 1/(1 + 0.3(N-1)) | **Smooth, never reaches zero**, 10th occurrence still counts at 0.27 |
 
 The coefficient **0.3** was chosen so that:
-- The first 5 occurrences contribute ~75% of their full penalty (still meaningful)
+- The first 5 occurrences contribute ~68% of their full penalty (still meaningful) — precisely, `Σ diminishingFactor(N=1..5) / 5 = 3.375 / 5 = 0.675`
 - Occurrences 10–50 contribute diminishing but non-zero amounts
-- The total penalty for 50 identical findings ≈ 12 equivalent full-penalty findings
+- The total penalty for 50 identical findings ≈ 9.7 equivalent full-penalty findings — precisely, `Σ diminishingFactor(N=1..50) ≈ 9.735`
 
 This is the same principle used in **information retrieval** (TF-IDF uses log-based diminishing for term frequency) and **game design** (diminishing returns on stacking buffs).
 
