@@ -1,3 +1,4 @@
 | Date | Task ID | What it does  | Why this approach  | Question I'd get asked |
 |---|---|---|---|---|
 | 2026-07-16 | A-03 | GitHub Actions workflow runs lint+typecheck on push/PR to main & develop | Followed the CI shape already in system_architecture.md §5.6 instead of inventing one; used `--if-present` so it's a safe no-op until apps add real scripts | Why does it pass with no actual linting happening yet? |
+| 2026-07-16 | A-03 | Replaced the bash if/else guard with `--include-workspace-root` flag on the lint/typecheck commands | Native npm flag makes root a fallback target, so `--workspaces --if-present` never errors on zero-workspaces — no shell logic needed, and no dead guard to remove later | Why is this safer than the bash guard I had before? |
