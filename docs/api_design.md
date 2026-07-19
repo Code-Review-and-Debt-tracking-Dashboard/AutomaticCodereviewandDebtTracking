@@ -31,12 +31,15 @@ GitHub redirects here after user approves. Exchanges code for token, creates/upd
     "id": "clxyz...",
     "username": "rumeshc",
     "email": "rumesh@example.com",
-    "avatarUrl": "https://avatars.githubusercontent.com/u/12345"
+    "avatarUrl": "https://avatars.githubusercontent.com/u/12345",
+    "role": "DEVELOPER"
   }
 }
 ```
 
 - **Errors:** `400` invalid/missing code | `502` GitHub API unreachable
+
+> New GitHub accounts default to `role: "DEVELOPER"` (see §2 Roles & Authorization). There is no self-service admin signup.
 
 ### `GET /auth/me`
 
@@ -51,6 +54,7 @@ Returns the currently authenticated user.
   "username": "rumeshc",
   "email": "rumesh@example.com",
   "avatarUrl": "https://avatars.githubusercontent.com/u/12345",
+  "role": "DEVELOPER",
   "createdAt": "2026-06-21T10:00:00Z"
 }
 ```
@@ -66,7 +70,28 @@ Invalidates the session.
 
 ---
 
-## 2. Webhook
+## 2. Roles & Authorization
+
+Three roles exist on `User.role` (see `database_design.md` §3.7 for the schema rationale):
+
+| Role | Can do | Sees |
+|---|---|---|
+| `ADMIN` | Everything a Team Lead can do, plus `GET /api/metrics` | All repositories |
+| `TEAM_LEAD` | Link/unlink repos, configure quality gates, trigger manual analysis, add/remove repo members | Repos they own |
+| `DEVELOPER` | Read-only: view findings, trends, hotspots; manage own notifications/devices | Repos where they are a `RepositoryMember` |
+
+**Defaults and promotion:**
+- Every new GitHub login defaults to `DEVELOPER`.
+- A `DEVELOPER` is auto-promoted to `TEAM_LEAD` the moment they successfully link their first repository (`POST /api/repos`) — owning a repo requires Team Lead permissions, so this happens transparently rather than requiring a manual role request.
+- `ADMIN` is never self-service. The first admin for a deployment is set directly in the database; existing admins cannot currently promote others via the API (no endpoint for this — out of scope for MVP).
+
+**How endpoints enforce this:** every route below that says "**Auth:** Required (must be owner)" means "the requester is the repo's `Repository.userId` (Team Lead owner) **or** has `role: ADMIN`." Routes open to `DEVELOPER`s additionally check for a `RepositoryMember` row (see the new member endpoints in §4).
+
+**Error:** `403 FORBIDDEN` if the requester is authenticated but is neither the owner, a member, nor an admin.
+
+---
+
+## 3. Webhook
 
 ### `POST /webhooks/github`
 
@@ -97,11 +122,11 @@ Receives GitHub webhook events. Must respond within 10 seconds.
 
 ---
 
-## 3. Repository Management
+## 4. Repository Management
 
 ### `GET /api/repos`
 
-List all repositories linked by the current user.
+List repositories the current user can see: repos they own (Team Lead), repos they are a member of (Developer), or all repos if `role: ADMIN`.
 
 - **Auth:** Required
 - **Query:** `?page=1&limit=20&search=my-proj&sort=healthScore|name|updatedAt&order=asc|desc`
@@ -178,16 +203,18 @@ Link a GitHub repository and register webhook.
 }
 ```
 
-- **Errors:** `409` already linked | `403` no admin access to repo | `502` webhook registration failed
+- **Errors:** `409` already linked | `403` no admin access to repo on GitHub's side (not our platform role) | `502` webhook registration failed
+
+> If the requester's platform role is still `DEVELOPER`, a successful link auto-promotes them to `TEAM_LEAD` (see §2 Roles & Authorization). The response does not echo the new role — call `GET /auth/me` to refresh it client-side.
 
 ### `DELETE /api/repos/:repoId`
 
 Unlink repository and remove GitHub webhook.
 
-- **Auth:** Required (must be owner)
+- **Auth:** Required (must be owner or `ADMIN`)
 - **Params:** `repoId` (string)
 - **Success:** `204 No Content`
-- **Errors:** `404` not found | `403` not owner
+- **Errors:** `404` not found | `403` not owner/admin
 
 ### `GET /api/repos/:repoId`
 
@@ -228,9 +255,54 @@ Get repository detail with latest snapshot summary.
 }
 ```
 
+### `GET /api/repos/:repoId/members`
+
+List developers with read access to this repository (does not include the owner — see §2).
+
+- **Auth:** Required (owner, member, or `ADMIN`)
+- **Success `200`:**
+
+```json
+{
+  "data": [
+    {
+      "id": "clmem...",
+      "userId": "clusr...",
+      "username": "vidushi",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/54321",
+      "addedAt": "2026-06-25T09:00:00Z"
+    }
+  ]
+}
+```
+
+### `POST /api/repos/:repoId/members`
+
+Grant a developer read access to this repository, by GitHub username.
+
+- **Auth:** Required (must be owner or `ADMIN`)
+- **Body:**
+
+```json
+{ "username": "vidushi" }
+```
+
+- **Success `201`:** same shape as one item in the GET list above
+- **Errors:** `404` GitHub username not found among existing platform users | `409` already a member | `403` not owner/admin
+
+> The target user must already have logged into the platform at least once (we can only add existing `User` rows — there is no invite-by-email flow in MVP).
+
+### `DELETE /api/repos/:repoId/members/:userId`
+
+Revoke a developer's read access.
+
+- **Auth:** Required (must be owner or `ADMIN`)
+- **Success:** `204 No Content`
+- **Errors:** `404` membership not found | `403` not owner/admin
+
 ---
 
-## 4. Health Score & Trend
+## 5. Health Score & Trend
 
 ### `GET /api/repos/:repoId/trend`
 
@@ -323,7 +395,7 @@ Worst-offending files by finding count.
 
 ---
 
-## 5. Pull Requests & Findings
+## 6. Pull Requests & Findings
 
 ### `GET /api/repos/:repoId/pulls`
 
@@ -428,7 +500,7 @@ Individual findings for a specific analysis snapshot.
 
 Manually trigger analysis on the default branch.
 
-- **Auth:** Required (must be owner)
+- **Auth:** Required (must be owner or `ADMIN`)
 - **Body:** `{}` (empty — analyzes HEAD of default branch)
 - **Success `202`:**
 
@@ -444,7 +516,7 @@ Manually trigger analysis on the default branch.
 
 ---
 
-## 6. Quality Gate Configuration
+## 7. Quality Gate Configuration
 
 ### `GET /api/repos/:repoId/quality-gate`
 
@@ -459,20 +531,20 @@ Get current quality gate config.
   "minHealthScore": 60,
   "maxVulnerabilities": 5,
   "maxDuplicationPct": 10.0,
-  "maxComplexityScore": null,
+  "maxComplexityCount": null,
   "blockPR": true,
   "repoId": "clxyz..."
 }
 ```
 
-- **`404`** if no gate configured (returns defaults in this case):
+- **If no gate configured, still `200`** — returns the built-in defaults instead of a 404, since "no gate configured" is a valid, expected state (every repo implicitly has the default gate until someone customizes it):
 
 ```json
 {
   "minHealthScore": 60,
   "maxVulnerabilities": null,
   "maxDuplicationPct": null,
-  "maxComplexityScore": null,
+  "maxComplexityCount": null,
   "blockPR": false,
   "isDefault": true
 }
@@ -482,7 +554,7 @@ Get current quality gate config.
 
 Create or update quality gate thresholds.
 
-- **Auth:** Required (must be owner)
+- **Auth:** Required (must be owner or `ADMIN`)
 - **Body:**
 
 ```json
@@ -490,17 +562,19 @@ Create or update quality gate thresholds.
   "minHealthScore": 70,
   "maxVulnerabilities": 3,
   "maxDuplicationPct": 8.0,
-  "maxComplexityScore": null,
+  "maxComplexityCount": null,
   "blockPR": true
 }
 ```
 
 - **Success `200`:** returns the updated gate object (same shape as GET)
-- **Errors:** `400` validation (minHealthScore must be 0-100, etc.) | `403` not owner
+- **Errors:** `400` validation (minHealthScore must be 0-100, etc.) | `403` not owner/admin
+
+> `maxComplexityCount` is an **integer count** of complexity-category findings (matches `HealthSnapshot.complexityCount`), not a "complexity score" — the scoring algorithm (`scoring_algorithm.md`) never produces a standalone complexity sub-score, only a finding count.
 
 ---
 
-## 7. Notifications
+## 8. Notifications
 
 ### `GET /api/notifications`
 
@@ -545,7 +619,7 @@ Mark all notifications as read.
 
 ---
 
-## 8. Mobile-Specific Endpoints
+## 9. Mobile-Specific Endpoints
 
 ### `POST /api/devices`
 
@@ -575,21 +649,7 @@ Register a device for push notifications.
 
 - **Errors:** `409` token already registered (returns existing device)
 
-> **⚠️ FLAG:** This requires a `Device` model not yet in the Prisma schema. Add:
-> ```prisma
-> model Device {
->   id             String  @id @default(cuid())
->   expoPushToken  String  @unique
->   platform       String  // "ios" | "android"
->   deviceName     String?
->   active         Boolean @default(true)
->   userId         String
->   user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
->   createdAt      DateTime @default(now())
->   updatedAt      DateTime @updatedAt
->   @@index([userId])
-> }
-> ```
+> The `Device` model is defined in `database_design.md` §2/§3.8 and the schema at `packages/db/prisma/schema.prisma`.
 
 ### `DELETE /api/devices/:deviceId`
 
@@ -659,7 +719,7 @@ Quick-view code smells for a repo (latest snapshot), optimized for mobile card l
 
 ---
 
-## 9. Common Patterns
+## 10. Common Patterns
 
 ### Error Response Shape
 
@@ -714,7 +774,7 @@ Authorization: Bearer <jwt-token>
 
 ---
 
-## 10. Endpoint Summary Table
+## 11. Endpoint Summary Table
 
 | # | Method | Path | Auth | Purpose |
 |---|---|---|---|---|
@@ -723,31 +783,34 @@ Authorization: Bearer <jwt-token>
 | 3 | `GET` | `/auth/me` | Bearer | Get current user |
 | 4 | `POST` | `/auth/logout` | Bearer | Invalidate session |
 | 5 | `POST` | `/webhooks/github` | HMAC | Receive GitHub events |
-| 6 | `GET` | `/api/repos` | Bearer | List linked repos |
+| 6 | `GET` | `/api/repos` | Bearer | List repos user can see |
 | 7 | `GET` | `/api/repos/available` | Bearer | List unlinkable GitHub repos |
-| 8 | `POST` | `/api/repos` | Bearer | Link a repository |
-| 9 | `DELETE` | `/api/repos/:repoId` | Bearer | Unlink a repository |
+| 8 | `POST` | `/api/repos` | Bearer | Link a repository (auto-promotes to Team Lead) |
+| 9 | `DELETE` | `/api/repos/:repoId` | Bearer (owner/admin) | Unlink a repository |
 | 10 | `GET` | `/api/repos/:repoId` | Bearer | Repo detail + latest snapshot |
-| 11 | `GET` | `/api/repos/:repoId/trend` | Bearer | Health score trend data |
-| 12 | `GET` | `/api/repos/:repoId/debt` | Bearer | Debt summary by category |
-| 13 | `GET` | `/api/repos/:repoId/hotspots` | Bearer | Worst files by findings |
-| 14 | `GET` | `/api/repos/:repoId/pulls` | Bearer | List PRs |
-| 15 | `GET` | `/api/repos/:repoId/pulls/:prNumber` | Bearer | PR detail + snapshots |
-| 16 | `GET` | `/api/snapshots/:snapshotId/findings` | Bearer | Findings for a snapshot |
-| 17 | `POST` | `/api/repos/:repoId/analyze` | Bearer | Trigger manual analysis |
-| 18 | `GET` | `/api/repos/:repoId/quality-gate` | Bearer | Get gate config |
-| 19 | `PUT` | `/api/repos/:repoId/quality-gate` | Bearer | Set gate config |
-| 20 | `GET` | `/api/notifications` | Bearer | List notifications |
-| 21 | `PATCH` | `/api/notifications/:id/read` | Bearer | Mark one read |
-| 22 | `PATCH` | `/api/notifications/read-all` | Bearer | Mark all read |
-| 23 | `POST` | `/api/devices` | Bearer | Register push device |
-| 24 | `DELETE` | `/api/devices/:deviceId` | Bearer | Unregister device |
-| 25 | `GET` | `/api/mobile/summary` | Bearer | Mobile home screen data |
-| 26 | `GET` | `/api/mobile/repos/:repoId/smells` | Bearer | Mobile code smell view |
+| 11 | `GET` | `/api/repos/:repoId/members` | Bearer (owner/member/admin) | List repo members |
+| 12 | `POST` | `/api/repos/:repoId/members` | Bearer (owner/admin) | Add a developer to a repo |
+| 13 | `DELETE` | `/api/repos/:repoId/members/:userId` | Bearer (owner/admin) | Remove a repo member |
+| 14 | `GET` | `/api/repos/:repoId/trend` | Bearer | Health score trend data |
+| 15 | `GET` | `/api/repos/:repoId/debt` | Bearer | Debt summary by category |
+| 16 | `GET` | `/api/repos/:repoId/hotspots` | Bearer | Worst files by findings |
+| 17 | `GET` | `/api/repos/:repoId/pulls` | Bearer | List PRs |
+| 18 | `GET` | `/api/repos/:repoId/pulls/:prNumber` | Bearer | PR detail + snapshots |
+| 19 | `GET` | `/api/snapshots/:snapshotId/findings` | Bearer | Findings for a snapshot |
+| 20 | `POST` | `/api/repos/:repoId/analyze` | Bearer (owner/admin) | Trigger manual analysis |
+| 21 | `GET` | `/api/repos/:repoId/quality-gate` | Bearer | Get gate config |
+| 22 | `PUT` | `/api/repos/:repoId/quality-gate` | Bearer (owner/admin) | Set gate config |
+| 23 | `GET` | `/api/notifications` | Bearer | List notifications |
+| 24 | `PATCH` | `/api/notifications/:id/read` | Bearer | Mark one read |
+| 25 | `PATCH` | `/api/notifications/read-all` | Bearer | Mark all read |
+| 26 | `POST` | `/api/devices` | Bearer | Register push device |
+| 27 | `DELETE` | `/api/devices/:deviceId` | Bearer | Unregister device |
+| 28 | `GET` | `/api/mobile/summary` | Bearer | Mobile home screen data |
+| 29 | `GET` | `/api/mobile/repos/:repoId/smells` | Bearer | Mobile code smell view |
 
 ---
 
-## 10. Observability & Admin Endpoints
+## 12. Observability & Admin Endpoints
 
 ### `GET /health`
 
@@ -777,7 +840,7 @@ Health check for API service liveness and dependency status.
 
 Application-level operational statistics.
 
-- **Auth:** Required (admin or authenticated user)
+- **Auth:** Required, `role: ADMIN` only (see §2 Roles & Authorization)
 - **Response `200`:**
 
 ```json
@@ -812,16 +875,18 @@ Bull Board web UI for real-time BullMQ job queue monitoring.
 
 ---
 
-## 11. Scope Gaps Flagged
+## 13. Scope Gaps Flagged
 
 | # | Gap | Impact | Recommendation |
 |---|---|---|---|
 | 1 | **`GET /api/repos/available`** not in original scope | Frontend cannot show a repo picker without it | Add to Sprint 1 — simple GitHub API proxy |
-| 2 | **`Device` model** missing from Prisma schema | Cannot store push tokens for mobile | Add model (schema shown in §8 above) |
-| 3 | **`GET /api/mobile/summary`** not in original scope | Mobile will make 3+ calls on launch without it | Add as convenience endpoint — aggregates existing queries |
-| 4 | **Snapshot status SSE/WebSocket** | Frontend has no way to know when an analysis completes without polling | Options: (a) poll `GET /api/repos/:repoId` every 10s, (b) add SSE endpoint `/api/events`. Recommend polling for MVP, SSE in Sprint 2 |
-| 5 | **`resolvedIssues` count on PRs** | Frontend wants to show "this PR fixed N issues" | Requires worker to compute resolved count during isNew comparison — add to worker pipeline |
+| 2 | **`GET /api/mobile/summary`** not in original scope | Mobile will make 3+ calls on launch without it | Add as convenience endpoint — aggregates existing queries |
+| 3 | **Snapshot status SSE/WebSocket** | Frontend has no way to know when an analysis completes without polling | Options: (a) poll `GET /api/repos/:repoId` every 10s, (b) add SSE endpoint `/api/events`. Recommend polling for MVP, SSE in Sprint 2 |
+| 4 | **`resolvedIssues` count on PRs** | Frontend wants to show "this PR fixed N issues" | Requires worker to compute resolved count during isNew comparison — add to worker pipeline |
+| 5 | **No admin-promotion endpoint** | First `ADMIN` must be set directly in the DB; existing admins cannot promote others via the API | Acceptable for MVP (small, trusted team). Add `PATCH /api/users/:userId/role` (admin-only) post-MVP if needed. |
+
+> Resolved since the previous revision of this document: the `Device` model gap (now in `database_design.md` §2/§3.8) and the missing user-role/repo-membership model (now `UserRole` enum + `RepositoryMember`, §2 above and `database_design.md` §3.7).
 
 ---
 
-*This document serves as the API contract. Frontend and mobile teammates can start building against these shapes immediately using mock data. All types should be codified in `packages/shared/src/types/api.ts`. Total endpoint count: 29 (26 REST + 3 observability/admin).*
+*This document serves as the API contract. Frontend and mobile teammates can start building against these shapes immediately using mock data. All types should be codified in `packages/shared/src/types/api.ts`. Total endpoint count: 32 (29 REST + 3 observability/admin).*

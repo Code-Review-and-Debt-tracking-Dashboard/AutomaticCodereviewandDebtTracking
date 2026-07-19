@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Lint all workspaces. `--include-workspace-root` keeps this a safe
+      # no-op (exit 0) until apps/*, packages/* get a package.json — without
+      # it, `--workspaces` hard-fails with "No workspaces found!" today.
+      - run: npm run lint --workspaces --include-workspace-root --if-present
+
+      # TypeScript type checking
+      - run: npm run typecheck --workspaces --include-workspace-root --if-present

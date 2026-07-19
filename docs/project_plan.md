@@ -9,6 +9,8 @@
 
 ### WBS-A: Backend API (Owner: You — Team Lead)
 
+> Five endpoint tasks that were originally listed here — A-14, A-20, A-21, A-23, A-31 — have been moved into WBS-D/WBS-C/WBS-E below and are cross-trained to the teammate who owns the page/screen that consumes them. They keep their original `A-xx` IDs (so `A-11 through A-23`-style ranges in A-25/A-27 below still resolve correctly), but physically live in their new owner's section now. See §1.1 for the full rationale.
+
 | ID | Task | Est. Hours | Dependencies |
 |---|---|---|---|
 | A-01 | Monorepo setup (root package.json, workspaces, tsconfig base) | 3h | None |
@@ -21,27 +23,23 @@
 | A-08 | Webhook event parsing (extract PR data, validate repo is linked) | 3h | A-07, C-03 |
 | A-09 | BullMQ queue setup (connection, queue definition, job dispatch) | 4h | A-02 |
 | A-10 | Job dispatch from webhook handler (enqueue analysis job) | 2h | A-08, A-09 |
-| A-11 | REST: GET/POST/DELETE /api/repos (list, link, unlink) | 5h | A-06, C-03 |
+| A-11 | REST: GET/POST/DELETE /api/repos (list, link, unlink) | 5h | A-06, A-32, C-03 |
 | A-12 | REST: GET /api/repos/:id (detail + latest snapshot) | 3h | A-11 |
 | A-13 | REST: GET /api/repos/:id/trend (health score over time range) | 3h | C-03 |
-| A-14 | REST: GET /api/repos/:id/debt (debt breakdown by category) | 2h | C-03 |
 | A-15 | REST: GET /api/repos/:id/hotspots (worst files) | 3h | C-03 |
 | A-16 | REST: GET /api/repos/:id/pulls + /:prNumber (PR list + detail) | 4h | C-03 |
 | A-17 | REST: GET /api/snapshots/:id/findings (paginated + filtered) | 4h | C-03 |
 | A-18 | REST: POST /api/repos/:id/analyze (manual trigger) | 2h | A-09 |
 | A-19 | REST: GET/PUT quality gate endpoints | 3h | C-03 |
-| A-20 | REST: notifications endpoints (list, mark read, mark all) | 3h | C-03 |
-| A-21 | REST: GET /api/repos/available (list user's GitHub repos) | 3h | A-06 |
 | A-22 | REST: mobile summary + smells endpoints | 3h | A-12, A-17 |
-| A-23 | REST: device registration endpoints (push tokens) | 2h | C-06 |
-| A-24 | Push notification dispatch service (Expo Push API) | 4h | A-23 |
+| A-24 | Push notification dispatch service (Expo Push API) | 4h | A-23 (see WBS-E) |
 | A-25 | Input validation middleware (zod schemas for all endpoints) | 4h | A-11 through A-23 |
 | A-26 | Rate limiting middleware | 2h | A-04 |
 | A-27 | API integration tests | 6h | A-11 through A-23 |
 | A-28 | Health check endpoints (`GET /health` for API + Worker) | 1h | A-04 |
 | A-29 | Structured logging setup (Pino + pino-pretty for dev) | 2h | A-04 |
 | A-30 | Bull Board dashboard (mount at `/admin/queues`) | 1h | A-09 |
-| A-31 | Application metrics endpoint (`GET /api/metrics`) | 2h | A-04, C-03 |
+| A-32 | Role-based authorization middleware + repo member endpoints (GET/POST/DELETE `/api/repos/:id/members`) | 4h | A-06, C-08 |
 
 ### WBS-B: Worker Service (Owner: You — Team Lead)
 
@@ -57,24 +55,25 @@
 | B-08 | jscpd analyzer wrapper (duplication detection) | 3h | B-03 |
 | B-09 | Checkstyle analyzer wrapper | 3h | B-03 |
 | B-10 | PMD analyzer wrapper | 3h | B-03 |
-| B-11 | SpotBugs analyzer wrapper | 3h | B-03 |
-| B-12 | Cppcheck analyzer wrapper | 3h | B-03 |
-| B-13 | Output normalizer (all tools → unified Finding shape) | 5h | B-04 to B-12 |
-| B-14 | Health Score computation function (pure, testable) | 4h | None (pure logic) |
-| B-15 | **Debt Score computation** (sum remediation minutes from cost table) | 3h | B-14 |
-| B-16 | Finding matcher (isNew / carriedOver / resolved classification) | 4h | B-14 |
-| B-17 | **Debt Delta computation** (current debt − baseline debt) | 2h | B-15, B-16 |
-| B-18 | Quality gate evaluator | 2h | B-14, C-03 |
-| B-19 | PR comment builder (markdown template — includes Health Score + **Debt summary + Debt Delta**) | 3h | B-14, B-15 |
-| B-20 | GitHub PR comment poster (Octokit, update existing comment) | 4h | B-19 |
-| B-21 | GitHub commit status poster (pass/fail) | 2h | B-18 |
-| B-22 | Result persistence (write snapshot + findings + **debtScore + debtDelta** to DB) | 4h | B-13, B-15, B-17, C-03 |
-| B-21 | Notification creation (gate fail, score drop, critical vuln) | 3h | B-20, A-24 |
-| B-22 | Cleanup stage (rm temp directory, always runs) | 2h | B-02 |
-| B-23 | Worker Docker image (multi-language runtimes) | 5h | B-04 to B-12 |
-| B-24 | Unit tests for scoring function | 3h | B-14 |
-| B-25 | Unit tests for normalizers | 4h | B-13 |
-| B-26 | Integration test: end-to-end analysis pipeline | 5h | B-01 to B-22 |
+| B-11 | Cppcheck analyzer wrapper | 3h | B-03 |
+| B-12 | Output normalizer (all tools → unified Finding shape) | 5h | B-04 to B-11 |
+| B-13 | Health Score computation function (pure, testable) | 4h | None (pure logic) |
+| B-14 | **Debt Score computation** (sum remediation minutes from cost table) | 3h | B-13 |
+| B-15 | Finding matcher (isNew / carriedOver / resolved classification) | 4h | B-13 |
+| B-16 | **Debt Delta computation** (current debt − baseline debt) | 2h | B-14, B-15 |
+| B-17 | Quality gate evaluator | 2h | B-13, C-03 |
+| B-18 | PR comment builder (markdown template — includes Health Score + **Debt summary + Debt Delta**) | 3h | B-13, B-14 |
+| B-19 | GitHub PR comment poster (Octokit, update existing comment) | 4h | B-18 |
+| B-20 | GitHub commit status poster (pass/fail) | 2h | B-17 |
+| B-21 | Result persistence (write snapshot + findings + **debtScore + debtDelta + gateResult** to DB) | 4h | B-12, B-14, B-16, C-03 |
+| B-22 | Notification creation (gate fail, score drop, critical vuln) | 3h | B-19, A-24 |
+| B-23 | Cleanup stage (rm temp directory, always runs) | 2h | B-02 |
+| B-24 | Worker Docker image (multi-language runtimes) | 5h | B-04 to B-11 |
+| B-25 | Unit tests for scoring function | 3h | B-13 |
+| B-26 | Unit tests for normalizers | 4h | B-12 |
+| B-27 | Integration test: end-to-end analysis pipeline | 5h | B-01 to B-23 |
+
+> **Note:** SpotBugs (previously B-11) has been dropped — it analyzes compiled Java bytecode, and this worker only does a shallow `git clone` (no build step), so it cannot run as designed. It was also never part of the locked tool stack in `CLAUDE.md` or the pipeline in `system_architecture.md` §3.2. Java security coverage for this project comes from PMD's rule set only (see `tool_matrix.md`).
 
 ### WBS-C: Database (Owner: Teammate 2)
 
@@ -87,6 +86,8 @@
 | C-05 | Database index validation (EXPLAIN ANALYZE on key queries) | 3h | C-04 |
 | C-06 | Add Device model for push tokens | 2h | C-01 |
 | C-07 | Migration for schema updates during development | ongoing | C-02 |
+| C-08 | Add UserRole enum + `role` field on User + RepositoryMember model | 2h | C-01 |
+| A-31 | *(cross-trained from WBS-A)* REST: Application metrics endpoint (`GET /api/metrics`, admin-only) | 2h | A-04, C-03 |
 
 ### WBS-D: Frontend Web Dashboard (Owner: Teammate 1)
 
@@ -98,15 +99,18 @@
 | D-04 | GitHub OAuth login page + callback handler | 5h | D-03, A-05 (API contract) |
 | D-05 | API client module (axios/fetch wrapper, auth interceptor) | 4h | D-01 |
 | D-06 | Repo list page (cards grid, search, filter, sort) | 6h | D-05, A-11 (API contract) |
+| A-21 | *(cross-trained from WBS-A)* REST: GET /api/repos/available (list user's GitHub repos) | 3h | A-06 |
 | D-07 | Link repository modal (fetch available repos, link action) | 4h | D-06, A-21 |
 | D-08 | HealthGauge component (circular SVG score indicator) | 4h | D-02 |
 | D-09 | Repo detail page — hero section + tab layout | 5h | D-06, A-12 |
 | D-10 | Trend line chart — **Health Score + Debt Score** dual-axis (Recharts, time range selector) | 6h | D-09, A-13 |
+| A-14 | *(cross-trained from WBS-A)* REST: GET /api/repos/:id/debt (debt breakdown by category) | 2h | C-03 |
 | D-11 | **Debt breakdown chart** (Recharts donut/bar — category: vuln/complexity/dup/smell) | 4h | D-09, A-14 |
 | D-12 | Hotspot table (worst files, sortable) | 4h | D-09, A-15 |
 | D-13 | PR scan history table (**includes debt delta indicator ▲/▼ per PR**) | 4h | D-09, A-16 |
 | D-14 | PR finding drill-down page (filter bar, finding cards) | 6h | D-13, A-17 |
 | D-15 | Quality gate configuration page (sliders, toggles, save) | 5h | D-09, A-19 |
+| A-20 | *(cross-trained from WBS-A)* REST: notifications endpoints (list, mark read, mark all) | 3h | C-03 |
 | D-16 | Notification bell + dropdown in topbar | 4h | D-03, A-20 |
 | D-17 | Loading states, empty states, error boundaries | 4h | D-06 to D-16 |
 | D-18 | Responsive layout adjustments (1024px–1920px) | 3h | D-03 to D-16 |
@@ -123,6 +127,7 @@
 | E-05 | Home screen — repo list with sparklines | 5h | E-04, A-22 |
 | E-06 | Repo summary screen (gauge, trend, category bars, top issues) | 6h | E-05, A-22 |
 | E-07 | Notification screen (list, mark read, swipe) | 4h | E-04, A-20 |
+| A-23 | *(cross-trained from WBS-A)* REST: device registration endpoints (push tokens) | 2h | C-06 |
 | E-08 | Push notification setup (Expo Notifications, device registration) | 5h | E-03, A-23 |
 | E-09 | Push notification handling (foreground/background, tap navigation) | 4h | E-08 |
 | E-10 | Mobile UI polish (loading states, pull-to-refresh, empty states) | 4h | E-05 to E-09 |
@@ -139,44 +144,55 @@
 | F-06 | Final report (including before/after comparison) | 10h | All dev done |
 | F-07 | Marketing video script + recording (10-15 min) | 8h | All dev done |
 
----
+### 1.1 Task Load Audit & Cross-Training Rationale
+
+**Hour totals per person, summed across their WBS sections:**
+
+| Person | Sections | Total Hours | Weeks | Avg h/week |
+|---|---|---|---|---|
+| You (Team Lead) | WBS-A (101h) + WBS-B (91h) + WBS-F (56h) | ~248h | 15 | ~16.5h |
+| Teammate 1 | WBS-D (86h) | ~86h | 15 | ~5.7h |
+| Teammate 2 | WBS-C (20h) + WBS-E (42h) | ~62h | 15 | ~4.1h |
+
+
 
 ## 2. Week-by-Week Schedule
 
 **Assumption:** Each person can commit ~15-20 hours/week. Exam periods reduce this to ~8-10h/week.
 
-| Week | Dates | You (Backend/Worker/Docs) | Teammate 1 (Frontend) | Teammate 2 (DB + Mobile) | Milestone |
+| Week | Dates | You (Backend/Worker/Docs) | Teammate 1 (Frontend + cross-trained backend) | Teammate 2 (DB + Mobile + cross-trained backend) | Milestone |
 |---|---|---|---|---|---|
 | **1** | Jun 22–28 | A-01 monorepo, A-02 Docker Compose, F-01 proposal start | D-01 Vite scaffold, D-02 design system | C-01 Prisma schema | — |
 | **2** | Jun 29–Jul 5 | A-03 CI pipeline, A-04 Express scaffold + A-28 health check + A-29 Pino logging, F-01 finish | D-02 finish, D-03 layout shell | C-01 finish, C-02 migration, C-03 client pkg | **📋 Proposal due Jul 5** |
 | **3** | Jul 6–12 | A-05 OAuth, F-02 feasibility + Gantt | D-05 API client, D-04 login page (mock API) | C-04 seed script, E-01 Expo scaffold | **📋 Feasibility due Jul 12** |
-| **4** | Jul 13–19 | A-06 auth middleware, A-07 webhook endpoint | D-06 repo list page (use seed data) | E-02 tab navigator, E-03 mobile auth start |  |
-| **5** | Jul 20–26 | A-08 webhook parsing, A-09 BullMQ setup + A-30 Bull Board, A-10 dispatch | D-06 finish, D-07 link repo modal | C-05 index validation, E-03 finish, E-04 API client |  |
-| **6** | Jul 27–Aug 2 | A-11 repo CRUD, A-12 repo detail, A-21 available repos | D-08 HealthGauge, D-09 repo detail page start | E-05 home screen, C-06 Device model | ⚠️ API auth working by Jul 27 |
-| **7** | Aug 3–9 | A-13 trend, A-14 debt, A-15 hotspots, A-31 metrics endpoint, F-03 SRS, F-04 arch doc | D-04 connect real OAuth, D-06 connect real API, D-09 finish | E-05 finish, E-06 repo summary start | ⚠️ Dashboard showing real DB data by Aug 9 |
+| **4** | Jul 13–19 | A-06 auth middleware, A-07 webhook endpoint | D-06 repo list page (use seed data) | E-02 tab navigator, E-03 mobile auth start, C-08 role + membership models |  |
+| **5** | Jul 20–26 | A-08 webhook parsing, A-09 BullMQ setup + A-30 Bull Board, A-10 dispatch, A-32 role middleware + member endpoints | D-06 finish, D-07 link repo modal, **A-21 available repos (own endpoint, reviewed by you)** | C-05 index validation, E-03 finish, E-04 API client |  |
+| **6** | Jul 27–Aug 2 | A-11 repo CRUD, A-12 repo detail | D-08 HealthGauge, D-09 repo detail page start, **A-14 debt endpoint (own endpoint, reviewed by you)** | E-05 home screen, C-06 Device model | ⚠️ API auth working by Jul 27 |
+| **7** | Aug 3–9 | A-13 trend, A-15 hotspots, F-03 SRS, F-04 arch doc | D-04 connect real OAuth, D-06 connect real API, D-09 finish | E-05 finish, E-06 repo summary start, **A-23 device registration + A-31 metrics endpoint (own endpoints, reviewed by you)** | ⚠️ Dashboard showing real DB data by Aug 9 |
 | — | **Aug 9** | — | — | — | **📋 SRS + Architecture due** |
 | **8** | Aug 10–16 | A-16 PR endpoints, A-17 findings, A-18 manual trigger | D-10 trend chart, D-11 debt chart | E-06 finish, E-07 notifications | **📋 Progress Review 1 (Aug 10-14)** |
 | **9** | Aug 17–23 | B-01 worker scaffold, B-02 clone, B-03 detect | D-12 hotspot table, D-13 PR scan table | E-08 push notification setup | Mid Eval period |
 | **10** | Aug 24–30 | B-04 ESLint wrapper, B-05 PyLint, B-06 Bandit, B-07 Radon | D-14 PR finding drill-down | E-09 push handling, E-10 polish start | **Mid Eval ends Aug 30** |
-| **11** | Aug 31–Sep 6 | B-08 jscpd, B-09–B-12 Java/C++ wrappers, B-13 normalizer | D-15 quality gate config page | E-10 finish | |
-| **12** | Sep 7–13 | B-14 scoring fn, B-15 matcher, B-16 gate eval, B-17–B-19 PR comment + status | D-16 notification bell, D-17 loading/error states | C-07 migrations, mobile bug fixes | |
-| **13** | Sep 14–20 | B-20 persistence, B-21 notifications, B-22 cleanup, A-19 gate endpoints, A-20 notif endpoints | D-18 responsive, D-19 tests | Integration testing all apps | |
-| **14** | Sep 21–27 | B-23 Docker image, B-24–B-26 tests, A-24–A-27 push + tests, F-05 testing doc | Frontend bug fixes, test fixes | Mobile bug fixes, test fixes | **📋 Testing doc due Sep 27** |
+| **11** | Aug 31–Sep 6 | B-08 jscpd, B-09–B-11 Java/C++ wrappers, B-12 normalizer | D-15 quality gate config page, **A-20 notification endpoints (own endpoint, reviewed by you)** | E-10 finish | |
+| **12** | Sep 7–13 | B-13 scoring fn, B-14 debt score, B-15 matcher, B-16 debt delta, B-17 gate eval, B-18 PR comment builder | D-16 notification bell, D-17 loading/error states | C-07 migrations, mobile bug fixes | |
+| **13** | Sep 14–20 | B-19 PR comment poster, B-20 commit status poster, B-21 persistence, B-22 notifications, B-23 cleanup, A-19 gate endpoints | D-18 responsive, D-19 tests | Integration testing all apps | |
+| **14** | Sep 21–27 | B-24 Docker image, B-25–B-27 tests, A-24–A-27 push + tests, F-05 testing doc | Frontend bug fixes, test fixes | Mobile bug fixes, test fixes | **📋 Testing doc due Sep 27** |
 | **15** | Sep 28–Oct 3 | F-06 final report, F-07 marketing video | Video demo help, final polish | Video demo help, final polish | **📋 Review 2, Video, Final report + zip** |
 
 ### Dependency Chain (Critical Path)
 
 ```
 C-01 schema → C-02 migration → C-03 client pkg ──→ ALL API endpoints (A-11+)
-                                                  ──→ ALL worker DB writes (B-20)
+                                                  ──→ ALL worker DB writes (B-21)
+             → C-08 role + membership models ────→ A-32 role middleware ──→ A-11+
 
-A-05 OAuth  → A-06 auth middleware ──→ ALL protected endpoints (A-11+)
-                                    ──→ D-04 real login page
+A-05 OAuth  → A-06 auth middleware ──→ A-32 role middleware ──→ ALL protected endpoints (A-11+)
+                                                              ──→ D-04 real login page
 
 A-09 BullMQ → B-01 worker scaffold → B-02 clone → B-03 detect → B-04+ analyzers
-                                                                → B-13 normalize
-                                                                → B-14 score
-                                                                → B-20 persist
+                                                                → B-12 normalize
+                                                                → B-13 score
+                                                                → B-21 persist
 
 API contract (JSON shapes in api_design.md) → D-05 API client → ALL frontend pages
                                              → E-04 mobile client → ALL mobile screens
@@ -213,7 +229,7 @@ Ranked from **safest to cut** to **must keep at all costs**:
 | Priority | Feature | Can Cut? | Impact of Cutting |
 |---|---|---|---|
 | 1 (cut first) | **C/C++ analysis (Cppcheck)** | ✅ Safe | Least common language in target audience. Demo with JS/TS + Python + Java is sufficient. |
-| 2 | **Java analysis (Checkstyle + PMD + SpotBugs)** | ✅ Safe | Three tools, most complex setup (JRE). Demo with JS/TS + Python covers the concept. |
+| 2 | **Java analysis (Checkstyle + PMD)** | ✅ Safe | Two tools, added setup (JRE). Demo with JS/TS + Python covers the concept. |
 | 3 | **Mobile push notifications** | ✅ Safe | In-app notifications on mobile still work. Push is impressive but not evaluable without a physical device at review. |
 | 4 | **Quality gate PR blocking** (commit status posting) | ⚠️ Moderate | Quality gate config + score display still works. Just skip the GitHub commit status API call. Comment-only is still valuable. |
 | 5 | **File hotspot analysis** (worst files endpoint + UI) | ⚠️ Moderate | Nice-to-have dashboard feature. Trend charts + finding list are more important. |

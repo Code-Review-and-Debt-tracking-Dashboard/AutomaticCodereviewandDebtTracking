@@ -42,22 +42,34 @@ enum PRStatus {
   MERGED
 }
 
+enum UserRole {
+  ADMIN      // platform administrator — sees all repos, access to /api/metrics
+  TEAM_LEAD  // links/unlinks repos, configures quality gates, manages members
+  DEVELOPER  // read-only access to repos they are a member of
+}
+
+enum GateResult {
+  PASS
+  FAIL
+}
+
 // ─── Models ────────────────────────────────────────────────────────
 
 model User {
-  id            String         @id @default(cuid())
-  githubId      Int            @unique
+  id            String              @id @default(cuid())
+  githubId      Int                 @unique
   username      String
   email         String?
   avatarUrl     String?
-  accessToken   String         // encrypted at rest (AES-256)
-  repositories  Repository[]
+  accessToken   String              // encrypted at rest (AES-256)
+  role          UserRole            @default(DEVELOPER)
+  repositories  Repository[]        // repos this user owns (as Team Lead)
+  memberships   RepositoryMember[]  // repos this user has been added to
   notifications Notification[]
   sessions      Session[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  @@index([githubId])
+  devices       Device[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 }
 
 model Session {
@@ -73,29 +85,46 @@ model Session {
 }
 
 model Repository {
-  id            String           @id @default(cuid())
-  githubRepoId  Int              @unique
-  name          String           // e.g. "my-project"
-  fullName      String           // e.g. "username/my-project"
-  defaultBranch String           @default("main")
-  language      String?          // primary language detected by GitHub
-  webhookId     String?          // GitHub webhook ID for cleanup on unlink
-  isActive      Boolean          @default(true)
+  id            String              @id @default(cuid())
+  githubRepoId  Int                 @unique
+  name          String              // e.g. "my-project"
+  fullName      String              // e.g. "username/my-project"
+  defaultBranch String              @default("main")
+  language      String?             // primary language detected by GitHub
+  webhookId     String?             // GitHub webhook ID for cleanup on unlink
+  isActive      Boolean             @default(true)
 
-  userId        String
-  owner         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String              // owner (Team Lead) — linked the repo, controls gate config
+  owner         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  members       RepositoryMember[]  // developers with read access to this repo
 
   pullRequests  PullRequest[]
   snapshots     HealthSnapshot[]
   qualityGate   QualityGate?
   notifications Notification[]
 
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([userId])
-  @@index([githubRepoId])
   @@index([fullName])
+}
+
+// Connects a User (typically DEVELOPER role) to a Repository they can view.
+// The owning Team Lead is implicitly a member via Repository.userId and does
+// not need a row here. Created when a Team Lead adds a developer by GitHub
+// username (POST /api/repos/:repoId/members).
+model RepositoryMember {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repoId     String
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  addedAt    DateTime   @default(now())
+
+  @@unique([userId, repoId])
+  @@index([repoId])
 }
 
 model PullRequest {
@@ -120,7 +149,6 @@ model PullRequest {
 
   @@unique([repoId, prNumber])
   @@index([repoId])
-  @@index([repoId, prNumber])
   @@index([status])
 }
 
@@ -143,6 +171,7 @@ model HealthSnapshot {
   totalIssues        Int             @default(0)
   linesOfCode        Int             @default(0)
   status             AnalysisStatus  @default(PENDING)
+  gateResult         GateResult?     // PASS/FAIL — set by worker Stage 6 (GATE); null if no gate configured
   triggeredBy        String          @default("webhook") // "webhook" | "manual"
   errorMessage       String?
   rawMetrics         Json?           // full per-tool JSON output for debugging/audit
@@ -200,7 +229,7 @@ model QualityGate {
   minHealthScore     Float    @default(60)    // fail if healthScore < this
   maxVulnerabilities Int?                      // fail if vulnerabilityCount > this (null = no limit)
   maxDuplicationPct  Float?                    // fail if duplicationPct > this (null = no limit)
-  maxComplexityScore Float?                    // fail if complexity sub-score > this (null = no limit)
+  maxComplexityCount Int?                      // fail if complexityCount > this (null = no limit)
   blockPR            Boolean  @default(false)  // if true, post failing GitHub commit status
 
   repoId             String   @unique
@@ -232,4 +261,20 @@ model Notification {
   // ── Indexes ──
   @@index([userId, read, createdAt(sort: Desc)])  // unread notifications feed
   @@index([userId, createdAt(sort: Desc)])         // all notifications for user
+}
+
+model Device {
+  id            String   @id @default(cuid())
+  expoPushToken String   @unique
+  platform      String   // "ios" | "android"
+  deviceName    String?
+  active        Boolean  @default(true)
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }

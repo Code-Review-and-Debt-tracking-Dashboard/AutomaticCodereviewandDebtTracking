@@ -20,9 +20,10 @@
 | **Python** | Complexity + MI | Radon | 6.x | ✅ Active | MIT | Cyclomatic complexity + maintainability index |
 | **Java** | Style | Checkstyle | 10.x | ✅ Active | LGPL-2.1 | Works on Spring Boot, Android, plain Java, etc. |
 | **Java** | Complexity / Smells | PMD | 7.x | ✅ Active | BSD-4-Clause | Source-level; includes CPD |
-| **Java** | Security / Bugs | SpotBugs | 4.9.x | ✅ Active | LGPL-2.1 | Bytecode analysis |
 | **C/C++** | All categories | Cppcheck | 2.21.x | ✅ Active | GPL-3.0 | ⚠️ GPL — see §6 |
 | **All** | Duplication | jscpd | 5.x | ✅ Active | MIT | v5 rewritten in Rust (24-37x faster) |
+
+> **SpotBugs dropped from this matrix.** An earlier revision listed SpotBugs for Java security/bug analysis, but SpotBugs analyzes **compiled bytecode** (it needs a `.class`/`.jar` output, invoked as `spotbugs -textui -xml:withMessages <classes-dir>`). Our worker pipeline only does a shallow `git clone --depth=1` — it never runs a Maven/Gradle build — so there is no bytecode for SpotBugs to analyze. Adding a build step for every cloned Java repo (unknown build tool, unknown dependencies, unknown JDK version) was judged out of scope for this project. See the Java row in §3 Coverage Gap Analysis for the resulting gap and mitigation.
 
 ### Why Language-Level Analysis Covers All Frameworks
 
@@ -35,7 +36,7 @@
 | Express, NestJS, Fastify | TypeScript / JavaScript | ESLint + typescript-eslint + eslint-plugin-security |
 | React Native, Expo | TypeScript / JavaScript | ESLint + typescript-eslint + eslint-plugin-security |
 | Django, Flask, FastAPI | Python | PyLint + Bandit + Radon |
-| Spring Boot, Android (Java) | Java | Checkstyle + PMD + SpotBugs |
+| Spring Boot, Android (Java) | Java | Checkstyle + PMD |
 | Any C/C++ project | C / C++ | Cppcheck |
 
 ---
@@ -54,11 +55,10 @@
 | Radon | ✅ Standard for Python complexity/MI metrics. |
 | Checkstyle | ✅ v10.x actively maintained. |
 | PMD | ✅ v7.x with improved Java 21+ support. |
-| SpotBugs | ✅ v4.9.x, compatible with JDK 25. |
 | Cppcheck | ✅ v2.21.0 (Jun 2026). Monthly releases. |
 | jscpd | ✅ v5 rewritten in Rust. Massively faster. |
 
-No tool replacements required for the analysis engine. All 11 tools are actively maintained.
+No tool replacements required for the analysis engine. All 10 tools are actively maintained.
 
 ---
 
@@ -68,7 +68,7 @@ No tool replacements required for the analysis engine. All 11 tools are actively
 |---|---|---|---|---|---|---|
 | **JS/TS** | eslint-plugin-security | ESLint `complexity` rule | jscpd | ESLint + TS-ESLint | — | ⚠️ No dedicated maintainability index tool (see below) |
 | **Python** | Bandit | Radon (CC) | jscpd | PyLint | Radon (MI) | ✅ Full coverage |
-| **Java** | SpotBugs | PMD (CyclomaticComplexity rule) | jscpd (+ PMD CPD built-in) | Checkstyle | — | ⚠️ No maintainability index (see below) |
+| **Java** | PMD `security` category (2 rules — hardcoded crypto keys/IVs only) | PMD (CyclomaticComplexity rule) | jscpd (+ PMD CPD built-in) | Checkstyle | — | ⚠️ Thin security coverage (see Gap 3 below); no maintainability index (see below) |
 | **C/C++** | Cppcheck | Cppcheck (partial) | jscpd | Cppcheck | — | ⚠️ Complexity coverage is shallow; no MI |
 
 ### Identified Gaps
@@ -80,6 +80,11 @@ No tool replacements required for the analysis engine. All 11 tools are actively
 **Gap 2: Java has no standalone maintainability index.**
 - PMD provides CyclomaticComplexity and NPathComplexity rules but not a Halstead/MI metric.
 - **Mitigation:** Same proxy approach. Alternatively, PMD CPD can supplement jscpd for Java-specific duplication.
+
+**Gap 3: Java security coverage is thin.**
+- SpotBugs would have given deeper security/bug coverage, but it requires analyzing compiled bytecode, and our worker never builds the cloned repo (see the note in §1) — so it cannot run in this pipeline as designed.
+- PMD's `category/java/security.xml` ruleset only has two rules (`HardCodedCryptoKey`, `InsecureCryptoIv`) — nowhere near Bandit's breadth for Python.
+- **Mitigation:** Accept this as a known MVP limitation and document it plainly (this paragraph). If Java security depth becomes a priority later, adding a build step (detect Maven/Gradle, run `mvn compile`/`gradle build`, then run SpotBugs on the output) would be the fix — but it adds significant complexity (unknown build tool, dependency resolution, JDK version matching) for a "safe to cut" language per the Cut List in `project_plan.md`.
 
 **Gap 3: C/C++ complexity analysis is shallow in Cppcheck.**
 - Cppcheck focuses on bug detection, not complexity measurement. It has limited complexity heuristics.
@@ -195,7 +200,6 @@ export default [
 | Bandit | Apache-2.0 | ✅ No concern (permissive) |
 | Radon | MIT | ✅ No concern |
 | Checkstyle | LGPL-2.1 | ✅ LGPL allows use as a tool without "infecting" your code |
-| SpotBugs | LGPL-2.1 | ✅ Same as Checkstyle — fine for tool use |
 | PMD | BSD-4-Clause | ✅ Permissive |
 | **PyLint** | **GPL-2.0** | ⚠️ **Potential concern** — see below |
 | **Cppcheck** | **GPL-3.0** | ⚠️ **Potential concern** — see below |
@@ -224,10 +228,9 @@ How each tool is invoked in the worker's analysis pipeline:
 | Radon | `radon cc <dir> -j` / `radon mi <dir> -j` | JSON object keyed by file | Native JSON parse |
 | Checkstyle | `java -jar checkstyle.jar -f xml -c /google_checks.xml <dir>` | XML | Parse with `fast-xml-parser` |
 | PMD | `pmd check -d <dir> -R rulesets/java/quickstart.xml -f json` | JSON | Native JSON parse |
-| SpotBugs | `spotbugs -textui -xml:withMessages <classes-dir>` | XML | Parse with `fast-xml-parser` |
 | Cppcheck | `cppcheck --enable=all --xml <dir> 2>&1` | XML (stderr) | Parse with `fast-xml-parser` |
 | jscpd | `jscpd <dir> --reporters json --output <tmp>` | JSON file | Read + JSON parse |
 
 ---
 
-*This document validates the tool matrix as of June 2026. All 11 analysis engine tools are actively maintained. The analysis engine is framework-agnostic — it operates at the language level (JS/TS, Python, Java, C/C++) and works on any framework built on those languages.*
+*This document validates the tool matrix as of June 2026. All 10 analysis engine tools are actively maintained. The analysis engine is framework-agnostic — it operates at the language level (JS/TS, Python, Java, C/C++) and works on any framework built on those languages.*

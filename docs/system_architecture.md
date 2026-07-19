@@ -248,20 +248,27 @@ This also means:
                      │
   ┌──────────────────▼──────────────────────────────────┐
   │  STAGE 5: SCORE                                     │
-  │  • Apply weighted formula:                          │
-  │    HS = 0.25×smells + 0.20×complexity +             │
-  │         0.20×duplication + 0.20×security +           │
-  │         0.15×maintainability                        │
-  │  • Each sub-score: max(0, 100 - (issues/LOC)×k)    │
-  │  Output: healthScore (float 0-100) + sub-scores    │
+  │  • Apply the penalty-based formula from             │
+  │    scoring_algorithm.md (start at 100, deduct per   │
+  │    finding by category weight × severity           │
+  │    multiplier × diminishing-return factor, plus a   │
+  │    continuous duplication-% penalty, normalized by  │
+  │    linesOfCode for repos > 1000 LOC)                │
+  │  • Also computes debtMinutes (SQALE-style           │
+  │    remediation-cost sum, no diminishing returns)    │
+  │  Output: healthScore (float 0-100) + debtMinutes    │
   └──────────────────┬──────────────────────────────────┘
                      │
   ┌──────────────────▼──────────────────────────────────┐
   │  STAGE 6: GATE                                      │
-  │  • Fetch QualityGate config for this repo           │
-  │  • Compare healthScore against minHealthScore       │
+  │  • Fetch QualityGate config for this repo (or       │
+  │    built-in defaults if none configured)            │
+  │  • Compare healthScore/vulnerabilityCount/           │
+  │    duplicationPct/complexityCount against the       │
+  │    configured thresholds                            │
   │  • Determine: PASS or FAIL                          │
-  │  Output: gateResult { passed: boolean, reason }     │
+  │  Output: gateResult (GateResult enum, persisted on  │
+  │  the HealthSnapshot in Stage 8)                     │
   └──────────────────┬──────────────────────────────────┘
                      │
   ┌──────────────────▼──────────────────────────────────┐
@@ -274,11 +281,12 @@ This also means:
                      │
   ┌──────────────────▼──────────────────────────────────┐
   │  STAGE 8: PERSIST                                   │
-  │  • Write Analysis record (score, metrics, status)   │
+  │  • Write HealthSnapshot record (score, metrics,     │
+  │    debtMinutes, debtDelta, gateResult, status)      │
   │  • Create Notification records if gate failed or    │
   │    score dropped >10 points from last analysis      │
-  │  • Update analysis status → COMPLETED               │
-  │  Output: analysisId                                 │
+  │  • Update snapshot status → COMPLETED               │
+  │  Output: snapshotId                                 │
   └──────────────────┬──────────────────────────────────┘
                      │
   ┌──────────────────▼──────────────────────────────────┐
