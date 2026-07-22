@@ -270,80 +270,26 @@ AutomaticCodereviewandDebtTracking/
 
 ## 6. Database Schema (Prisma — Outline)
 
-```prisma
-model User {
-  id            String   @id @default(cuid())
-  githubId      Int      @unique
-  username      String
-  email         String?
-  avatarUrl     String?
-  accessToken   String   // encrypted
-  repositories  Repository[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
+> **Note:** This early sketch has been superseded. The authoritative schema now lives in `packages/db/prisma/schema.prisma` (Prisma 7.x), with the full ER diagram, embedded schema, and rationale in `docs/database_design.md`. The outline below reflects the **current** model set — consult those docs for exact fields, enums, and indexes.
 
-model Repository {
-  id            String   @id @default(cuid())
-  githubRepoId  Int      @unique
-  name          String
-  fullName      String   // e.g. "user/repo"
-  owner         User     @relation(fields: [ownerId], references: [id])
-  ownerId       String
-  defaultBranch String   @default("main")
-  isActive      Boolean  @default(true)
-  qualityGate   QualityGate?
-  analyses      Analysis[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
+**Models (12):**
 
-model Analysis {
-  id            String   @id @default(cuid())
-  repository    Repository @relation(fields: [repoId], references: [id])
-  repoId        String
-  commitSha     String
-  branch        String
-  prNumber      Int?
-  healthScore   Float    // 0-100
-  metrics       Json     // { complexity, duplication, smells, security, ... }
-  status        AnalysisStatus @default(PENDING)
-  triggeredBy   String   // "webhook" | "manual"
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime @default(now())
-}
+- `User` — GitHub identity + `platformRole` (`PlatformRole`). No raw token is stored here.
+- `GitHubCredential` — OAuth token, kept in its own 1:1 table (isolated from `User`).
+- `Session` — stores only a token **hash**, never the raw session token.
+- `Repository` — a linked repo; `ownerId` → `User`.
+- `RepositoryMember` — per-repo membership: `RepositoryRole` + `MemberStatus`.
+- `PullRequest` — PR metadata, `PRStatus`.
+- `AnalysisJob` — one row per analysis run: `AnalysisStatus`, `AnalysisTrigger`, `bullJobId`. Holds the **mutable** job lifecycle.
+- `HealthSnapshot` — **immutable** result of a completed job (1:1 with `AnalysisJob`): `healthScore`, `debtScore`, `debtDeltaMinutes`, `gateResult` (`GateResult`), `calculatedAt`.
+- `Finding` — an individual issue: `Severity`, `FindingCategory`, `FindingState` (NEW / EXISTING / RESOLVED), plus a denormalized `repoId`.
+- `QualityGate` — per-repo thresholds (min health score, max critical findings, max code-smell count, block-PR flag).
+- `Notification` — `NotificationType`; "read" is derived from a nullable `readAt` timestamp, not a boolean.
+- `Device` — push tokens per `DevicePlatform`.
 
-model QualityGate {
-  id              String   @id @default(cuid())
-  repository      Repository @relation(fields: [repoId], references: [id])
-  repoId          String   @unique
-  minHealthScore  Float    @default(60)
-  maxComplexity   Float?
-  maxDuplication  Float?
-  blockPR         Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
+**Enums:** `PlatformRole`, `RepositoryRole`, `MemberStatus`, `AnalysisStatus`, `AnalysisTrigger`, `Severity`, `FindingCategory`, `FindingState`, `PRStatus`, `GateResult`, `NotificationType`, `DevicePlatform`.
 
-model Notification {
-  id          String   @id @default(cuid())
-  userId      String
-  type        String   // "pr_review" | "quality_gate_fail" | "score_drop"
-  title       String
-  body        String
-  data        Json?
-  read        Boolean  @default(false)
-  createdAt   DateTime @default(now())
-}
-
-enum AnalysisStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-}
-```
+> **Key design decisions** (full rationale in `database_design.md` §3): `AnalysisJob` is split from `HealthSnapshot` so the mutable run lifecycle stays separate from the immutable result; GitHub tokens live in their own table; sessions store only a hash; and roles use a dual axis — platform-wide (`PlatformRole`) vs per-repository (`RepositoryRole`). The schema ships as a **single baseline `init` migration** with a lean, deliberately-chosen index set.
 
 ---
 
@@ -426,7 +372,7 @@ Each sub-score normalization: `score = max(0, 100 - (issue_count / lines_of_code
 | API Framework | Express | 4.x | HTTP server, routing, middleware |
 | Job Queue | BullMQ | 5.x | Redis-backed async job processing |
 | Database | PostgreSQL | 15+ | Primary data store |
-| ORM | Prisma | 5.x | Type-safe DB access, migrations |
+| ORM | Prisma | 7.x | Type-safe DB access, migrations |
 | Cache/Queue Backend | Redis | 7.x | BullMQ backend + optional caching |
 | Web Frontend | React + Vite | 18+ / 5.x | Dashboard SPA |
 | Mobile | React Native + Expo | 0.74+ / 51+ | Mobile companion app |

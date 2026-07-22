@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
 CREATE TYPE "PlatformRole" AS ENUM ('ADMIN', 'USER');
 
@@ -175,7 +178,6 @@ CREATE TABLE "HealthSnapshot" (
     "analysisId" TEXT NOT NULL,
     "repoId" TEXT NOT NULL,
     "calculatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "HealthSnapshot_pkey" PRIMARY KEY ("id")
 );
@@ -258,9 +260,6 @@ CREATE UNIQUE INDEX "User_githubId_key" ON "User"("githubId");
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 
 -- CreateIndex
-CREATE INDEX "User_username_idx" ON "User"("username");
-
--- CreateIndex
 CREATE INDEX "User_platformRole_idx" ON "User"("platformRole");
 
 -- CreateIndex
@@ -271,9 +270,6 @@ CREATE UNIQUE INDEX "GitHubCredential_userId_key" ON "GitHubCredential"("userId"
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Session_tokenHash_key" ON "Session"("tokenHash");
-
--- CreateIndex
-CREATE INDEX "Session_userId_idx" ON "Session"("userId");
 
 -- CreateIndex
 CREATE INDEX "Session_expiresAt_idx" ON "Session"("expiresAt");
@@ -288,22 +284,10 @@ CREATE UNIQUE INDEX "Repository_githubRepoId_key" ON "Repository"("githubRepoId"
 CREATE UNIQUE INDEX "Repository_webhookId_key" ON "Repository"("webhookId");
 
 -- CreateIndex
-CREATE INDEX "Repository_ownerId_idx" ON "Repository"("ownerId");
-
--- CreateIndex
 CREATE INDEX "Repository_fullName_idx" ON "Repository"("fullName");
 
 -- CreateIndex
-CREATE INDEX "Repository_isActive_idx" ON "Repository"("isActive");
-
--- CreateIndex
 CREATE INDEX "Repository_ownerId_isActive_idx" ON "Repository"("ownerId", "isActive");
-
--- CreateIndex
-CREATE INDEX "RepositoryMember_repoId_idx" ON "RepositoryMember"("repoId");
-
--- CreateIndex
-CREATE INDEX "RepositoryMember_userId_idx" ON "RepositoryMember"("userId");
 
 -- CreateIndex
 CREATE INDEX "RepositoryMember_repoId_status_idx" ON "RepositoryMember"("repoId", "status");
@@ -313,12 +297,6 @@ CREATE INDEX "RepositoryMember_addedById_idx" ON "RepositoryMember"("addedById")
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RepositoryMember_userId_repoId_key" ON "RepositoryMember"("userId", "repoId");
-
--- CreateIndex
-CREATE INDEX "PullRequest_repoId_idx" ON "PullRequest"("repoId");
-
--- CreateIndex
-CREATE INDEX "PullRequest_status_idx" ON "PullRequest"("status");
 
 -- CreateIndex
 CREATE INDEX "PullRequest_repoId_status_idx" ON "PullRequest"("repoId", "status");
@@ -331,12 +309,6 @@ CREATE UNIQUE INDEX "PullRequest_repoId_prNumber_key" ON "PullRequest"("repoId",
 
 -- CreateIndex
 CREATE UNIQUE INDEX "AnalysisJob_bullJobId_key" ON "AnalysisJob"("bullJobId");
-
--- CreateIndex
-CREATE INDEX "AnalysisJob_repoId_idx" ON "AnalysisJob"("repoId");
-
--- CreateIndex
-CREATE INDEX "AnalysisJob_status_idx" ON "AnalysisJob"("status");
 
 -- CreateIndex
 CREATE INDEX "AnalysisJob_repoId_status_idx" ON "AnalysisJob"("repoId", "status");
@@ -354,19 +326,10 @@ CREATE INDEX "AnalysisJob_repoId_queuedAt_idx" ON "AnalysisJob"("repoId", "queue
 CREATE UNIQUE INDEX "HealthSnapshot_analysisId_key" ON "HealthSnapshot"("analysisId");
 
 -- CreateIndex
-CREATE INDEX "HealthSnapshot_repoId_idx" ON "HealthSnapshot"("repoId");
-
--- CreateIndex
 CREATE INDEX "HealthSnapshot_repoId_calculatedAt_idx" ON "HealthSnapshot"("repoId", "calculatedAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "HealthSnapshot_gateResult_idx" ON "HealthSnapshot"("gateResult");
-
--- CreateIndex
 CREATE INDEX "HealthSnapshot_calculatedAt_idx" ON "HealthSnapshot"("calculatedAt" DESC);
-
--- CreateIndex
-CREATE INDEX "Finding_snapshotId_idx" ON "Finding"("snapshotId");
 
 -- CreateIndex
 CREATE INDEX "Finding_snapshotId_category_idx" ON "Finding"("snapshotId", "category");
@@ -387,25 +350,13 @@ CREATE INDEX "Finding_repoId_severity_idx" ON "Finding"("repoId", "severity");
 CREATE INDEX "Finding_repoId_state_idx" ON "Finding"("repoId", "state");
 
 -- CreateIndex
-CREATE INDEX "Finding_severity_idx" ON "Finding"("severity");
-
--- CreateIndex
-CREATE INDEX "Finding_category_idx" ON "Finding"("category");
-
--- CreateIndex
 CREATE UNIQUE INDEX "QualityGate_repoId_key" ON "QualityGate"("repoId");
-
--- CreateIndex
-CREATE INDEX "Notification_userId_idx" ON "Notification"("userId");
 
 -- CreateIndex
 CREATE INDEX "Notification_repoId_idx" ON "Notification"("repoId");
 
 -- CreateIndex
 CREATE INDEX "Notification_snapshotId_idx" ON "Notification"("snapshotId");
-
--- CreateIndex
-CREATE INDEX "Notification_userId_readAt_idx" ON "Notification"("userId", "readAt");
 
 -- CreateIndex
 CREATE INDEX "Notification_userId_createdAt_idx" ON "Notification"("userId", "createdAt" DESC);
@@ -418,9 +369,6 @@ CREATE UNIQUE INDEX "Device_expoPushToken_key" ON "Device"("expoPushToken");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Device_installationId_key" ON "Device"("installationId");
-
--- CreateIndex
-CREATE INDEX "Device_userId_idx" ON "Device"("userId");
 
 -- CreateIndex
 CREATE INDEX "Device_userId_active_idx" ON "Device"("userId", "active");
