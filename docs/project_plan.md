@@ -59,13 +59,13 @@
 | B-12 | Output normalizer (all tools → unified Finding shape) | 5h | B-04 to B-11 |
 | B-13 | Health Score computation function (pure, testable) | 4h | None (pure logic) |
 | B-14 | **Debt Score computation** (sum remediation minutes from cost table) | 3h | B-13 |
-| B-15 | Finding matcher (isNew / carriedOver / resolved classification) | 4h | B-13 |
+| B-15 | Finding matcher (set `FindingState`: NEW / EXISTING / RESOLVED vs baseline) | 4h | B-13 |
 | B-16 | **Debt Delta computation** (current debt − baseline debt) | 2h | B-14, B-15 |
 | B-17 | Quality gate evaluator | 2h | B-13, C-03 |
 | B-18 | PR comment builder (markdown template — includes Health Score + **Debt summary + Debt Delta**) | 3h | B-13, B-14 |
 | B-19 | GitHub PR comment poster (Octokit, update existing comment) | 4h | B-18 |
 | B-20 | GitHub commit status poster (pass/fail) | 2h | B-17 |
-| B-21 | Result persistence (write snapshot + findings + **debtScore + debtDelta + gateResult** to DB) | 4h | B-12, B-14, B-16, C-03 |
+| B-21 | Result persistence (write immutable HealthSnapshot + findings with **debtScore + debtDeltaMinutes + gateResult**, and transition the AnalysisJob status) | 4h | B-12, B-14, B-16, C-03 |
 | B-22 | Notification creation (gate fail, score drop, critical vuln) | 3h | B-19, A-24 |
 | B-23 | Cleanup stage (rm temp directory, always runs) | 2h | B-02 |
 | B-24 | Worker Docker image (multi-language runtimes) | 5h | B-04 to B-11 |
@@ -86,7 +86,7 @@
 | C-05 | Database index validation (EXPLAIN ANALYZE on key queries) | 3h | C-04 |
 | C-06 | Add Device model for push tokens | 2h | C-01 |
 | C-07 | Migration for schema updates during development | ongoing | C-02 |
-| C-08 | Add UserRole enum + `role` field on User + RepositoryMember model | 2h | C-01 |
+| C-08 | Add role model: `PlatformRole` enum (+ `platformRole` on User) and per-repo `RepositoryRole`/`MemberStatus` on the `RepositoryMember` model | 2h | C-01 |
 | A-31 | *(cross-trained from WBS-A)* REST: Application metrics endpoint (`GET /api/metrics`, admin-only) | 2h | A-04, C-03 |
 
 ### WBS-D: Frontend Web Dashboard (Owner: Teammate 1)

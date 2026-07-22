@@ -93,7 +93,7 @@
 | Label | Boundary Crossed | Payload | Protocol |
 |---|---|---|---|
 | **[A]** | GitHub → API | Webhook JSON (`pull_request` event) + HMAC signature header | HTTPS POST |
-| **[B]** | API → Redis | BullMQ job data: `{ repoId, prNumber, commitSha, cloneUrl, accessToken }` | Redis protocol (TCP) |
+| **[B]** | API → Redis | BullMQ job data: `{ analysisId, repoId, prNumber, commitSha, cloneUrl }` (no raw token — the worker loads and decrypts the owner's token from `GitHubCredential` when needed) | Redis protocol (TCP) |
 | **[C]** | Redis → Worker | Same job data dequeued by BullMQ processor | Redis protocol (TCP) |
 | **[D]** | API → PostgreSQL | Prisma-generated SQL (SELECT, INSERT for repos, users, notifications) | PostgreSQL wire protocol |
 | **[E]** | Worker → PostgreSQL | Prisma-generated SQL (INSERT/UPDATE analysis results, notification records) | PostgreSQL wire protocol |
@@ -281,12 +281,14 @@ This also means:
                      │
   ┌──────────────────▼──────────────────────────────────┐
   │  STAGE 8: PERSIST                                   │
-  │  • Write HealthSnapshot record (score, metrics,     │
-  │    debtMinutes, debtDelta, gateResult, status)      │
+  │  • Write HealthSnapshot result row (score, metrics, │
+  │    debtMinutes, debtDeltaMinutes, gateResult),      │
+  │    linked 1:1 to this AnalysisJob via analysisId    │
   │  • Create Notification records if gate failed or    │
   │    score dropped >10 points from last analysis      │
-  │  • Update snapshot status → COMPLETED               │
-  │  Output: snapshotId                                 │
+  │  • Set AnalysisJob.status → COMPLETED (status lives │
+  │    on the job, not the snapshot)                    │
+  │  Output: snapshotId, analysisId                     │
   └──────────────────┬──────────────────────────────────┘
                      │
   ┌──────────────────▼──────────────────────────────────┐
