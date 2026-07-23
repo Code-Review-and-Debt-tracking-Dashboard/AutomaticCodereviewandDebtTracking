@@ -169,3 +169,33 @@ export async function handleGithubCallback(
     },
   };
 }
+
+export interface CurrentUser {
+  id: string;
+  username: string;
+  email: string | null;
+  avatarUrl: string | null;
+  platformRole: string;
+  createdAt: Date;
+}
+
+/**
+ * Fetches the caller of `GET /auth/me` (api_design.md §1). The token can
+ * outlive the user row (e.g. deleted account), so a missing user is treated
+ * the same as an invalid token — `401 UNAUTHORIZED` — rather than a 404.
+ */
+export async function getAuthenticatedUser(userId: string): Promise<CurrentUser> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Missing or invalid auth token');
+  }
+
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+    platformRole: user.platformRole,
+    createdAt: user.createdAt,
+  };
+}
