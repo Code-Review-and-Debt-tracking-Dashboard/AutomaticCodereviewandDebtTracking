@@ -1,0 +1,364 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =========================================================
+   LIGHT THEME
+========================================================= */
+
+:root {
+  /* =======================================================
+     CORE COLORS
+  ======================================================= */
+
+  --background: 222 47% 98%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  /* =======================================================
+     BRAND — ELECTRIC INDIGO / BLUE
+  ======================================================= */
+
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+
+  --accent: 239 84% 96%;
+  --accent-foreground: 239 84% 45%;
+
+  /* =======================================================
+     SEMANTIC COLORS
+  ======================================================= */
+
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Cyan-blue information accent */
+  --info: 185 90% 48%;
+  --info-foreground: 0 0% 100%;
+
+  /* =======================================================
+     BORDERS / FORMS
+  ======================================================= */
+
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 239 84% 67%;
+
+  /* =======================================================
+     SIDEBAR
+  ======================================================= */
+
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 222 47% 11%;
+  --sidebar-border: 220 13% 91%;
+
+  /* =======================================================
+     RADIUS
+  ======================================================= */
+
+  --radius: 0.98rem;
+}
+
+
+/* =========================================================
+   DARK THEME — NAVY TECHNOLOGY STYLE
+========================================================= */
+
+.dark {
+  /* Main page background
+     Deep navy, not pure black */
+  --background: 222 55% 5%;
+
+  --foreground: 210 40% 98%;
+
+
+  /* Main cards
+     Slightly lighter than the background */
+  --card: 222 52% 9%;
+  --card-foreground: 210 40% 98%;
+
+
+  /* Dropdowns / popovers */
+  --popover: 222 52% 10%;
+  --popover-foreground: 210 40% 98%;
+
+
+  /* =======================================================
+     BRAND
+  ======================================================= */
+
+  /* Electric indigo */
+  --primary: 239 84% 70%;
+  --primary-foreground: 222 55% 6%;
+
+
+  /* =======================================================
+     SECONDARY / MUTED
+  ======================================================= */
+
+  --secondary: 217 38% 14%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217 38% 14%;
+  --muted-foreground: 215 20% 65%;
+
+
+  /* Soft indigo accent */
+  --accent: 239 40% 18%;
+  --accent-foreground: 239 84% 80%;
+
+
+  /* =======================================================
+     SEMANTIC COLORS
+  ======================================================= */
+
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Cyan technology accent */
+  --info: 185 90% 48%;
+  --info-foreground: 0 0% 100%;
+
+
+  /* =======================================================
+     NAVY BLUE BORDERS
+  ======================================================= */
+
+  --border: 215 45% 24%;
+  --input: 215 45% 20%;
+  --ring: 239 84% 70%;
+
+
+  /* =======================================================
+     SIDEBAR
+  ======================================================= */
+
+  --sidebar: 222 58% 6%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 215 45% 18%;
+}
+
+
+/* =========================================================
+   BASE STYLES
+========================================================= */
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+
+/* =========================================================
+   TEXT SELECTION
+========================================================= */
+
+::selection {
+  background: hsl(var(--primary) / 0.25);
+  color: hsl(var(--foreground));
+}
+
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.55);
+}
+
+
+/* =========================================================
+   FOCUS
+========================================================= */
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   REUSABLE VISUAL UTILITIES
+========================================================= */
+
+.glass {
+  background: hsl(var(--card) / 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+
+/* =========================================================
+   PRIMARY GRADIENT
+========================================================= */
+
+.gradient-primary {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary)),
+    hsl(260 84% 67%)
+  );
+}
+
+
+/* =========================================================
+   NAVY DASHBOARD BACKGROUND
+========================================================= */
+
+.gradient-background {
+  background:
+    radial-gradient(
+      circle at 0% 0%,
+      hsl(var(--primary) / 0.10),
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      hsl(var(--info) / 0.08),
+      transparent 35%
+    ),
+    hsl(var(--background));
+}
+
+
+/* =========================================================
+   CARD GLOW
+========================================================= */
+
+.card-glow {
+  box-shadow:
+    0 8px 30px hsla(198, 71%, 50%, 0.35);
+}
+
+.card-glow:hover {
+  box-shadow:
+    0 12px 40px hsl(var(--primary) / 0.18);
+}
+
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
