@@ -22,6 +22,14 @@ jobs:
 
       - run: npm ci
 
+      # Generates the Prisma Client into node_modules/@prisma/client.
+      # That output is gitignored and CI starts from a clean node_modules
+      # each run, so without this, `@codehealth/db` (and anything that
+      # imports it, e.g. apps/api) fails to typecheck with
+      # "Module '@prisma/client' has no exported member 'PrismaClient'".
+      # No DATABASE_URL needed — `generate` only reads the schema.
+      - run: npm run generate --workspace packages/db
+
       # Lint all workspaces. `--include-workspace-root` keeps this a safe
       # no-op (exit 0) until apps/*, packages/* get a package.json — without
       # it, `--workspaces` hard-fails with "No workspaces found!" today.
