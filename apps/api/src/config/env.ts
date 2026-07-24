@@ -18,6 +18,10 @@ export const env = {
   githubClientSecret: required('GITHUB_CLIENT_SECRET'),
   githubOAuthCallbackUrl: required('GITHUB_OAUTH_CALLBACK_URL'),
 
+  // Shared secret configured on the GitHub webhook (A-07); used to verify
+  // the X-Hub-Signature-256 HMAC-SHA256 signature on incoming payloads.
+  githubWebhookSecret: required('GITHUB_WEBHOOK_SECRET'),
+
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 

@@ -4,18 +4,25 @@ import helmet from 'helmet';
 
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth';
+import { webhookRouter } from './routes/webhooks';
 
 export function createApp(): Express {
   const app = express();
 
   app.use(helmet());
   app.use(cors());
+
+  // Must be mounted before express.json() — it parses its own body as a raw
+  // Buffer so the HMAC signature can be verified against the exact bytes
+  // GitHub sent (A-07).
+  app.use(webhookRouter);
+
   app.use(express.json());
 
   app.use(authRouter);
 
-  // Future routes (webhooks, /api/*) mount here — before the
-  // 404/error handlers below, which must stay last.
+  // Future routes (/api/*) mount here — before the 404/error handlers
+  // below, which must stay last.
 
   app.use(notFoundHandler);
   app.use(errorHandler);
