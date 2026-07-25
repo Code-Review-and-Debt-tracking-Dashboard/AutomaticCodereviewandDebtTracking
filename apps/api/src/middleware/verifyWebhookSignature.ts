@@ -8,7 +8,7 @@ import { AppError } from './errorHandler';
 const SIGNATURE_PREFIX = 'sha256=';
 
 /**
- * Verifies the GitHub `X-Hub-Signature-256` header (A-07, api_design.md §3)
+ * Verifies the GitHub `X-Hub-Signature-256` header 
  * against `GITHUB_WEBHOOK_SECRET`. Must run after a raw body parser — it
  * needs the exact bytes GitHub signed, so `req.body` is expected to be a
  * `Buffer`, not JSON already parsed by `express.json()`.

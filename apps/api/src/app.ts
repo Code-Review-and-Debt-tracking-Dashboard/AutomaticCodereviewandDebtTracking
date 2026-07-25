@@ -14,7 +14,6 @@ export function createApp(): Express {
 
   // Must be mounted before express.json() — it parses its own body as a raw
   // Buffer so the HMAC signature can be verified against the exact bytes
-  // GitHub sent (A-07).
   app.use(webhookRouter);
 
   app.use(express.json());
