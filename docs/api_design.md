@@ -32,14 +32,14 @@ GitHub redirects here after user approves. Exchanges code for token, creates/upd
     "username": "rumeshc",
     "email": "rumesh@example.com",
     "avatarUrl": "https://avatars.githubusercontent.com/u/12345",
-    "role": "DEVELOPER"
+    "platformRole": "USER"
   }
 }
 ```
 
 - **Errors:** `400` invalid/missing code | `502` GitHub API unreachable
 
-> New GitHub accounts default to `role: "DEVELOPER"` (see §2 Roles & Authorization). There is no self-service admin signup.
+> New GitHub accounts default to `platformRole: "USER"` (see §2 Roles & Authorization). There is no self-service admin signup. Per-repository roles (Team Lead / Developer / Viewer) are separate and are established by linking or being added to a repo.
 
 ### `GET /auth/me`
 
@@ -54,7 +54,7 @@ Returns the currently authenticated user.
   "username": "rumeshc",
   "email": "rumesh@example.com",
   "avatarUrl": "https://avatars.githubusercontent.com/u/12345",
-  "role": "DEVELOPER",
+  "platformRole": "USER",
   "createdAt": "2026-06-21T10:00:00Z"
 }
 ```
@@ -72,22 +72,32 @@ Invalidates the session.
 
 ## 2. Roles & Authorization
 
-Three roles exist on `User.role` (see `database_design.md` §3.7 for the schema rationale):
+Authorization has **two axes** (see `database_design.md` §3.7 for the schema rationale):
 
-| Role | Can do | Sees |
+**Platform role** — `User.platformRole` (`PlatformRole` enum):
+
+| Platform role | Can do | Sees |
 |---|---|---|
-| `ADMIN` | Everything a Team Lead can do, plus `GET /api/metrics` | All repositories |
-| `TEAM_LEAD` | Link/unlink repos, configure quality gates, trigger manual analysis, add/remove repo members | Repos they own |
-| `DEVELOPER` | Read-only: view findings, trends, hotspots; manage own notifications/devices | Repos where they are a `RepositoryMember` |
+| `ADMIN` | Everything, plus `GET /api/metrics`; may act on any repository | All repositories |
+| `USER` | Default. Capabilities depend on their per-repository relationship (below) | Repos they own or are a member of |
 
-**Defaults and promotion:**
-- Every new GitHub login defaults to `DEVELOPER`.
-- A `DEVELOPER` is auto-promoted to `TEAM_LEAD` the moment they successfully link their first repository (`POST /api/repos`) — owning a repo requires Team Lead permissions, so this happens transparently rather than requiring a manual role request.
-- `ADMIN` is never self-service. The first admin for a deployment is set directly in the database; existing admins cannot currently promote others via the API (no endpoint for this — out of scope for MVP).
+**Per-repository relationship** — repo ownership (`Repository.ownerId`) plus `RepositoryMember` rows carrying a `RepositoryRole` (`TEAM_LEAD` / `DEVELOPER` / `VIEWER`) and a `MemberStatus`:
 
-**How endpoints enforce this:** every route below that says "**Auth:** Required (must be owner)" means "the requester is the repo's `Repository.userId` (Team Lead owner) **or** has `role: ADMIN`." Routes open to `DEVELOPER`s additionally check for a `RepositoryMember` row (see the new member endpoints in §4).
+| Relationship | Can do |
+|---|---|
+| Owner (`Repository.ownerId`) | Link/unlink the repo, configure quality gates, trigger manual analysis, add/remove members |
+| Member, `TEAM_LEAD` | Same repo-management actions as the owner |
+| Member, `DEVELOPER` | Read-only: view findings, trends, hotspots; manage own notifications/devices |
+| Member, `VIEWER` | Read-only (reserved; not yet exercised in MVP) |
 
-**Error:** `403 FORBIDDEN` if the requester is authenticated but is neither the owner, a member, nor an admin.
+**Defaults:**
+- Every new GitHub login defaults to `platformRole: USER`.
+- Linking a repository (`POST /api/repos`) makes the caller that repo's **owner** (`ownerId`). There is no global role change — a user can own some repos while being a member of others.
+- `ADMIN` is never self-service. The first admin for a deployment is set directly in the database; there is no admin-promotion endpoint in MVP.
+
+**How endpoints enforce this:** every route below that says "**Auth:** Required (must be owner)" means "the requester is the repo's `Repository.ownerId`, is an `ACTIVE` `RepositoryMember` with `role = TEAM_LEAD`, **or** has `platformRole = ADMIN`." Read routes additionally accept any `ACTIVE` `RepositoryMember` (any repo role).
+
+**Error:** `403 FORBIDDEN` if the requester is authenticated but is neither the owner, an active member, nor a platform admin.
 
 ---
 
@@ -126,7 +136,7 @@ Receives GitHub webhook events. Must respond within 10 seconds.
 
 ### `GET /api/repos`
 
-List repositories the current user can see: repos they own (Team Lead), repos they are a member of (Developer), or all repos if `role: ADMIN`.
+List repositories the current user can see: repos they own, repos they are a member of, or all repos if `platformRole: ADMIN`.
 
 - **Auth:** Required
 - **Query:** `?page=1&limit=20&search=my-proj&sort=healthScore|name|updatedAt&order=asc|desc`
@@ -205,7 +215,7 @@ Link a GitHub repository and register webhook.
 
 - **Errors:** `409` already linked | `403` no admin access to repo on GitHub's side (not our platform role) | `502` webhook registration failed
 
-> If the requester's platform role is still `DEVELOPER`, a successful link auto-promotes them to `TEAM_LEAD` (see §2 Roles & Authorization). The response does not echo the new role — call `GET /auth/me` to refresh it client-side.
+> A successful link makes the caller the repo's **owner** (`Repository.ownerId`), which grants full repo-management rights on that repo (see §2 Roles & Authorization). The caller's platform role is unaffected.
 
 ### `DELETE /api/repos/:repoId`
 
@@ -270,6 +280,8 @@ List developers with read access to this repository (does not include the owner 
       "userId": "clusr...",
       "username": "vidushi",
       "avatarUrl": "https://avatars.githubusercontent.com/u/54321",
+      "role": "DEVELOPER",
+      "status": "ACTIVE",
       "addedAt": "2026-06-25T09:00:00Z"
     }
   ]
@@ -278,13 +290,13 @@ List developers with read access to this repository (does not include the owner 
 
 ### `POST /api/repos/:repoId/members`
 
-Grant a developer read access to this repository, by GitHub username.
+Grant a user access to this repository, by GitHub username.
 
 - **Auth:** Required (must be owner or `ADMIN`)
-- **Body:**
+- **Body:** `role` is optional and defaults to `DEVELOPER` (`RepositoryRole`: `TEAM_LEAD` | `DEVELOPER` | `VIEWER`):
 
 ```json
-{ "username": "vidushi" }
+{ "username": "vidushi", "role": "DEVELOPER" }
 ```
 
 - **Success `201`:** same shape as one item in the GET list above
@@ -362,6 +374,8 @@ Debt summary and breakdown by category.
   "snapshotId": "clsnap..."
 }
 ```
+
+> The `debtDelta` JSON field maps to the schema column `HealthSnapshot.debtDeltaMinutes` (both are minutes; negative = debt decreased). Per-severity counts (`criticalCount`, `highCount`, ...) are also available on the snapshot for callers that need them.
 
 ### `GET /api/repos/:repoId/hotspots`
 
@@ -465,6 +479,8 @@ Individual findings for a specific analysis snapshot.
 
 - **Auth:** Required
 - **Query:** `?category=VULNERABILITY|COMPLEXITY|DUPLICATION|CODE_SMELL|MAINTAINABILITY&severity=CRITICAL|HIGH|MEDIUM|LOW|INFO&isNew=true|false&file=src/...&page=1&limit=50`
+
+> `isNew` is a convenience filter derived from the schema's `Finding.state` enum: `isNew=true` ⇔ `state = NEW`, `isNew=false` ⇔ `state = EXISTING`. The per-finding `isNew` in the response body is likewise `state == NEW`.
 - **Success `200`:**
 
 ```json
@@ -507,10 +523,12 @@ Manually trigger analysis on the default branch.
 ```json
 {
   "message": "Analysis queued",
-  "snapshotId": "clsnap...",
+  "analysisId": "clanl...",
   "jobId": "bull-job-456"
 }
 ```
+
+> Returns the `AnalysisJob` id, not a snapshot id — a `HealthSnapshot` does not exist until the job completes. Poll `GET /api/repos/:repoId` (or the job) for the result.
 
 - **Errors:** `429` analysis already in progress for this repo
 
@@ -529,9 +547,11 @@ Get current quality gate config.
 {
   "id": "clgate...",
   "minHealthScore": 60,
+  "maxCriticalFindings": 0,
   "maxVulnerabilities": 5,
   "maxDuplicationPct": 10.0,
   "maxComplexityCount": null,
+  "maxCodeSmellCount": null,
   "blockPR": true,
   "repoId": "clxyz..."
 }
@@ -542,9 +562,11 @@ Get current quality gate config.
 ```json
 {
   "minHealthScore": 60,
+  "maxCriticalFindings": null,
   "maxVulnerabilities": null,
   "maxDuplicationPct": null,
   "maxComplexityCount": null,
+  "maxCodeSmellCount": null,
   "blockPR": false,
   "isDefault": true
 }
@@ -560,9 +582,11 @@ Create or update quality gate thresholds.
 ```json
 {
   "minHealthScore": 70,
+  "maxCriticalFindings": 0,
   "maxVulnerabilities": 3,
   "maxDuplicationPct": 8.0,
   "maxComplexityCount": null,
+  "maxCodeSmellCount": null,
   "blockPR": true
 }
 ```
@@ -589,7 +613,7 @@ Get notifications for current user.
   "data": [
     {
       "id": "clnotif...",
-      "type": "gate_fail",
+      "type": "QUALITY_GATE_FAILED",
       "title": "Quality Gate Failed",
       "body": "PR #42 on rumeshc/my-project scored 55/100 (minimum: 60)",
       "read": false,
@@ -602,6 +626,8 @@ Get notifications for current user.
   "unreadCount": 3
 }
 ```
+
+> `type` is a `NotificationType` enum value (e.g. `ANALYSIS_COMPLETED`, `QUALITY_GATE_FAILED`, `SCORE_DROPPED`, `CRITICAL_FINDING`, `MEMBER_ADDED`). The `read` boolean is derived from the schema's `readAt` timestamp (`read = readAt != null`); `PATCH .../read` sets `readAt`.
 
 ### `PATCH /api/notifications/:notificationId/read`
 
@@ -632,9 +658,12 @@ Register a device for push notifications.
 {
   "expoPushToken": "ExponentPushToken[xxxxxx]",
   "platform": "ios",
-  "deviceName": "iPhone 14 Pro"
+  "deviceName": "iPhone 14 Pro",
+  "installationId": "a1b2c3d4-..."
 }
 ```
+
+> `platform` (`ios`/`android`) maps to the `DevicePlatform` enum (`IOS`/`ANDROID`). `installationId` is optional; when supplied it lets the same app installation re-register idempotently (unique in the schema).
 
 - **Success `201`:**
 
@@ -785,7 +814,7 @@ Authorization: Bearer <jwt-token>
 | 5 | `POST` | `/webhooks/github` | HMAC | Receive GitHub events |
 | 6 | `GET` | `/api/repos` | Bearer | List repos user can see |
 | 7 | `GET` | `/api/repos/available` | Bearer | List unlinkable GitHub repos |
-| 8 | `POST` | `/api/repos` | Bearer | Link a repository (auto-promotes to Team Lead) |
+| 8 | `POST` | `/api/repos` | Bearer | Link a repository (caller becomes repo owner) |
 | 9 | `DELETE` | `/api/repos/:repoId` | Bearer (owner/admin) | Unlink a repository |
 | 10 | `GET` | `/api/repos/:repoId` | Bearer | Repo detail + latest snapshot |
 | 11 | `GET` | `/api/repos/:repoId/members` | Bearer (owner/member/admin) | List repo members |
@@ -840,7 +869,7 @@ Health check for API service liveness and dependency status.
 
 Application-level operational statistics.
 
-- **Auth:** Required, `role: ADMIN` only (see §2 Roles & Authorization)
+- **Auth:** Required, `platformRole: ADMIN` only (see §2 Roles & Authorization)
 - **Response `200`:**
 
 ```json
@@ -885,7 +914,7 @@ Bull Board web UI for real-time BullMQ job queue monitoring.
 | 4 | **`resolvedIssues` count on PRs** | Frontend wants to show "this PR fixed N issues" | Requires worker to compute resolved count during isNew comparison — add to worker pipeline |
 | 5 | **No admin-promotion endpoint** | First `ADMIN` must be set directly in the DB; existing admins cannot promote others via the API | Acceptable for MVP (small, trusted team). Add `PATCH /api/users/:userId/role` (admin-only) post-MVP if needed. |
 
-> Resolved since the previous revision of this document: the `Device` model gap (now in `database_design.md` §2/§3.8) and the missing user-role/repo-membership model (now `UserRole` enum + `RepositoryMember`, §2 above and `database_design.md` §3.7).
+> Resolved since the previous revision of this document: the `Device` model gap (now in `database_design.md` §2/§3.8) and the missing role/membership model (now `PlatformRole` + per-repo `RepositoryRole`/`RepositoryMember`, §2 above and `database_design.md` §3.7).
 
 ---
 

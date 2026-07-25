@@ -11,7 +11,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-
 // ================================================================
 // ENUMS
 // ================================================================
@@ -98,7 +97,6 @@ enum DevicePlatform {
   ANDROID
 }
 
-
 // ================================================================
 // USER AND AUTHENTICATION MODELS
 // ================================================================
@@ -122,7 +120,7 @@ model User {
   ownedRepositories Repository[] @relation("RepositoryOwner")
 
   // Repository memberships
-  memberships  RepositoryMember[] @relation("RepositoryMembership")
+  memberships RepositoryMember[] @relation("RepositoryMembership")
 
   // Membership records created by this user
   membersAdded RepositoryMember[] @relation("MembershipAddedBy")
@@ -133,11 +131,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([username])
   @@index([platformRole])
   @@index([active])
 }
-
 
 // GitHub OAuth credentials are separated from the normal user profile.
 // encryptedAccessToken must be encrypted before it is stored.
@@ -154,7 +150,6 @@ model GitHubCredential {
   updatedAt DateTime @updatedAt
 }
 
-
 // Store only a hash of the session or refresh token.
 // Do not store the original token.
 model Session {
@@ -168,11 +163,9 @@ model Session {
 
   createdAt DateTime @default(now())
 
-  @@index([userId])
   @@index([expiresAt])
   @@index([userId, revokedAt])
 }
-
 
 // ================================================================
 // REPOSITORY AND MEMBERSHIP MODELS
@@ -209,12 +202,9 @@ model Repository {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([ownerId])
   @@index([fullName])
-  @@index([isActive])
   @@index([ownerId, isActive])
 }
-
 
 // Explicit many-to-many relationship between users and repositories.
 // This stores repository-specific roles and membership information.
@@ -239,12 +229,9 @@ model RepositoryMember {
   updatedAt DateTime  @updatedAt
 
   @@unique([userId, repoId])
-  @@index([repoId])
-  @@index([userId])
   @@index([repoId, status])
   @@index([addedById])
 }
-
 
 // ================================================================
 // PULL REQUEST MODEL
@@ -278,12 +265,9 @@ model PullRequest {
   updatedAt DateTime @updatedAt
 
   @@unique([repoId, prNumber])
-  @@index([repoId])
-  @@index([status])
   @@index([repoId, status])
   @@index([repoId, updatedAt(sort: Desc)])
 }
-
 
 // ================================================================
 // ANALYSIS PROCESSING MODEL
@@ -327,14 +311,11 @@ model AnalysisJob {
   completedAt DateTime?
   updatedAt   DateTime  @updatedAt
 
-  @@index([repoId])
-  @@index([status])
   @@index([repoId, status])
   @@index([status, queuedAt])
   @@index([pullRequestId])
   @@index([repoId, queuedAt(sort: Desc)])
 }
-
 
 // ================================================================
 // HEALTH SNAPSHOT MODEL
@@ -394,14 +375,10 @@ model HealthSnapshot {
   notifications Notification[]
 
   calculatedAt DateTime @default(now())
-  createdAt    DateTime @default(now())
 
-  @@index([repoId])
   @@index([repoId, calculatedAt(sort: Desc)])
-  @@index([gateResult])
   @@index([calculatedAt(sort: Desc)])
 }
-
 
 // ================================================================
 // FINDING MODEL
@@ -420,7 +397,7 @@ model Finding {
   severity Severity
   category FindingCategory
   // Defaults to NEW because a finding is always freshly detected at creation.
-  state    FindingState @default(NEW)
+  state    FindingState    @default(NEW)
 
   rule    String
   message String
@@ -438,17 +415,13 @@ model Finding {
 
   createdAt DateTime @default(now())
 
-  @@index([snapshotId])
   @@index([snapshotId, category])
   @@index([snapshotId, severity])
   @@index([snapshotId, state])
   @@index([snapshotId, file])
   @@index([repoId, severity])
   @@index([repoId, state])
-  @@index([severity])
-  @@index([category])
 }
-
 
 // ================================================================
 // QUALITY GATE MODEL
@@ -461,7 +434,7 @@ model Finding {
 model QualityGate {
   id String @id @default(cuid())
 
-  minHealthScore      Float @default(60)
+  minHealthScore      Float  @default(60)
   maxCriticalFindings Int?
   maxVulnerabilities  Int?
   maxDuplicationPct   Float?
@@ -477,7 +450,6 @@ model QualityGate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
 
 // ================================================================
 // NOTIFICATION MODEL
@@ -508,14 +480,11 @@ model Notification {
 
   createdAt DateTime @default(now())
 
-  @@index([userId])
   @@index([repoId])
   @@index([snapshotId])
-  @@index([userId, readAt])
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, readAt, createdAt(sort: Desc)])
 }
-
 
 // ================================================================
 // MOBILE DEVICE MODEL
@@ -523,15 +492,15 @@ model Notification {
 
 // Stores Expo push-notification tokens for users' mobile devices.
 model Device {
-  id            String         @id @default(cuid())
-  expoPushToken String         @unique
-  platform      DevicePlatform
-  deviceName    String?
+  id             String         @id @default(cuid())
+  expoPushToken  String         @unique
+  platform       DevicePlatform
+  deviceName     String?
   // Unique identifier for a specific app installation on a device.
   // Used to prevent duplicate device registrations.
-  installationId String?       @unique
-  active        Boolean        @default(true)
-  lastUsedAt    DateTime?
+  installationId String?        @unique
+  active         Boolean        @default(true)
+  lastUsedAt     DateTime?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -539,6 +508,5 @@ model Device {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
   @@index([userId, active])
 }
