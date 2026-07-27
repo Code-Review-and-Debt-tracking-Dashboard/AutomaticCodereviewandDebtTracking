@@ -1,6 +1,8 @@
 import { prisma } from '@codehealth/db';
 import { Router } from 'express';
 
+import { logger } from '../lib/logger';
+
 export const healthRouter = Router();
 
 // Public liveness/readiness check — no auth. Used by uptime monitors and
@@ -10,7 +12,8 @@ healthRouter.get('/health', async (_req, res) => {
   let databaseOk = true;
   try {
     await prisma.$queryRaw`SELECT 1`;
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, 'Database health check failed');
     databaseOk = false;
   }
 

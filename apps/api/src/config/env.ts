@@ -13,6 +13,8 @@ function required(name: string): string {
 
 export const env = {
   port: Number(process.env.PORT) || 4000,
+  nodeEnv: process.env.NODE_ENV || 'development',
+  logLevel: process.env.LOG_LEVEL || 'info',
 
   githubClientId: required('GITHUB_CLIENT_ID'),
   githubClientSecret: required('GITHUB_CLIENT_SECRET'),
