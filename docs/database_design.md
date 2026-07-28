@@ -827,9 +827,18 @@ ORDER BY "calculatedAt" ASC;
 
 Every `HealthSnapshot` is already a completed result (it is written only when its `AnalysisJob` finishes), so no `status` filter is needed here.
 
-**Index used:** `@@index([repoId, calculatedAt(sort: Desc)])` — covers both the WHERE filter on `repoId` and the ORDER BY on `calculatedAt`. PostgreSQL can do an index-only scan for this query.
+**Index used:** `@@index([repoId, calculatedAt(sort: Desc)])` — covers both the WHERE filter on `repoId` and the ORDER BY on `calculatedAt`.
 
-**Verified:** ✅ Efficient. Even with 1,000+ snapshots per repo, this is a simple range scan on a composite B-tree index.
+**Verified (C-05, measured with `EXPLAIN ANALYZE`):** ✅ against a repo seeded with 200 snapshots (one per day for ~200 days), the planner used a Bitmap Index Scan on `HealthSnapshot_repoId_calculatedAt_idx` to find the 29 rows inside the 30-day window, then sorted them — 0.79ms buffer scan, 2.07ms total including planning. No Seq Scan at any row count tested.
+
+```
+Sort  (cost=31.27..31.35 rows=31 width=28) (actual time=1.459..1.460 rows=29 loops=1)
+  ->  Bitmap Heap Scan on "HealthSnapshot"  (actual time=0.787..0.791 rows=29 loops=1)
+        Recheck Cond: (("repoId" = $1) AND ("calculatedAt" >= now() - '30 days'::interval))
+        ->  Bitmap Index Scan on "HealthSnapshot_repoId_calculatedAt_idx"
+              Index Cond: (("repoId" = $1) AND ("calculatedAt" >= now() - '30 days'::interval))
+Execution Time: 2.069 ms
+```
 
 ---
 
@@ -851,7 +860,19 @@ LIMIT 5;
 - `@@index([snapshotId, file])` on Finding — groups findings by file within a snapshot
 - `@@index([repoId, calculatedAt(sort: Desc)])` on HealthSnapshot — to find the latest snapshot
 
-**Verified:** ✅ Efficient. The snapshotId filter narrows to one snapshot's findings, then the file index supports the GROUP BY.
+**Verified (C-05, measured with `EXPLAIN ANALYZE`):** ✅ against a snapshot with 4 findings, the planner used `HealthSnapshot_pkey` for the `hs.id = $2` lookup and a Bitmap Index Scan on `Finding_snapshotId_file_idx` for the join — 1.3ms total. Note the `hs."repoId" = $1` predicate here is applied as a post-scan **Filter**, not an index condition, because `hs."id" = $2` (the primary key) is already selective enough on its own; this is expected and correct.
+
+```
+->  Nested Loop  (actual time=0.084..0.087 rows=4 loops=1)
+      ->  Index Scan using "HealthSnapshot_pkey" on "HealthSnapshot" hs
+            Index Cond: (id = $2)
+            Filter: ("repoId" = $1)
+      ->  Bitmap Heap Scan on "Finding" f
+            Recheck Cond: ("snapshotId" = $2)
+            ->  Bitmap Index Scan on "Finding_snapshotId_file_idx"
+                  Index Cond: ("snapshotId" = $2)
+Execution Time: 1.325 ms
+```
 
 ---
 
@@ -867,7 +888,17 @@ ORDER BY "state", "severity";
 
 **Index used:** `@@index([snapshotId, state])` — directly supports filtering and grouping by state within a snapshot.
 
-**Verified:** ✅ Efficient. Single-snapshot scope means small working set.
+**Verified (C-05, measured with `EXPLAIN ANALYZE`):** ✅ 0.045ms execution. One caveat found during validation: the planner actually satisfied the `WHERE "snapshotId" = $1` filter via a Bitmap Index Scan on `Finding_snapshotId_file_idx`, not `Finding_snapshotId_state_idx` — both share `snapshotId` as their leading column, so either works for a plain equality filter, and Postgres picked whichever it happened to consider first. The `state`/`severity`/`category` grouping itself is done in memory (`GroupAggregate`) regardless of which index answered the `snapshotId` lookup, so this query doesn't exercise `[snapshotId, state]`'s second column at all — that index earns its keep on queries that also *filter* by state (e.g. "only NEW findings"), not this unfiltered breakdown.
+
+```
+GroupAggregate  (actual time=0.029..0.031 rows=4 loops=1)
+  Group Key: state, severity
+  ->  Bitmap Heap Scan on "Finding"  (actual time=0.015..0.015 rows=4 loops=1)
+        Recheck Cond: ("snapshotId" = $1)
+        ->  Bitmap Index Scan on "Finding_snapshotId_file_idx"
+              Index Cond: ("snapshotId" = $1)
+Execution Time: 0.045 ms
+```
 
 ---
 
@@ -922,6 +953,59 @@ Run only when the requesting user is not the repo's owner (`Repository.ownerId`,
 **Index used:** `@@unique([userId, repoId])` on `RepositoryMember` — implemented as a unique B-tree index, so this is a single-row point lookup.
 
 **Verified:** ✅ O(1) lookup. Runs on every protected repo-scoped request, so it must stay index-only — confirmed it is.
+
+---
+
+### Query 7: Repo List for a User (`GET /api/repos`)
+
+This query wasn't in the original Critical Query list because the route (`GET /api/repos`, `api_design.md` §"List repositories") isn't implemented yet. Constructed here from that endpoint's documented contract — owner-or-active-member visibility, sortable by `healthScore`/`name`/`updatedAt`, paginated, each row carrying its latest snapshot score and open-PR count — so C-05 (index validation) has something concrete to check it against. **Whoever implements the route should treat this as a starting point, not a finished spec — it hasn't been reviewed against the real handler code.**
+
+```sql
+SELECT
+  r.id, r.name, r."fullName", r.language, r."isActive", r."defaultBranch",
+  latest."healthScore" AS "latestScore",
+  latest."debtDeltaMinutes",
+  latest."calculatedAt" AS "lastAnalyzedAt",
+  (SELECT COUNT(*)::int FROM "PullRequest" pr WHERE pr."repoId" = r.id AND pr."status" = 'OPEN') AS "totalOpenPRs"
+FROM "Repository" r
+LEFT JOIN LATERAL (
+  SELECT hs."healthScore", hs."debtDeltaMinutes", hs."calculatedAt"
+  FROM "HealthSnapshot" hs
+  WHERE hs."repoId" = r.id
+  ORDER BY hs."calculatedAt" DESC
+  LIMIT 1
+) latest ON true
+WHERE r."ownerId" = $1
+   OR EXISTS (
+     SELECT 1 FROM "RepositoryMember" rm
+     WHERE rm."repoId" = r.id AND rm."userId" = $1 AND rm."status" = 'ACTIVE'
+   )
+ORDER BY latest."healthScore" DESC NULLS LAST
+LIMIT 20 OFFSET 0;
+```
+
+**Indexes used:**
+- `@@index([repoId, calculatedAt(sort: Desc)])` on `HealthSnapshot` — the `LATERAL` join for each repo's latest snapshot.
+- `@@unique([userId, repoId])` on `RepositoryMember` — the membership `EXISTS` check.
+- `@@index([repoId, status])` on `PullRequest` — the open-PR count subquery.
+
+**Verified (C-05, measured with `EXPLAIN ANALYZE`, 2,005-row `Repository` table — 5 real repos + 2,000 seeded "noise" repos owned by other users):** ✅ fast (0.99ms total) but with a genuine finding, not a clean pass:
+
+```
+Limit  (actual time=0.906..0.927 rows=5 loops=1)
+  ->  Sort  (actual time=0.884..0.886 rows=5 loops=1)
+        Sort Key: hs."healthScore" DESC NULLS LAST
+        ->  Nested Loop Left Join  (actual time=0.061..0.866 rows=5 loops=1)
+              ->  Seq Scan on "Repository" r  (actual time=0.038..0.761 rows=5 loops=1)
+                    Filter: (("ownerId" = $1) OR (ANY (id = (hashed SubPlan).col1)))
+                    Rows Removed by Filter: 2000
+              ->  Limit  (actual time=0.020..0.020 rows=1 loops=5)
+                    ->  Index Scan using "HealthSnapshot_repoId_calculatedAt_idx" on "HealthSnapshot" hs
+                          Index Cond: ("repoId" = r.id)
+Execution Time: 0.993 ms
+```
+
+The `LATERAL` join (latest snapshot) and the open-PR subquery both use their expected indexes. But the top-level `Repository` scan is a **Seq Scan**, not an index scan on `[ownerId, isActive]`, even though the `ownerId = $1` branch alone is indexed. This is the planner behaving correctly, not a missing index: the `OR EXISTS(...)` makes the whole predicate a combination of a plain equality and a hashed semi-join, which Postgres can't turn into a single index condition, and at ~2,000 rows (54 buffer pages) a full sequential scan is cheaper than the alternative of two index scans plus a `BitmapOr`. Sub-millisecond either way at this scale — a platform would need a much larger linked-repo count before this predicate's plan choice would matter. Left as-is; revisit only if `Repository` grows into the tens of thousands of rows and this query shows up slow in practice.
 
 ---
 
