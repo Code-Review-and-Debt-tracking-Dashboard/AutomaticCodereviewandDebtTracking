@@ -7,7 +7,6 @@ import { authRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
 import { reposRouter } from './routes/repos';
 import { webhookRouter } from './routes/webhooks';
-import { reposRouter } from './routes/repos';
 
 export function createApp(): Express {
   const app = express();
