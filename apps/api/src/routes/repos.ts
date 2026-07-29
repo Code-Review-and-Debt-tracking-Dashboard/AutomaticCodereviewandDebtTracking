@@ -4,8 +4,20 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
+import { getRepoTrend } from '../services/repoService';
 
 export const reposRouter = Router();
+
+// GET /api/repos/:repoId/trend : any active member (any role), the owner,
+// or a platform admin can view the trend data.
+reposRouter.get('/api/repos/:repoId/trend', requireAuth, async (req, res, next) => {
+  try {
+    const trend = await getRepoTrend(req.params.repoId, req.query);
+    res.status(200).json(trend);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/repos/:repoId/members : any active member (any role), the owner,
 // or a platform admin can view the member list.
