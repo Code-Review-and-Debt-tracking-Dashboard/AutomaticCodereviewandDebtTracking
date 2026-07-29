@@ -4,6 +4,8 @@ import helmet from 'helmet';
 
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth';
+import { healthRouter } from './routes/health';
+import { reposRouter } from './routes/repos';
 import { webhookRouter } from './routes/webhooks';
 import { reposRouter } from './routes/repos';
 
@@ -15,15 +17,13 @@ export function createApp(): Express {
 
   // Must be mounted before express.json() — it parses its own body as a raw
   // Buffer so the HMAC signature can be verified against the exact bytes
-  // GitHub sent (A-07).
   app.use(webhookRouter);
 
   app.use(express.json());
 
   app.use(authRouter);
+  app.use(healthRouter);
   app.use(reposRouter);
-
-
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -8,7 +8,7 @@ import { AppError } from '../middleware/errorHandler';
 
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-// api_design.md §1: scope=repo,user:email
+//  scope=repo,user:email
 const GITHUB_OAUTH_SCOPE = 'repo,user:email';
 
 export interface AuthResult {
@@ -74,7 +74,7 @@ async function exchangeCodeForToken(code: string): Promise<GithubTokenResponse> 
 /**
  * Verifies the `state` param and exchanges `code` for a GitHub access token,
  * then creates/updates the local User + encrypted GitHubCredential and
- * issues an app JWT. Matches the response shape in api_design.md §1.
+ * issues an app JWT. Matches the response shape .
  */
 export async function handleGithubCallback(
   code: string | undefined,
@@ -180,7 +180,7 @@ export interface CurrentUser {
 }
 
 /**
- * Fetches the caller of `GET /auth/me` (api_design.md §1). The token can
+ * Fetches the caller of `GET /auth/me` . The token can
  * outlive the user row (e.g. deleted account), so a missing user is treated
  * the same as an invalid token — `401 UNAUTHORIZED` — rather than a 404.
  */

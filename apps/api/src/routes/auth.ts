@@ -11,7 +11,7 @@ authRouter.get('/auth/github', (req, res) => {
   res.redirect(url);
 });
 
-// GET /auth/github/callback — api_design.md §1: exchanges code for a token,
+// GET /auth/github/callback : exchanges code for a token,
 // creates/updates the user, and returns { token, user }.
 authRouter.get('/auth/github/callback', async (req, res, next) => {
   try {
@@ -25,7 +25,7 @@ authRouter.get('/auth/github/callback', async (req, res, next) => {
   }
 });
 
-// GET /auth/me — api_design.md §1: returns the currently authenticated user.
+// GET /auth/me : returns the currently authenticated user.
 authRouter.get('/auth/me', requireAuth, async (req, res, next) => {
   try {
     const user = await getAuthenticatedUser(req.user!.id);
@@ -35,7 +35,7 @@ authRouter.get('/auth/me', requireAuth, async (req, res, next) => {
   }
 });
 
-// POST /auth/logout — api_design.md §1: stateless JWT, so there is no
+// POST /auth/logout : stateless JWT, so there is no
 // server-side session to invalidate; the guard already rejects missing/
 // invalid tokens with 401 before this handler runs.
 authRouter.post('/auth/logout', requireAuth, (_req, res) => {

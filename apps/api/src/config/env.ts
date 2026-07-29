@@ -1,6 +1,6 @@
 /**
  * Loads and validates the environment variables needed for the GitHub OAuth
- * flow (A-05). Fails fast at boot if anything required is missing, rather
+ * flow  Fails fast at boot if anything required is missing, rather
  * than surfacing a confusing error later on the first login attempt.
  */
 function required(name: string): string {
@@ -13,12 +13,14 @@ function required(name: string): string {
 
 export const env = {
   port: Number(process.env.PORT) || 4000,
+  nodeEnv: process.env.NODE_ENV || 'development',
+  logLevel: process.env.LOG_LEVEL || 'info',
 
   githubClientId: required('GITHUB_CLIENT_ID'),
   githubClientSecret: required('GITHUB_CLIENT_SECRET'),
   githubOAuthCallbackUrl: required('GITHUB_OAUTH_CALLBACK_URL'),
 
-  // Shared secret configured on the GitHub webhook (A-07); used to verify
+  // Shared secret configured on the GitHub webhook ; used to verify
   // the X-Hub-Signature-256 HMAC-SHA256 signature on incoming payloads.
   githubWebhookSecret: required('GITHUB_WEBHOOK_SECRET'),
 

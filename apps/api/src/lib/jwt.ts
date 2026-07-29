@@ -5,9 +5,9 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 
 /**
- * The app-issued JWT returned to clients on login (api_design.md §1,
+ * The app-issued JWT returned to clients on login 
  * `GET /auth/github/callback` response `token` field). Session/logout
- * handling (A-06) is out of scope here — this is a stateless JWT only.
+ * handling  is out of scope here — this is a stateless JWT only.
  */
 export interface AppJwtPayload {
   sub: string; // User.id

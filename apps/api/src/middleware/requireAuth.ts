@@ -21,10 +21,10 @@ declare global {
 }
 
 /**
- * Auth guard (A-06) for protected routes. Verifies the `Authorization:
+ * Auth guard  for protected routes. Verifies the `Authorization:
  * Bearer <token>` header against the app JWT issued by `signAppJwt`
- * (A-05, api_design.md §1) and attaches the decoded identity to `req.user`.
- * Stateless — no DB/session lookup, per the §10 401 UNAUTHORIZED contract.
+ *  and attaches the decoded identity to `req.user`.
+ * Stateless — no DB/session lookup, per the 401 UNAUTHORIZED contract.
  */
 export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
   const header = req.headers.authorization;

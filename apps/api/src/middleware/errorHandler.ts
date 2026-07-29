@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
+import { logger } from '../lib/logger';
+
 /**
  * Structured error for known failure cases. Controllers/middleware throw
  * this (or call next(new AppError(...))) to get the standard error response
@@ -48,7 +50,7 @@ export function errorHandler(
   }
 
   // Unexpected error — never leak internals (stack trace, message) to the client.
-  console.error(err);
+  logger.error({ err }, 'Unhandled error');
   res.status(500).json({
     error: {
       code: 'INTERNAL_ERROR',

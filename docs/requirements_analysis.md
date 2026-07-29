@@ -105,12 +105,15 @@ We are building a cloud-hosted platform that plugs into a team's GitHub reposito
 | FR-28 | The Health Score algorithm shall be deterministic — identical code input shall always produce an identical score. |
 | FR-29 | The system shall store both the composite Health Score and the individual raw metrics for every analysis run. |
 | FR-30 | The system shall support per-repository historical tracking of Health Scores to enable trend analysis. |
+| FR-30a | The system shall compute a technical debt estimate, in remediation minutes, for every analysis run, using a per-finding cost table keyed by severity and category (`database_design.md` §3.6, `scoring_algorithm.md` §2). |
+| FR-30b | The system shall calculate the debt delta as the difference between the current snapshot's debt and the immediately preceding snapshot's debt for the same repository, and persist both the absolute debt and the delta. |
+| FR-30c | The system shall provide a per-repository debt summary broken down by finding category (vulnerability, complexity, duplication, code smell, maintainability). |
 
 ### 3.6 Quality Gates
 
 | ID | Requirement |
 |---|---|
-| FR-31 | The system shall allow users to configure a minimum Health Score threshold per repository. |
+| FR-31 | The system shall allow users to configure quality gate thresholds per repository: a minimum Health Score, and independently, optional caps on critical findings, vulnerabilities, duplication percentage, complexity count, and code smell count (`database_design.md` §2 `QualityGate` model). |
 | FR-32 | The system shall allow users to enable/disable PR blocking for a repository. |
 | FR-33 | When PR blocking is enabled and the analysis score falls below the threshold, the system shall post a failing commit status check on the PR via the GitHub API. |
 | FR-34 | When the score meets or exceeds the threshold, the system shall post a passing commit status check. |
@@ -129,7 +132,7 @@ We are building a cloud-hosted platform that plugs into a team's GitHub reposito
 |---|---|
 | FR-38 | The dashboard shall display a list of all linked repositories with their latest Health Score. |
 | FR-39 | The dashboard shall provide a detail view per repository showing analysis history and score trend chart. |
-| FR-40 | The dashboard shall visualize code quality metrics (maintainability index, duplication %, complexity, etc.) in intuitive charts. |
+| FR-40 | The dashboard shall visualize code quality metrics (maintainability index, duplication %, complexity, technical debt in remediation minutes, etc.) in intuitive charts. |
 | FR-41 | The dashboard shall allow users to configure Quality Gate settings per repository. |
 | FR-42 | The dashboard shall allow users to manually trigger a re-analysis of a repository. |
 | FR-43 | The dashboard shall provide a view of individual PR analysis results with issue details. |
@@ -143,12 +146,13 @@ We are building a cloud-hosted platform that plugs into a team's GitHub reposito
 | FR-46 | The mobile app shall receive real-time push notifications when a PR analysis completes, a quality gate fails, or a high-severity issue is detected. |
 | FR-47 | The mobile app shall provide a quick-view screen showing code smells detected in the latest commit for a selected repository. |
 | FR-48 | The mobile app shall allow users to mark notifications as read. |
+| FR-48a | The mobile app shall register the device's Expo push token with the backend on login, and unregister it on logout or uninstall (`database_design.md` §3.8 `Device` model). |
 
 ### 3.10 Notifications
 
 | ID | Requirement |
 |---|---|
-| FR-49 | The system shall generate in-app notifications for: analysis completed, quality gate failed, significant score drop (>10 points). |
+| FR-49 | The system shall generate in-app notifications for: analysis started, analysis completed, analysis failed, quality gate failed, significant score drop (>10 points), a critical-severity finding detected, and a user being added as a repository member (`database_design.md` §2 `NotificationType` enum). |
 | FR-50 | The system shall dispatch push notifications to registered mobile devices via Expo Push Notifications. |
 | FR-51 | The system shall store notification history and read/unread status in the database. |
 

@@ -4,7 +4,7 @@ import { env } from '../config/env';
 
 /**
  * AES-256-GCM encryption for secrets stored at rest (e.g.
- * GitHubCredential.encryptedAccessToken — see database_design.md §3.10).
+ * GitHubCredential.encryptedAccessToken ).
  * Encrypted values are stored as `iv:authTag:ciphertext`, each hex-encoded.
  */
 
