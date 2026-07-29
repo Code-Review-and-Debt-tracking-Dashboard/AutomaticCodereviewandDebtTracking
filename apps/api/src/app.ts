@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth';
 import { webhookRouter } from './routes/webhooks';
+import { reposRouter } from './routes/repos';
 
 export function createApp(): Express {
   const app = express();
@@ -20,9 +21,9 @@ export function createApp(): Express {
   app.use(express.json());
 
   app.use(authRouter);
+  app.use(reposRouter);
 
-  // Future routes (/api/*) mount here — before the 404/error handlers
-  // below, which must stay last.
+
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -327,7 +327,7 @@ Health score trend over a configurable time range.
 ```json
 {
   "repoId": "clxyz...",
-  "range": { "from": "2026-05-22", "to": "2026-06-21" },
+  "range": { "from": "2026-05-22T00:00:00.000Z", "to": "2026-06-21T00:00:00.000Z" },
   "dataPoints": [
     {
       "date": "2026-05-22T10:00:00Z",
