@@ -96,3 +96,56 @@ export async function getRepoTrend(repoId: string, query: TrendQuery){
     };
 
 }
+
+export async function getRepoDebt(repoId: string){
+    await getActiveRepo(repoId);
+    
+    //findFirst()-Returns the first snapshot after sorting.
+    const snapshot =await prisma.healthSnapshot.findFirst({
+        where: { repoId },
+        orderBy: { calculatedAt: 'desc' },
+    });
+
+    if (!snapshot) {
+        throw new AppError(404, 'NOT_FOUND', 'No analysis found for this repository');
+    }
+
+    const grouped = await prisma.finding.groupBy({
+        by: ['category' ],
+        where: {snapshotId: snapshot.id },
+        _sum: { debtMinutes: true },
+        _count: true,
+    });
+    
+    //maps prisma enum values to the lowercase JSON keys used in the API response
+    const CATEGORY_KEYS: Record<string, string> = {
+        VULNERABILITY: 'vulnerability',
+        COMPLEXITY: 'complexity',
+        DUPLICATION: 'duplication',
+        CODE_SMELL: 'code_smell',
+        MAINTAINABILITY: 'maintainability',
+    };
+
+    const breakdown: Record<string, { count: number; debtMinutes: number }>={};
+    for (const key of Object.values(CATEGORY_KEYS)) {
+        breakdown[key] = { count: 0, debtMinutes: 0 };
+    }
+    //Replace default values with database results
+    for (const g of grouped) {
+        const key = CATEGORY_KEYS[g.category];
+        breakdown[key] = {
+            count: g._count,
+            //use 0 ,uless this is null or undefined, which can happen if there are no findings in this category
+            debtMinutes: g._sum.debtMinutes ?? 0,
+        };
+    }
+
+    return {
+        totalDebtMinutes: snapshot.debtMinutes,
+        debtDelta: snapshot.debtDeltaMinutes,
+        breakdown,
+        snapshotId: snapshot.id,
+    };
+
+
+}

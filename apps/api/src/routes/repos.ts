@@ -4,7 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { getRepoTrend } from '../services/repoService';
+import { getRepoDebt, getRepoTrend } from '../services/repoService';
 
 export const reposRouter = Router();
 
@@ -29,6 +29,22 @@ reposRouter.get(
     try {
       const data = await listMembers(req.params.repoId);
       res.status(200).json({ data });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/repos/:repoId/debt : any active member (any role), the owner,
+// or a platform admin can view the debt breakdown.
+reposRouter.get(
+  '/api/repos/:repoId/debt',
+  requireAuth,
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const debt = await getRepoDebt(req.params.repoId);
+      res.status(200).json(debt);
     } catch (err) {
       next(err);
     }
