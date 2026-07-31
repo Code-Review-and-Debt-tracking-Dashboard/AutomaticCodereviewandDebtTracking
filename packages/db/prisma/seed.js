@@ -10,6 +10,8 @@ const {
   GateResult,
   MemberStatus,
   NotificationType,
+  OrgRole,
+  OrgType,
   PlatformRole,
   PrismaClient,
   PRStatus,
@@ -59,28 +61,117 @@ async function main() {
     },
   });
 
+  // Two tenants are seeded on purpose. The second one exists so that cross-org
+  // isolation can actually be demonstrated: its user must not be able to reach
+  // anything belonging to the first.
+  const acme = await prisma.organization.upsert({
+    where: { githubOrgId: "seed-github-org-2001" },
+    update: {
+      login: "seed-acme",
+      name: "Seed Acme Corp",
+      type: OrgType.ORGANIZATION,
+    },
+    create: {
+      githubOrgId: "seed-github-org-2001",
+      login: "seed-acme",
+      name: "Seed Acme Corp",
+      type: OrgType.ORGANIZATION,
+    },
+  });
+
+  const globex = await prisma.organization.upsert({
+    where: { githubOrgId: "seed-github-org-2002" },
+    update: {
+      login: "seed-globex",
+      name: "Seed Globex Ltd",
+      type: OrgType.ORGANIZATION,
+    },
+    create: {
+      githubOrgId: "seed-github-org-2002",
+      login: "seed-globex",
+      name: "Seed Globex Ltd",
+      type: OrgType.ORGANIZATION,
+    },
+  });
+
+  const outsider = await prisma.user.upsert({
+    where: { githubId: "seed-github-outsider" },
+    update: {
+      username: "seed-outsider",
+      email: "outsider@example.com",
+      active: true,
+    },
+    create: {
+      githubId: "seed-github-outsider",
+      username: "seed-outsider",
+      email: "outsider@example.com",
+    },
+  });
+
+  for (const [orgId, userId, role] of [
+    [acme.id, admin.id, OrgRole.OWNER],
+    [acme.id, developer.id, OrgRole.MEMBER],
+    [globex.id, outsider.id, OrgRole.OWNER],
+  ]) {
+    await prisma.organizationMember.upsert({
+      where: { orgId_userId: { orgId, userId } },
+      update: { role, status: MemberStatus.ACTIVE, syncedAt: new Date() },
+      create: { orgId, userId, role, status: MemberStatus.ACTIVE },
+    });
+  }
+
   const repository = await prisma.repository.upsert({
     where: { githubRepoId: "seed-repository-1001" },
     update: {
       name: "code-health-demo",
-      fullName: "seed-admin/code-health-demo",
-      htmlUrl: "https://github.com/seed-admin/code-health-demo",
-      cloneUrl: "https://github.com/seed-admin/code-health-demo.git",
+      fullName: "seed-acme/code-health-demo",
+      htmlUrl: "https://github.com/seed-acme/code-health-demo",
+      cloneUrl: "https://github.com/seed-acme/code-health-demo.git",
       defaultBranch: "main",
       language: "TypeScript",
       private: false,
       isActive: true,
+      orgId: acme.id,
       ownerId: admin.id,
     },
     create: {
       githubRepoId: "seed-repository-1001",
       name: "code-health-demo",
-      fullName: "seed-admin/code-health-demo",
-      htmlUrl: "https://github.com/seed-admin/code-health-demo",
-      cloneUrl: "https://github.com/seed-admin/code-health-demo.git",
+      fullName: "seed-acme/code-health-demo",
+      htmlUrl: "https://github.com/seed-acme/code-health-demo",
+      cloneUrl: "https://github.com/seed-acme/code-health-demo.git",
       defaultBranch: "main",
       language: "TypeScript",
+      orgId: acme.id,
       ownerId: admin.id,
+    },
+  });
+
+  // Belongs to the other tenant. Nothing else in this seed references it.
+  await prisma.repository.upsert({
+    where: { githubRepoId: "seed-repository-2001" },
+    update: {
+      name: "other-tenant-demo",
+      fullName: "seed-globex/other-tenant-demo",
+      htmlUrl: "https://github.com/seed-globex/other-tenant-demo",
+      cloneUrl: "https://github.com/seed-globex/other-tenant-demo.git",
+      defaultBranch: "main",
+      language: "Python",
+      private: false,
+      isActive: true,
+      orgId: globex.id,
+      ownerId: outsider.id,
+    },
+    create: {
+      githubRepoId: "seed-repository-2001",
+      name: "other-tenant-demo",
+      fullName: "seed-globex/other-tenant-demo",
+      htmlUrl: "https://github.com/seed-globex/other-tenant-demo",
+      cloneUrl: "https://github.com/seed-globex/other-tenant-demo.git",
+      defaultBranch: "main",
+      language: "Python",
+      orgId: globex.id,
+      ownerId: outsider.id,
     },
   });
 
@@ -314,15 +405,24 @@ async function main() {
     },
   });
 
-  const [userCount, repositoryCount, snapshotCount, findingCount, notificationCount] =
+  const [orgCount, userCount, repositoryCount, snapshotCount, findingCount, notificationCount] =
     await Promise.all([
+      prisma.organization.count({
+        where: {
+          githubOrgId: { in: ["seed-github-org-2001", "seed-github-org-2002"] },
+        },
+      }),
       prisma.user.count({
         where: {
-          githubId: { in: ["seed-github-admin", "seed-github-developer"] },
+          githubId: {
+            in: ["seed-github-admin", "seed-github-developer", "seed-github-outsider"],
+          },
         },
       }),
       prisma.repository.count({
-        where: { githubRepoId: "seed-repository-1001" },
+        where: {
+          githubRepoId: { in: ["seed-repository-1001", "seed-repository-2001"] },
+        },
       }),
       prisma.healthSnapshot.count({
         where: { analysisId: analysis.id },
@@ -343,7 +443,7 @@ async function main() {
     ]);
 
   console.log(
-    `Seed completed: ${userCount} users, ${repositoryCount} repository, ${snapshotCount} snapshot, ${findingCount} findings, and ${notificationCount} notification.`,
+    `Seed completed: ${orgCount} organizations, ${userCount} users, ${repositoryCount} repositories, ${snapshotCount} snapshot, ${findingCount} findings, and ${notificationCount} notification.`,
   );
 }
 

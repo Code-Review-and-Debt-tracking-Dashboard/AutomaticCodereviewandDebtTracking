@@ -148,6 +148,8 @@ This also means:
   │  • CORS, helmet, rate limiter               │
   │  • Request logging (morgan/pino)            │
   │  • Auth middleware (JWT/session validation)  │
+  │  • TENANT GUARD (org membership, per request)│
+  │  • Repo authorization guard                 │
   │  • Webhook signature verification           │
   │  • Error handler (global catch)             │
   └──────────────────┬──────────────────────────┘
@@ -155,6 +157,7 @@ This also means:
   ┌──────────────────▼──────────────────────────┐
   │  ROUTES LAYER                               │
   │  • /auth/github, /auth/github/callback      │
+  │  • /api/orgs, /api/orgs/:orgId/...          │
   │  • /api/repos, /api/repos/:id/...           │
   │  • /api/notifications                       │
   │  • /webhooks/github                         │
@@ -177,6 +180,7 @@ This also means:
   ┌──────────────────▼──────────────────────────┐
   │  SERVICES LAYER (business logic)            │
   │  • AuthService       — OAuth token exchange │
+  │  • OrgService        — sync tenants from GH │
   │  • RepoService       — link/unlink repos    │
   │  • WebhookService    — validate + dispatch  │
   │  • AnalysisService   — query results        │
@@ -201,6 +205,42 @@ This also means:
                      ▼
               PostgreSQL (via Prisma)
 ```
+
+#### 3.1.1 Tenancy & Data Isolation
+
+The deployment is shared by multiple organizations, and each organization's data must be
+unreachable from any other. Isolation is enforced in the middleware layer, not left to
+individual handlers, so that a route cannot leak data by forgetting to filter.
+
+**One tenant anchor.** `Repository.orgId` is the only place tenancy is recorded. Every other
+table reaches its tenant through `repoId`, which it already carries — snapshots, findings,
+analysis jobs and pull requests deliberately do **not** get their own copy of `orgId`. A
+second copy could drift out of sync with its repository and silently become a leak, and one
+anchor means one place to get right.
+
+**Two guards, in order.** `requireAuth` establishes *who* the caller is from the JWT.
+`requireOrgAccess` (for `/api/orgs/:orgId/...`) and `requireRepoAccess` (for
+`/api/repos/:repoId/...`) then establish *which tenant* they may act in, by reading
+`OrganizationMember` from the database. The repo guard resolves the repository and the
+caller's org membership in a single query, so the tenant check costs one extra index lookup
+rather than an extra round trip.
+
+**Membership is not carried in the token.** The JWT holds no `orgId` and no membership list.
+Had it done so, a user removed from an organization would retain access until their token
+expired — up to seven days. Checking the database per request means revocation is effective
+on the next request. This is a deliberate trade of a small, indexed read for correctness.
+
+**Cross-tenant responses are `404`, not `403`.** A `403` would confirm that a repository or
+organization exists, and that existence belongs to another tenant. A `403` is still used once
+the caller is inside the correct tenant but lacks a grant on a specific repository.
+
+**No operator exception.** The platform `ADMIN` role grants no access to tenant data; it
+guards operational routes (`GET /api/metrics`, the queue dashboard) only. An administrator who
+can read every organization would make the isolation claim untrue.
+
+**The webhook path has no caller**, and needs none: it authenticates by HMAC and resolves the
+repository by `githubRepoId`, which carries `orgId` with it. Tenancy is therefore correct on
+that path without a membership check, because no user is being authorized.
 
 ### 3.2 Worker Service — Pipeline Architecture
 

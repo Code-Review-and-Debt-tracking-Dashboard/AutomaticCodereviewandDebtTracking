@@ -11,6 +11,10 @@
 
 ```mermaid
 erDiagram
+    Organization ||--o{ OrganizationMember : "has members"
+    Organization ||--o{ Repository : "owns (tenant)"
+    User ||--o{ OrganizationMember : "belongs to tenant via"
+
     User ||--o| GitHubCredential : "has OAuth token"
     User ||--o{ Session : "has"
     User ||--o{ Repository : "owns/links"
@@ -31,13 +35,35 @@ erDiagram
     HealthSnapshot ||--o{ Finding : "contains"
     HealthSnapshot ||--o{ Notification : "context for"
 
+    Organization {
+        string id PK
+        string githubOrgId UK "GitHub owner.id — the tenant identity"
+        string login UK "GitHub owner.login"
+        string name "nullable"
+        string avatarUrl "nullable"
+        enum type "USER/ORGANIZATION, default ORGANIZATION"
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    OrganizationMember {
+        string id PK
+        enum role "OWNER/ADMIN/MEMBER, default MEMBER"
+        enum status "PENDING/ACTIVE/REMOVED, default ACTIVE"
+        string orgId FK
+        string userId FK
+        datetime syncedAt "last confirmed against GitHub"
+        datetime createdAt
+        datetime updatedAt
+    }
+
     User {
         string id PK
         string githubId UK
         string username UK
         string email "nullable"
         string avatarUrl "nullable"
-        enum platformRole "ADMIN/USER, default USER"
+        enum platformRole "ADMIN/USER, default USER — operational only"
         boolean active "default true"
         datetime createdAt
         datetime updatedAt
@@ -74,6 +100,7 @@ erDiagram
         boolean private "default false"
         string webhookId UK "nullable, GitHub webhook ID"
         boolean isActive "default true"
+        string orgId FK "tenant (onDelete Restrict)"
         string ownerId FK "owner (onDelete Restrict)"
         datetime createdAt
         datetime updatedAt
@@ -219,7 +246,9 @@ erDiagram
 The full schema is in [`packages/db/prisma/schema.prisma`](file:///home/rumeshchathuranga/Documents/SEproject/AutomaticCodereviewandDebtTracking/packages/db/prisma/schema.prisma).
 
 ```prisma
-// ─── datasource & generator ────────────────────────────────────────
+// ================================================================
+// DATABASE CONFIGURATION
+// ================================================================
 
 // Connection URL is configured in prisma.config.ts (Prisma v7+).
 datasource db {
@@ -230,12 +259,32 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// ─── enums ─────────────────────────────────────────────────────────
+// ================================================================
+// ENUMS
+// ================================================================
 
-// Platform-level role. Repository-level permissions are handled separately.
+// Platform-level role. This no longer grants access to tenant data —
+// it only guards operational endpoints such as the metrics route.
+// Organization and repository permissions are handled separately.
 enum PlatformRole {
   ADMIN
   USER
+}
+
+// Mirrors GitHub's repository owner type. A personal GitHub account is
+// modelled as an organization of its own so that personal repositories
+// still live inside a tenant.
+enum OrgType {
+  USER
+  ORGANIZATION
+}
+
+// Organization-level role, derived from the caller's GitHub org membership.
+// OWNER is used for a user's own personal account organization.
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
 }
 
 enum RepositoryRole {
@@ -313,7 +362,9 @@ enum DevicePlatform {
   ANDROID
 }
 
-// ─── models ────────────────────────────────────────────────────────
+// ================================================================
+// USER AND AUTHENTICATION MODELS
+// ================================================================
 
 model User {
   id           String       @id @default(cuid())
@@ -324,13 +375,26 @@ model User {
   platformRole PlatformRole @default(USER)
   active       Boolean      @default(true)
 
+  // GitHub OAuth credential
   githubCredential GitHubCredential?
-  sessions         Session[]
-  ownedRepositories Repository[]      @relation("RepositoryOwner")
-  memberships      RepositoryMember[] @relation("RepositoryMembership")
-  membersAdded     RepositoryMember[] @relation("MembershipAddedBy")
-  notifications    Notification[]
-  devices          Device[]
+
+  // Authentication sessions
+  sessions Session[]
+
+  // Organizations (tenants) this user belongs to
+  orgMemberships OrganizationMember[]
+
+  // Repositories directly linked/owned by this user
+  ownedRepositories Repository[] @relation("RepositoryOwner")
+
+  // Repository memberships
+  memberships RepositoryMember[] @relation("RepositoryMembership")
+
+  // Membership records created by this user
+  membersAdded RepositoryMember[] @relation("MembershipAddedBy")
+
+  notifications Notification[]
+  devices       Device[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -354,7 +418,8 @@ model GitHubCredential {
   updatedAt DateTime @updatedAt
 }
 
-// Store only a hash of the session/refresh token. Never the raw token.
+// Store only a hash of the session or refresh token.
+// Do not store the original token.
 model Session {
   id        String    @id @default(cuid())
   tokenHash String    @unique
@@ -369,6 +434,59 @@ model Session {
   @@index([expiresAt])
   @@index([userId, revokedAt])
 }
+
+// ================================================================
+// ORGANIZATION (TENANT) MODELS
+// ================================================================
+
+// An organization is the tenant boundary. It mirrors a GitHub account
+// owner, so both a real GitHub organization and a personal GitHub account
+// are represented the same way. Every repository belongs to exactly one.
+model Organization {
+  id          String  @id @default(cuid())
+  githubOrgId String  @unique
+  login       String  @unique
+  name        String?
+  avatarUrl   String?
+  type        OrgType @default(ORGANIZATION)
+
+  members      OrganizationMember[]
+  repositories Repository[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Which users belong to which tenant. Rows are created and revoked by
+// syncing against GitHub, never granted inside this app, so we cannot hand
+// out access that GitHub itself would not.
+model OrganizationMember {
+  id     String       @id @default(cuid())
+  role   OrgRole      @default(MEMBER)
+  status MemberStatus @default(ACTIVE)
+
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Last time GitHub confirmed this membership still exists.
+  syncedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, userId])
+  // Every repo-scoped request asks "is this caller in this tenant", so both
+  // lookup directions are indexed.
+  @@index([userId, status])
+  @@index([orgId, status])
+}
+
+// ================================================================
+// REPOSITORY AND MEMBERSHIP MODELS
+// ================================================================
 
 model Repository {
   id            String  @id @default(cuid())
@@ -386,7 +504,12 @@ model Repository {
 
   isActive Boolean @default(true)
 
-  // User who linked and controls the repository.
+  // Tenant this repository belongs to. Taken from the GitHub owner of the
+  // repo, so it is known even on the webhook path where there is no caller.
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  // User who linked and controls the repository, within that tenant.
   ownerId String
   owner   User   @relation("RepositoryOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
@@ -403,10 +526,11 @@ model Repository {
 
   @@index([fullName])
   @@index([ownerId, isActive])
+  @@index([orgId, isActive])
 }
 
-// Explicit many-to-many relationship between users and repositories, storing
-// repository-specific roles and membership lifecycle.
+// Explicit many-to-many relationship between users and repositories.
+// This stores repository-specific roles and membership information.
 model RepositoryMember {
   id     String         @id @default(cuid())
   role   RepositoryRole @default(DEVELOPER)
@@ -424,6 +548,7 @@ model RepositoryMember {
 
   addedAt   DateTime  @default(now())
   removedAt DateTime?
+  // Tracks the last time role or status changed for audit purposes.
   updatedAt DateTime  @updatedAt
 
   @@unique([userId, repoId])
@@ -431,11 +556,17 @@ model RepositoryMember {
   @@index([addedById])
 }
 
+// ================================================================
+// PULL REQUEST MODEL
+// ================================================================
+
 model PullRequest {
   id          String   @id @default(cuid())
   prNumber    Int
   title       String
-  // authorLogin is a plain string because PR authors may not be platform users.
+  // authorLogin is stored as a plain string because PR authors may not be
+  // registered users of this platform. Match against User.username in queries
+  // when you need to link a PR to a platform user.
   authorLogin String
   htmlUrl     String
   headBranch  String
@@ -461,9 +592,18 @@ model PullRequest {
   @@index([repoId, updatedAt(sort: Desc)])
 }
 
-// Lifecycle of an analysis run: PENDING -> RUNNING -> COMPLETED | FAILED.
-// Stores queue, worker and execution state. progress is expected 0–100
-// (enforced in the service layer).
+// ================================================================
+// ANALYSIS PROCESSING MODEL
+// ================================================================
+
+// Represents the lifecycle of an analysis job:
+//
+// PENDING -> RUNNING -> COMPLETED
+//                    -> FAILED
+//
+// This model stores queue, worker and execution information.
+// NOTE: progress is expected to be in the range 0–100.
+// Enforcement of this range is the responsibility of the service layer.
 model AnalysisJob {
   id       String          @id @default(cuid())
   status   AnalysisStatus  @default(PENDING)
@@ -473,7 +613,8 @@ model AnalysisJob {
   branch    String
   commitSha String
 
-  bullJobId String? @unique // BullMQ job identifier
+  // BullMQ or other queue job identifier.
+  bullJobId String? @unique
 
   retryCount   Int     @default(0)
   errorMessage String?
@@ -499,20 +640,26 @@ model AnalysisJob {
   @@index([repoId, queuedAt(sort: Desc)])
 }
 
-// Final calculated result produced by an analysis job. A snapshot exists only
-// once its AnalysisJob has completed; status lives on AnalysisJob, not here.
+// ================================================================
+// HEALTH SNAPSHOT MODEL
+// ================================================================
+
+// Stores the final calculated result produced by an analysis job.
+// Multiple snapshots are retained for historical trend analysis.
 model HealthSnapshot {
   id String @id @default(cuid())
 
-  healthScore Float // 0-100 composite
+  // Composite repository score from 0 to 100.
+  healthScore Float
 
+  // Technical debt totals.
   // debtMinutes      — absolute accumulated debt in minutes for this snapshot.
-  // debtDeltaMinutes — change vs the immediately preceding snapshot for this
-  //                    repository (negative = improvement).
+  // debtDeltaMinutes — change in debt relative to the immediately preceding
+  //                    snapshot for this repository (negative = improvement).
   debtMinutes      Float @default(0)
   debtDeltaMinutes Float @default(0)
 
-  // Finding counts (by category + by severity).
+  // Finding counts.
   vulnerabilityCount Int @default(0)
   criticalCount      Int @default(0)
   highCount          Int @default(0)
@@ -529,12 +676,17 @@ model HealthSnapshot {
   totalIssues Int @default(0)
   linesOfCode Int @default(0)
 
-  gateResult GateResult? // PASS/FAIL; null if no gate configured
+  // Quality gate result for this snapshot.
+  // NOTE: maxCriticalFindings and maxVulnerabilities in QualityGate are
+  // evaluated independently — a finding can be both CRITICAL severity and
+  // VULNERABILITY category, and will count toward both thresholds.
+  gateResult GateResult?
 
-  // Full unprocessed tool output for debugging/audit; not served to mobile.
+  // Full output from analysis tools.
+  // This should not normally be returned to the mobile application.
   rawMetrics Json?
 
-  // One-to-one with the analysis job.
+  // One-to-one relationship with the analysis job.
   analysisId String      @unique
   analysis   AnalysisJob @relation(fields: [analysisId], references: [id], onDelete: Cascade)
 
@@ -551,7 +703,11 @@ model HealthSnapshot {
   @@index([calculatedAt(sort: Desc)])
 }
 
-// One issue detected by a static-analysis tool.
+// ================================================================
+// FINDING MODEL
+// ================================================================
+
+// Represents one issue detected by a static-analysis tool.
 model Finding {
   id String @id @default(cuid())
 
@@ -563,7 +719,8 @@ model Finding {
 
   severity Severity
   category FindingCategory
-  state    FindingState @default(NEW)
+  // Defaults to NEW because a finding is always freshly detected at creation.
+  state    FindingState    @default(NEW)
 
   rule    String
   message String
@@ -574,7 +731,8 @@ model Finding {
   snapshotId String
   snapshot   HealthSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
-  // Denormalized repository link for efficient repo-scoped dashboard queries.
+  // Direct repository link for efficient repo-scoped dashboard queries
+  // without joining through HealthSnapshot.
   repoId     String
   repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
 
@@ -588,20 +746,25 @@ model Finding {
   @@index([repoId, state])
 }
 
+// ================================================================
+// QUALITY GATE MODEL
+// ================================================================
+
 // Each repository may have one quality-gate configuration.
-// maxCriticalFindings — cap on Severity.CRITICAL findings (any category).
-// maxVulnerabilities  — cap on FindingCategory.VULNERABILITY findings (any severity).
-// These thresholds are evaluated independently.
+// maxCriticalFindings — cap on findings with Severity.CRITICAL (any category).
+// maxVulnerabilities  — cap on findings with FindingCategory.VULNERABILITY (any severity).
+// These two thresholds are evaluated independently.
 model QualityGate {
   id String @id @default(cuid())
 
-  minHealthScore      Float @default(60)
+  minHealthScore      Float  @default(60)
   maxCriticalFindings Int?
   maxVulnerabilities  Int?
   maxDuplicationPct   Float?
   maxComplexityCount  Int?
   maxCodeSmellCount   Int?
 
+  // Determines whether a failed gate should block the PR.
   blockPR Boolean @default(false)
 
   repoId     String     @unique
@@ -611,8 +774,13 @@ model QualityGate {
   updatedAt DateTime @updatedAt
 }
 
-// `data` carries a type-specific JSON payload validated in the service layer.
-// readAt is null while unread.
+// ================================================================
+// NOTIFICATION MODEL
+// ================================================================
+
+// The `data` field carries a type-specific JSON payload.
+// Expected shapes per NotificationType are enforced in the service layer
+// via Zod schemas — see src/notifications/schemas.ts.
 model Notification {
   id    String           @id @default(cuid())
   type  NotificationType
@@ -625,9 +793,11 @@ model Notification {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Repository may be deleted while notification history remains.
   repoId     String?
   repository Repository? @relation(fields: [repoId], references: [id], onDelete: SetNull)
 
+  // Snapshot may also be removed while notification history remains.
   snapshotId String?
   snapshot   HealthSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
 
@@ -639,16 +809,21 @@ model Notification {
   @@index([userId, readAt, createdAt(sort: Desc)])
 }
 
-// Expo push-notification tokens for users' mobile devices.
+// ================================================================
+// MOBILE DEVICE MODEL
+// ================================================================
+
+// Stores Expo push-notification tokens for users' mobile devices.
 model Device {
-  id            String         @id @default(cuid())
-  expoPushToken String         @unique
-  platform      DevicePlatform
-  deviceName    String?
-  // Unique per app installation; prevents duplicate device registrations.
-  installationId String?       @unique
-  active        Boolean        @default(true)
-  lastUsedAt    DateTime?
+  id             String         @id @default(cuid())
+  expoPushToken  String         @unique
+  platform       DevicePlatform
+  deviceName     String?
+  // Unique identifier for a specific app installation on a device.
+  // Used to prevent duplicate device registrations.
+  installationId String?        @unique
+  active         Boolean        @default(true)
+  lastUsedAt     DateTime?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -747,46 +922,46 @@ Each finding carries a `debtMinutes` field estimating remediation effort. Defaul
 
 The snapshot's `debtMinutes` is the **sum** of all its findings' `debtMinutes`. This gives a "remediation effort in minutes" metric that non-technical project managers can understand.
 
-### 3.7 Roles: Platform-Level vs Repository-Level
+### 3.7 Roles: Organization-Level, Repository-Level, Platform-Level
 
-Roles are split across **two axes** rather than a single global role, because "team lead"
-and "developer" are relationships to a *repository*, not global identities — the same
-person is naturally a lead on one repo and a plain member on another, which a single
-global role cannot express.
+Roles are split across **three axes** rather than a single global role. The organization is
+the tenant boundary; the repository relationship decides what you may do inside it; and the
+platform role has no say over tenant data at all.
 
-**Platform role** (`User.platformRole`, enum `PlatformRole`):
+**Organization role** (`OrganizationMember.role`, enum `OrgRole`) — *which tenant you are in*:
 
-| Platform role | Meaning |
+| Org role | Meaning |
 |---|---|
-| `ADMIN` | Platform administrator — sees all repositories regardless of ownership/membership, and can access `GET /api/metrics`. |
-| `USER` | Everyone else. The default on signup. |
+| `OWNER` | A user's own personal account organization, and GitHub org owners. Full control of the tenant's repos. |
+| `ADMIN` | Mapped from a GitHub org role of `admin`. Same repo control as `OWNER`. |
+| `MEMBER` | Mapped from any other GitHub org role. In the tenant, but still needs a repository grant to open a specific repo. |
 
-**Repository relationship** (per repo, not global):
+**Repository relationship** (per repo, within a tenant):
 
 | Relationship | Source | Can do |
 |---|---|---|
 | Owner | `Repository.ownerId` | Full control: unlink, configure quality gate, trigger manual analysis, manage members. |
 | Member | `RepositoryMember` row with a `RepositoryRole` (`TEAM_LEAD` / `DEVELOPER` / `VIEWER`) and `MemberStatus` | `TEAM_LEAD`: manage the repo alongside the owner. `DEVELOPER`: read + manage own notifications/devices. `VIEWER`: read-only. |
 
+**Platform role** (`User.platformRole`, enum `PlatformRole`):
+
+| Platform role | Meaning |
+|---|---|
+| `ADMIN` | Operational only — `GET /api/metrics` and the queue dashboard. **Grants no access to any tenant's data.** |
+| `USER` | Everyone else. The default on signup. |
+
 **Why ownership is a column and membership is a join table:** `Repository.ownerId` identifies the single user who linked the repo and holds ultimate control; `RepositoryMember` is a many-to-many table so the owner (or a `TEAM_LEAD` member) can grant scoped access to multiple users, and a user can be a member of many repos. The owner does **not** need a `RepositoryMember` row — ownership already implies full access, and duplicating it would create two sources of truth. `MemberStatus` (`PENDING`/`ACTIVE`/`REMOVED`) plus `removedAt` supports soft-removal and audit without deleting history.
 
-Authorization check for "can this user read this repo":
+**Why the platform admin lost its bypass:** an `ADMIN` that can read every tenant is not
+tenant isolation — it is a documented hole in it. The requirement is that a user can never
+reach another organization's data, and an exception for our own operator accounts would
+make that claim untrue. `platformRole` therefore survives only to guard platform-wide
+*operational* routes, which expose counts and queue state rather than anyone's code.
 
-```sql
-SELECT 1 FROM "Repository" r
-WHERE r."id" = $1
-  AND (
-    r."ownerId" = $2                                            -- is owner
-    OR EXISTS (
-      SELECT 1 FROM "RepositoryMember" m
-      WHERE m."repoId" = r."id" AND m."userId" = $2
-        AND m."status" = 'ACTIVE'                               -- is an active member
-    )
-  )
--- OR the requester's platformRole = 'ADMIN' (checked in application code, no query needed)
-```
+Authorization check for "can this user read this repo" — see §3.12 for the tenant clause
+that now precedes the repository clause.
 
-**Bootstrap:** `platformRole` defaults to `USER` on signup. The first `ADMIN` for a deployment is set directly in the database (there is no self-service admin signup). Linking a repository via `POST /api/repos` makes the user that repo's **owner** (`ownerId`) — there is no global role change, so a user can own some repos while being only a member on others.
+**Bootstrap:** `platformRole` defaults to `USER` on signup. The first `ADMIN` for a deployment is set directly in the database (there is no self-service admin signup). Linking a repository makes the user that repo's **owner** (`ownerId`) inside the organization the repo belongs to on GitHub.
 
 > **Forward-looking:** `RepositoryRole.VIEWER` and `MemberStatus.PENDING` are defined for future use (a read-only tier and an invite flow) and are not yet exercised by any MVP endpoint.
 
@@ -810,6 +985,49 @@ This keeps trend/history queries on `HealthSnapshot` free of half-finished or fa
 ### 3.11 Why Sessions Store Only a Token Hash
 
 `Session.tokenHash` stores a hash of the session/refresh token, never the raw token. If the database is ever exposed, stored hashes cannot be replayed as valid sessions. `revokedAt` supports explicit logout/invalidation, and `@@index([expiresAt])` supports a cleanup job that prunes expired sessions.
+
+### 3.12 Organization-Level Multi-Tenancy
+
+Multiple organizations share one deployment, and a user must never be able to reach data
+belonging to an organization they are not in. Four decisions make that work.
+
+**An organization mirrors a GitHub account owner, not just a GitHub org.** Every repository
+on GitHub has an `owner` object — `{ id, login, type: "User" | "Organization" }` — and GitHub
+treats personal accounts and organizations the same way there. `Organization` copies that
+object, with `OrgType` recording which kind it is. Two things fall out of this for free: a
+personal repository needs no special case, because the user's own account is simply their own
+organization; and `Repository.orgId` can be derived from the payload GitHub sends us, so the
+webhook path knows the tenant even though there is no signed-in user on it.
+
+**Membership is derived from GitHub, never granted here.** `OrganizationMember` rows are
+written by syncing `GET /user/memberships/orgs` (requires the `read:org` scope), mapping the
+GitHub org role `admin` to `ADMIN` and anything else to `MEMBER`. Nothing in this application
+can create a membership on its own, so we cannot hand out access GitHub itself would not.
+The sync also runs in reverse: any `ACTIVE` membership GitHub stops reporting is set to
+`REMOVED`, which is what makes removal from a GitHub org actually revoke access here.
+`syncedAt` records when that was last confirmed.
+
+**The tenant anchor is `Repository.orgId`, and only that.** `orgId` is deliberately *not*
+denormalized onto `HealthSnapshot`, `Finding`, `AnalysisJob` or `PullRequest`, even though
+those tables already denormalize `repoId`. One anchor means one place where isolation can be
+right or wrong; a second copy could drift out of sync with its repository and silently become
+a leak. Every child row reaches its tenant through `repoId`, which it already carries. If
+Postgres row-level security is ever wanted, an `orgId` column can be added then — but it is
+not needed to enforce the boundary in application code today.
+
+**Cross-tenant denials return `404`, not `403`.** A `403` on a repository or organization that
+belongs to someone else confirms that it exists, and its existence is itself that tenant's
+information. So the guard reports the resource as missing. A `403` is still returned once the
+caller is *inside* the right tenant but lacks the specific repository grant, because at that
+point they are entitled to know the repository is there.
+
+**Membership is checked on every request, and is not carried in the token.** The app JWT holds
+only `sub`, `username` and `platformRole`; it holds no `orgId` and no membership list. Had it
+carried them, a user removed from an organization would keep access until their token expired
+— up to seven days by default. Instead each repo-scoped request reads `OrganizationMember`
+directly, so revocation takes effect on the very next request. The cost is one indexed lookup,
+covered by `@@index([userId, status])`, and it is folded into the query the guard already runs
+to load the repository (see Query 6).
 
 ---
 
@@ -943,16 +1161,39 @@ WHERE qg."repoId" = $1;
 
 ### Query 6: Can This User Access This Repository? (Authorization Check)
 
+Two layers, resolved in one round trip. The tenant clause comes first: if it fails the answer
+is "no such repository", regardless of anything else.
+
 ```sql
-SELECT 1 FROM "RepositoryMember"
-WHERE "repoId" = $1 AND "userId" = $2 AND "status" = 'ACTIVE';
+SELECT
+  r."id", r."orgId", r."ownerId", r."isActive",
+  om."role"   AS "orgRole",   om."status" AS "orgStatus",     -- layer 1: tenant
+  rm."role"   AS "repoRole",  rm."status" AS "repoStatus"     -- layer 2: repo grant
+FROM "Repository" r
+LEFT JOIN "OrganizationMember" om
+  ON om."orgId" = r."orgId" AND om."userId" = $2
+LEFT JOIN "RepositoryMember" rm
+  ON rm."repoId" = r."id"   AND rm."userId" = $2
+WHERE r."id" = $1;
 ```
 
-Run only when the requesting user is not the repo's owner (`Repository.ownerId`, already fetched with the repo) and does not have `platformRole = 'ADMIN'` (checked from the JWT claims, no query needed).
+The decision is then made in application code from that single row:
 
-**Index used:** `@@unique([userId, repoId])` on `RepositoryMember` — implemented as a unique B-tree index, so this is a single-row point lookup.
+1. no row, or `isActive = false` → **404**
+2. `orgStatus <> 'ACTIVE'` → **404** — the caller is outside the tenant, so the repository is
+   reported as missing rather than forbidden (see §3.12)
+3. caller is `ownerId`, or `orgRole` is `OWNER`/`ADMIN` → allow
+4. otherwise `repoStatus = 'ACTIVE'` for a read; additionally `repoRole = 'TEAM_LEAD'` for a write
+5. otherwise → **403** — inside the tenant, but without a grant on this repository
 
-**Verified:** ✅ O(1) lookup. Runs on every protected repo-scoped request, so it must stay index-only — confirmed it is.
+There is deliberately no `platformRole` branch. Tenant isolation has no operator exception.
+
+**Indexes used:** `Repository` primary key; `@@unique([orgId, userId])` on `OrganizationMember`;
+`@@unique([userId, repoId])` on `RepositoryMember`. All three are unique B-trees, so each join
+is a single-row point lookup.
+
+**Verified:** ✅ O(1). This runs on every protected repo-scoped request — adding the tenant
+check costs one extra index lookup in the same query, not an extra round trip.
 
 ---
 
@@ -975,14 +1216,24 @@ LEFT JOIN LATERAL (
   ORDER BY hs."calculatedAt" DESC
   LIMIT 1
 ) latest ON true
-WHERE r."ownerId" = $1
-   OR EXISTS (
-     SELECT 1 FROM "RepositoryMember" rm
-     WHERE rm."repoId" = r.id AND rm."userId" = $1 AND rm."status" = 'ACTIVE'
-   )
+WHERE EXISTS (
+       SELECT 1 FROM "OrganizationMember" om
+       WHERE om."orgId" = r."orgId" AND om."userId" = $1 AND om."status" = 'ACTIVE'
+     )
+  AND (
+       r."ownerId" = $1
+    OR EXISTS (
+         SELECT 1 FROM "RepositoryMember" rm
+         WHERE rm."repoId" = r.id AND rm."userId" = $1 AND rm."status" = 'ACTIVE'
+       )
+     )
 ORDER BY latest."healthScore" DESC NULLS LAST
 LIMIT 20 OFFSET 0;
 ```
+
+The tenant clause is `AND`-ed, not `OR`-ed, with the repository clause — it is a filter every
+row must pass, not another way to qualify. Getting that wrong would turn the boundary into a
+second route in.
 
 **Indexes used:**
 - `@@index([repoId, calculatedAt(sort: Desc)])` on `HealthSnapshot` — the `LATERAL` join for each repo's latest snapshot.
@@ -1013,6 +1264,12 @@ The `LATERAL` join (latest snapshot) and the open-PR subquery both use their exp
 
 | Table | Index | Supports |
 |---|---|---|
+| `Organization` | `githubOrgId` (unique) | Upsert a tenant during GitHub org sync |
+| `Organization` | `login` (unique) | Tenant lookup by GitHub login |
+| `OrganizationMember` | `[orgId, userId]` (unique) | **Tenant access check on every repo-scoped request** |
+| `OrganizationMember` | `[userId, status]` | "Which tenants can this caller see" — `GET /api/orgs` |
+| `OrganizationMember` | `[orgId, status]` | Active member list for a tenant |
+| `Repository` | `[orgId, isActive]` | Repo list scoped to one tenant |
 | `AnalysisJob` | `[status, queuedAt]` | Worker: poll oldest pending jobs |
 | `AnalysisJob` | `[repoId, status]` | In-flight jobs per repo (429 guard) |
 | `AnalysisJob` | `[repoId, queuedAt DESC]` | Job history per repo |
@@ -1038,4 +1295,6 @@ The `LATERAL` join (latest snapshot) and the open-PR subquery both use their exp
 
 ---
 
-*This schema is implemented in `packages/db/prisma/schema.prisma` and captured in a single baseline migration, `20260719051244_init`. Apply it with `npx prisma migrate dev` (or `migrate deploy` in CI) against a running PostgreSQL instance.*
+*This schema is implemented in `packages/db/prisma/schema.prisma` and captured in two migrations: the baseline `20260719051244_init`, and `20260731035716_add_organization_tenancy` which introduces the tenant boundary. Apply them with `npx prisma migrate dev` (or `migrate deploy` in CI) against a running PostgreSQL instance.*
+
+*The tenancy migration is the one hand-edited migration in the project. `Repository.orgId` is `NOT NULL`, which cannot be added straight onto a table that already holds rows, so it adds the column as nullable, backfills it, and only then tightens the constraint. The backfill gives every existing repository to its linker's personal organization, and — importantly — also moves anyone who was an active member of that repository into the same organization, so that introducing the boundary does not revoke access people already had. Prisma cannot generate data migrations, so those statements are written by hand inside the generated file.*

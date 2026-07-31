@@ -5,11 +5,13 @@ import { env } from '../config/env';
 import { encrypt } from '../lib/crypto';
 import { signAppJwt, signState, verifyState } from '../lib/jwt';
 import { AppError } from '../middleware/errorHandler';
+import { syncUserOrganizations } from './orgService';
 
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-//  scope=repo,user:email
-const GITHUB_OAUTH_SCOPE = 'repo,user:email';
+// read:org is what lets us see which organizations the user belongs to,
+// including private memberships. Tenant access is derived from that.
+const GITHUB_OAUTH_SCOPE = 'repo,user:email,read:org';
 
 export interface AuthResult {
   token: string;
@@ -155,6 +157,18 @@ export async function handleGithubCallback(
 
     return savedUser;
   });
+
+  // Tenant membership comes from GitHub, so it is refreshed on every login.
+  await syncUserOrganizations(
+    user.id,
+    {
+      githubId: String(githubUser.id),
+      login: githubUser.login,
+      name: githubUser.name,
+      avatarUrl: githubUser.avatar_url,
+    },
+    accessToken,
+  );
 
   const token = signAppJwt({ sub: user.id, username: user.username, platformRole: user.platformRole });
 

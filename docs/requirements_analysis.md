@@ -54,12 +54,17 @@ We are building a cloud-hosted platform that plugs into a team's GitHub reposito
 | FR-3 | The system shall display the authenticated user's profile (username, avatar, email) on the dashboard and mobile app. |
 | FR-4 | The system shall allow users to log out and revoke their session. |
 | FR-5 | The system shall restrict all API endpoints (except auth and webhook ingestion) to authenticated users only. |
-| FR-5a | The system shall assign every user a platform role of `ADMIN` or `USER`, defaulting to `USER` on first login. Repository-level roles are modelled separately (FR-5b–5c). |
+| FR-5a | The system shall assign every user a platform role of `ADMIN` or `USER`, defaulting to `USER` on first login. Organization- and repository-level roles are modelled separately (FR-5b–5c, FR-5g–5k). |
 | FR-5b | The system shall make the user who links a repository its owner (full control of that repository); linking does not change the user's platform role. |
 | FR-5c | The system shall allow a repository's owner (or a member with the repository role `TEAM_LEAD`) to grant or revoke another user's access to that repository, assigning a repository role of `TEAM_LEAD`, `DEVELOPER`, or `VIEWER`. |
 | FR-5d | The system shall restrict repository mutation actions (link, unlink, quality gate config, manual analysis trigger, member management) to the repository's owner, a member with repository role `TEAM_LEAD`, or a user with platform role `ADMIN`. |
 | FR-5e | The system shall restrict read access to a repository's data (findings, trends, hotspots) to the owner, any active repository member (any repository role), or a user with platform role `ADMIN`. |
 | FR-5f | The system shall restrict `GET /api/metrics` (platform-wide operational statistics) to users with platform role `ADMIN`. |
+| FR-5g | The system shall model an **organization** as the tenant boundary, mirroring a GitHub account owner (a GitHub organization or a personal account), and shall assign every repository to exactly one organization. |
+| FR-5h | The system shall derive organization membership from GitHub (`read:org` scope), syncing it on each login and on demand; organization membership shall not be creatable through the application itself. |
+| FR-5i | The system shall revoke a user's organization membership when GitHub no longer reports it, and shall verify membership against the database on every request rather than trusting the session token, so that revocation takes effect immediately. |
+| FR-5j | The system shall deny any request for a repository or organization outside the requester's organizations, responding `404 NOT_FOUND` rather than `403 FORBIDDEN` so that the existence of another tenant's data is not disclosed. |
+| FR-5k | The system shall grant platform role `ADMIN` no access to any organization's data; the platform role shall govern operational endpoints only. |
 
 ### 3.2 Repository Management
 
@@ -232,7 +237,7 @@ The following are genuine underspecified areas in the brief that could lead to w
 
 | # | Question | Why It Matters |
 |---|---|---|
-| Q-1 | **Multi-tenant definition:** The brief says "multi-tenant system" — does this mean multiple independent organizations with data isolation, or simply multiple individual GitHub users sharing one deployment? This significantly affects the database schema (tenant ID columns, row-level security) and auth flow. **Partial answer since the platform-role + per-repository-role model was added** (see §3.1 FR-5a–5f, `database_design.md` §3.7): a repository owner (or a `TEAM_LEAD` member) can share a repo's access with specific users at a chosen repository role, and a platform `ADMIN` sees everything platform-wide. This covers per-repo access sharing but is **not** org-level tenancy — there is no "organization" entity, and a platform `ADMIN` can see data across every owner's repos with no isolation boundary. Still needs mentor clarification if true org-level isolation is expected. | Architecture & DB design |
+| Q-1 | ✅ **ANSWERED BY MENTOR — org-level tenancy is required.** *Original question:* the brief says "multi-tenant system" — does this mean multiple independent organizations with data isolation, or simply multiple individual GitHub users sharing one deployment? *Interim position (superseded):* the platform-role + per-repository-role model covered per-repo access sharing, but we recorded that it was **not** org-level tenancy — there was no "organization" entity, and a platform `ADMIN` could see data across every owner's repos with no isolation boundary. *Resolution:* the mentor confirmed true org-level multi-tenancy — multiple organizations on one deployment, data isolated per organization, org membership verified by the backend on every request. Implemented as an `Organization` entity mirroring a GitHub account owner, with `Repository.orgId` as the tenant anchor and the platform `ADMIN` bypass removed (see FR-5g–5k, `database_design.md` §3.12, `api_design.md` §2). | Architecture & DB design |
 | Q-2 | **"Block PRs if coverage < 80%":** The brief mentions code coverage as a quality gate example, but our analysis tools (ESLint, PyLint, etc.) do not measure test coverage — that requires running the project's test suite, which is an entirely different pipeline. Should we treat "coverage" as an example placeholder and implement gates on metrics we *can* compute (Health Score, complexity, duplication)? Or is actual coverage measurement expected? | Scope of Quality Gates |
 | Q-3 | **"Various Git providers" vs GitHub-only:** One objective says "securely handling webhooks from various Git providers," but we've scoped to GitHub only. Do evaluators expect at least a second provider (e.g., GitLab) to be demonstrated, or is GitHub-only acceptable with the architecture designed to be extensible? | Evaluation criteria |
 | Q-4 | **"Predicting potential software bugs":** Objective 5 says "evaluate the effectiveness of the Health Score algorithm in predicting potential software bugs." What constitutes valid evidence here? Do we need to correlate our scores with actual bug reports on real-world repos, or is a theoretical argument with sample data sufficient for the final report? | Final report content |
@@ -262,7 +267,7 @@ Comparison of what the scope document requires against our locked-in stack:
 | Code coverage measurement | ⚠️ **Gap** | The brief uses "coverage < 80%" as a quality gate example. Our tools do NOT measure test coverage. **Recommendation:** Treat this as an example; implement gates on Health Score, complexity, and duplication instead. Clarify with mentor (see Q-2). |
 | GitLab webhook support | ⚠️ **Deferred** | Brief mentions "GitHub/GitLab." We scoped GitHub-only. The webhook handler should use a provider-adapter pattern so GitLab can be added later without rearchitecting. Clarify with mentor (see Q-3). |
 | D3.js / Chart.js visualizations | ✅ Yes — Recharts or Chart.js | Either library works; no gap. |
-| "Multi-tenant" support | ⚠️ **Ambiguous** | If full org-level multi-tenancy with data isolation is required, we need tenant-scoped queries and possibly row-level security in Postgres. Clarify with mentor (see Q-1). |
+| "Multi-tenant" support | ✅ **Resolved — implemented** | Mentor confirmed org-level tenancy is required (Q-1). Implemented with an `Organization` entity mirroring a GitHub account owner, `Repository.orgId` as the single tenant anchor, membership synced from GitHub and checked per request, and cross-tenant requests answered `404` rather than `403`. Postgres row-level security was considered and **not** used — a single tenant anchor enforced in one middleware is sufficient here and easier to defend; RLS remains available if a second anchor is ever added. |
 | Push notifications | ✅ Yes — Expo Push Notifications | None for demo; production would need FCM/APNs certificates. |
 | Before/after comparison report | ⚠️ **Process gap, not tech gap** | This requires user study data, not a technology. We need to plan for collecting timing data from at least a few real users. |
 
@@ -272,7 +277,7 @@ Comparison of what the scope document requires against our locked-in stack:
 
 1. **Coverage measurement** — scope language is ambiguous; likely an example, not a hard requirement.
 2. **GitLab support** — deferred by design; architecture should be extensible.
-3. **Multi-tenancy depth** — needs mentor clarification; impacts DB schema design.
+3. ~~**Multi-tenancy depth**~~ — **resolved.** Mentor confirmed org-level isolation; implemented (Q-1, FR-5g–5k). Required adding `Organization`/`OrganizationMember` and a `NOT NULL` tenant column on `Repository`, which is the one migration in this project that needed a hand-written backfill.
 4. **Worker Docker image** — needs Python, Java, and C/C++ runtimes alongside Node.js for multi-language analysis. This is an infrastructure task, not a stack change.
 
 ---
