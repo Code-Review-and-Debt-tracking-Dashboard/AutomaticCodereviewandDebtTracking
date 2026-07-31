@@ -53,13 +53,31 @@ export async function listMembers(repoId: string): Promise<RepoMember[]> {
 // POST /api/repos/:repoId/members : grants access by username. Re-adding a
 // previously removed member reactivates that row instead of erroring, so the
 // unique(userId, repoId) constraint only ever rejects a currently-active one.
+//
+// The target has to already belong to the repo's organization, otherwise this
+// would be a way to pull an outsider into the tenant. Someone outside it gets
+// the same "no such user" response as a username that does not exist, so this
+// cannot be used to probe for accounts in other tenants either.
 export async function addMember(
   repoId: string,
   username: string,
   role: RepoRole,
   addedById: string,
 ): Promise<RepoMember> {
-  const targetUser = await prisma.user.findUnique({ where: { username } });
+  const repository = await prisma.repository.findUnique({
+    where: { id: repoId },
+    select: { orgId: true },
+  });
+  if (!repository) {
+    throw new AppError(404, 'NOT_FOUND', 'Repository not found');
+  }
+
+  const targetUser = await prisma.user.findFirst({
+    where: {
+      username,
+      orgMemberships: { some: { orgId: repository.orgId, status: 'ACTIVE' } },
+    },
+  });
   if (!targetUser) {
     throw new AppError(404, 'NOT_FOUND', 'No platform user found with that username');
   }
