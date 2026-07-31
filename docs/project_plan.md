@@ -40,6 +40,7 @@
 | A-29 | Structured logging setup (Pino + pino-pretty for dev) | 2h | A-04 |
 | A-30 | Bull Board dashboard (mount at `/admin/queues`) | 1h | A-09 |
 | A-32 | Role-based authorization middleware + repo member endpoints (GET/POST/DELETE `/api/repos/:id/members`) | 4h | A-06, C-08 |
+| A-33 | Organization tenancy enforcement: GitHub org sync service, `requireOrgAccess` middleware, org endpoints (`GET /api/orgs`, `POST /api/orgs/sync`, `GET /api/orgs/:orgId/members`, `GET /api/orgs/:orgId/repos`), rewrite `requireRepoAccess` to check the tenant first and drop the platform-admin bypass | 6h | A-32, C-09 |
 
 ### WBS-B: Worker Service (Owner: You — Team Lead)
 
@@ -87,6 +88,7 @@
 | C-06 | Add Device model for push tokens | 2h | C-01 |
 | C-07 | Migration for schema updates during development | ongoing | C-02 |
 | C-08 | Add role model: `PlatformRole` enum (+ `platformRole` on User) and per-repo `RepositoryRole`/`MemberStatus` on the `RepositoryMember` model | 2h | C-01 |
+| C-09 | Add organization tenancy: `Organization` + `OrganizationMember` models, `OrgType`/`OrgRole` enums, `Repository.orgId`. Needs a hand-written backfill inside the migration because `orgId` is `NOT NULL` on an already-populated table | 3h | C-01, C-08 |
 | A-31 | *(cross-trained from WBS-A)* REST: Application metrics endpoint (`GET /api/metrics`, admin-only) | 2h | A-04, C-03 |
 
 ### WBS-D: Frontend Web Dashboard (Owner: Teammate 1)
@@ -115,6 +117,7 @@
 | D-17 | Loading states, empty states, error boundaries | 4h | D-06 to D-16 |
 | D-18 | Responsive layout adjustments (1024px–1920px) | 3h | D-03 to D-16 |
 | D-19 | Frontend unit/component tests | 5h | D-06 to D-16 |
+| D-20 | Organization switcher in the topbar (fed by `GET /api/orgs`); selected organization scopes the repo list and the link-repo picker | 3h | D-05, A-33 |
 
 ### WBS-E: Mobile App (Owner: Teammate 2)
 
@@ -185,8 +188,10 @@
 C-01 schema → C-02 migration → C-03 client pkg ──→ ALL API endpoints (A-11+)
                                                   ──→ ALL worker DB writes (B-21)
              → C-08 role + membership models ────→ A-32 role middleware ──→ A-11+
+             → C-09 org tenancy models ──────────→ A-33 org enforcement ──→ A-11+
 
-A-05 OAuth  → A-06 auth middleware ──→ A-32 role middleware ──→ ALL protected endpoints (A-11+)
+A-05 OAuth  → A-06 auth middleware ──→ A-32 role middleware ──→ A-33 org enforcement
+                                                              ──→ ALL protected endpoints (A-11+)
                                                               ──→ D-04 real login page
 
 A-09 BullMQ → B-01 worker scaffold → B-02 clone → B-03 detect → B-04+ analyzers
@@ -213,7 +218,7 @@ API contract (JSON shapes in api_design.md) → D-05 API client → ALL frontend
 | R-05 | **Analysis takes >5 minutes on real repos, times out** | Medium | Medium | Use `--depth=1` for git clone (shallow). Set per-tool timeouts (2 min each). For demo, use small test repos (<5K LOC). Document the timeout as a known limitation. |
 | R-06 | **Free-tier hosting limits exceeded** (DB rows, Redis commands, compute hours) | Low | High | Monitor usage weekly. Supabase free tier has 500MB + 50K rows (plenty for demo). Upstash has 10K commands/day (sufficient for dev). If exceeded, migrate to Railway which offers $5 credit. |
 | R-07 | **Frontend teammate blocked waiting for API endpoints** | High | Medium | API contract (api_design.md) is already defined. Frontend builds against mock data / JSON fixtures from Day 1. Swap to real API incrementally. Use MSW (Mock Service Worker) for development. |
-| R-08 | **Prisma schema needs breaking migration mid-development** | Medium | Medium | Run `prisma migrate dev` early and often. Keep migrations small and additive. Avoid renaming columns after Week 6 — add new + deprecate old instead. |
+| R-08 | **Prisma schema needs breaking migration mid-development** | Medium | Medium | Run `prisma migrate dev` early and often. Keep migrations small and additive. Avoid renaming columns after Week 6 — add new + deprecate old instead. **Materialised in Week 6** by C-09: adding a `NOT NULL` tenant column to an already-populated `Repository` table. Handled without a database reset by splitting the migration into add-nullable → backfill → set-not-null, so teammates' local data survived. Treat that migration as the worked example if this recurs. |
 | R-09 | **Push notifications don't work on iOS simulator / physical device differences** | Medium | Low | Use Expo Go app on a physical device for testing (push doesn't work on simulators). For demo, show the notification on an Android device as backup. |
 | R-10 | **Scope creep — "just one more feature" delays core deliverables** | High | High | Enforce the "Cut List" (§4 below). Any new feature request goes to a "Post-MVP" backlog. No new features after Week 12. Weeks 13-15 are testing + docs + polish only. |
 | R-11 | **Marketing video production takes longer than expected** | Medium | Medium | Write the script during Week 14 while doing final testing. Record in one session (screen recording + voiceover). Don't attempt professional editing — clear narration over screen capture is sufficient. Use OBS Studio. |

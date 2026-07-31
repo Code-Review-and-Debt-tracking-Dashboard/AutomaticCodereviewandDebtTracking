@@ -4,6 +4,10 @@
 >
 > **Written:** 26 July 2026 (end of Week 5) · **Runs:** Week 6 → Week 15 · **Ends:** 3 October 2026
 >
+> **Revised:** 31 July 2026 — steps `5a`, `5b` and `12a` inserted after the mentor confirmed that
+> org-level multi-tenancy is a hard requirement (`requirements_analysis.md` Q-1). Existing step
+> numbers were **not** renumbered, so every other reference in this document still resolves.
+>
 > **Team:** Rumesh (lead) · Nethmi · Vidushi
 
 ---
@@ -20,7 +24,7 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 ---
 
 ## WEEK 6 · 27 Jul – 2 Aug
-**Goal: the web dashboard reads real data out of Postgres over HTTP.**
+**Goal: the web dashboard reads real data out of Postgres over HTTP, scoped to an organization.**
 
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
@@ -29,23 +33,28 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | 3 | Nethmi | `D-05` | API client module — fetch wrapper, base URL, auth interceptor | — | 4 |
 | 4 | Vidushi | `C-04` | Confirm seed script on `develop`, runs clean from `migrate reset` | — | 2 |
 | 5 | Rumesh | `A-32` | Role authorisation middleware + `/api/repos/:id/members` | 1, 2 | 4 |
+| **5a** | Rumesh | `C-09` | **Organization tenancy schema — `Organization`, `OrganizationMember`, `Repository.orgId`, backfill migration, two-tenant seed** | 5 | 3 |
+| **5b** | Rumesh | `A-33` | **Tenant enforcement — GitHub org sync, `requireOrgAccess`, rewrite `requireRepoAccess`, `/api/orgs` endpoints, drop the platform-admin bypass** | 5a | 6 |
 | 6 | Nethmi | `D-04a` | Auth context provider + protected route wrapper | 3 | 3 |
 | 7 | Vidushi | `C-05` | Index validation — `EXPLAIN ANALYZE` on trend, findings, repo list | 4 | 3 |
-| 8 | Rumesh | `A-11` | `GET / POST / DELETE /api/repos` — list, link, unlink | 5 | 5 |
+| 8 | Rumesh | `A-11` | `GET / POST / DELETE /api/repos` — list, link, unlink (link resolves `orgId` from the repo's GitHub owner) | **5b** | 5 |
 | 9 | Nethmi | `D-04b` | Login page wired to real `GET /auth/github` + callback | 6 | 2 |
 | 10 | Vidushi | `A-13` | `GET /api/repos/:id/trend` | 7 | 3 |
 | 11 | Rumesh | `A-12` | `GET /api/repos/:id` — detail + latest snapshot | 8 | 3 |
 | 12 | Nethmi | `D-06` | Repo list page — delete `mockRepositories`, fetch real data | 8, 9 | 3 |
+| **12a** | Nethmi | `D-20` | **Organization switcher in the topbar, fed by `GET /api/orgs`; selected org scopes the repo list** | 5b, 12 | 3 |
 | 13 | Vidushi | `A-14` | `GET /api/repos/:id/debt` — breakdown by category | 10 | 2 |
-| 14 | Nethmi | `A-21` | `GET /api/repos/available` — user's GitHub repos via Octokit | 12 | 3 |
+| 14 | Nethmi | `A-21` | `GET /api/repos/available` — user's GitHub repos via Octokit, filtered to the selected org | 12a | 3 |
 | 15 | Vidushi | `E-01` | Expo project scaffold in `apps/mobile` | 13 | 3 |
 | 16 | Vidushi | `E-02` | Bottom tab navigator + empty screen scaffolds | 15 | 3 |
 
 > **Steps 1–2 are 3 hours combined and were due in Week 2.** Clear them Monday morning before anything else.
 > **Step 3 blocks nine pages.** Pair on it with Rumesh for the first two hours, screen shared.
 > **Steps 15–16 are already two weeks late.** They ship this week regardless of what else slips.
+> **Steps 5a–5b are the mentor's multi-tenancy correction.** They land *before* `A-11` deliberately: `POST /api/repos` writes `Repository.orgId`, so linking a repo without the tenant model in place would create rows that have to be migrated again a week later. Doing it now costs 9h; doing it after `A-11` costs that plus a second backfill.
+> **Step 12a is new work for Nethmi (+3h).** The dashboard now has to answer "which organization am I looking at", and the placeholder pages already reserved for this (`GlobalMembersPage`, `GlobalAnalyticsPage`) are the natural home. Flag it at Monday standup rather than discovering it in step 14.
 
-**⛔ GATE — Sunday 2 Aug:** the repositories page renders rows that came out of Postgres. If false, Week 7 becomes a rescue week.
+**⛔ GATE — Sunday 2 Aug:** the repositories page renders rows that came out of Postgres, **for the signed-in user's organization only**. A second account in a different organization must not see them. If false, Week 7 becomes a rescue week.
 
 ---
 
@@ -180,7 +189,7 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 |---|---|---|---|---|---|
 | 72 | Rumesh | `B-21` | Result persistence — immutable `HealthSnapshot` + findings, transition job status | 61, 69 | 4 |
 | 73 | Nethmi | `D-19` | Frontend unit and component tests | 68 | 5 |
-| 74 | Vidushi | `A-27` | API integration tests across all endpoints | 47, 71 | 6 |
+| 74 | Vidushi | `A-27` | API integration tests across all endpoints — **must include the cross-tenant matrix** (second org's token → 404 on every repo-scoped route) | 47, 71 | 6 |
 | 75 | Rumesh | `B-19` | GitHub PR comment poster (Octokit, updates existing comment) | 67, 72 | 4 |
 | 76 | Rumesh | `B-20` | GitHub commit status poster — pass / fail | 70, 75 | 2 |
 | 77 | Rumesh | `B-22` | Notification creation — gate fail, score drop, critical vulnerability | 52, 76 | 3 |
@@ -188,6 +197,7 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | 79 | Vidushi | — | **Cross-test the web dashboard** — not her own code | 74 | 4 |
 
 > **Steps 78 and 79 are mandatory and nobody tests their own platform.** Finding someone else's bug is the fastest route into their code, and every bug you find is one the evaluator doesn't.
+> **Step 74's tenant matrix is not optional.** The two-tenant seed fixture from step 5a exists precisely so these tests are cheap to write. A missing authorisation guard is the one bug class that ships silently and looks like a working feature — `A-33` had to fix exactly that on `/trend`, where the route's own comment claimed a check the middleware chain did not have.
 
 ---
 
@@ -226,25 +236,28 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 
 | Person | Steps | Hours | Weeks 6–14 avg |
 |---|---|---|---|
-| **Rumesh** | 1, 2, 5, 8, 11, 17, 20, 23, 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~112h | ~12.5h/wk |
-| **Nethmi** | 3, 6, 9, 12, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84 | ~76h | ~8.5h/wk |
+| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, 20, 23, 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~121h | ~13.5h/wk |
+| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84 | ~79h | ~8.8h/wk |
 | **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 48, 50, 51, 54, 57, 60, 65, 67, 71, 74, 79, 82, 85, 87, 88 | ~83h | ~9h/wk |
 
 Lighter than the original plan because documentation sits on a separate track. Treat the difference as buffer for exam weeks and integration bugs — both consistently cost more than anyone budgets.
 
+> **The 31 Jul revision costs 12h in total** — 9h on Rumesh (steps 5a, 5b) and 3h on Nethmi (step 12a), all inside Week 6. It lands in the week with the most existing slack and before `A-11` writes the first real `Repository` rows, which is the cheapest point in the schedule it could have landed. `C-09` is schema work nominally in Vidushi's WBS-C section, but `packages/db` schema is shared ownership and Vidushi is already carrying the two late mobile steps (15, 16), so the lead took it.
+
 ---
 
-## The five critical links in the chain
+## The six critical links in the chain
 
 If any one of these slips, the chain behind it stalls. Watch these more than anything else.
 
 | Link | Step | Why |
 |---|---|---|
 | 1 | **3** — `D-05` API client | Nine pages sit behind it. Week 6, Monday. |
-| 2 | **8** — `A-11` repo CRUD | First real endpoint. Step 12 and the Review 1 demo depend on it. |
-| 3 | **52** — `A-24` push dispatch | Steps 57 and 60 block on it with no slack in Week 11. |
-| 4 | **61** — `B-12` normaliser | Six analyzers in, persistence and tests out. Widest bottleneck in the project. |
-| 5 | **62/63** — `B-13`/`B-14` scoring | Last feature week. Steps 65 and 67 sit right behind. |
+| 2 | **5b** — `A-33` tenant enforcement | Now sits directly in front of `A-11`. Every repo-scoped endpoint written after it inherits the tenant guard for free; anything written before it has to be revisited. |
+| 3 | **8** — `A-11` repo CRUD | First real endpoint. Step 12 and the Review 1 demo depend on it. |
+| 4 | **52** — `A-24` push dispatch | Steps 57 and 60 block on it with no slack in Week 11. |
+| 5 | **61** — `B-12` normaliser | Six analyzers in, persistence and tests out. Widest bottleneck in the project. |
+| 6 | **62/63** — `B-13`/`B-14` scoring | Last feature week. Steps 65 and 67 sit right behind. |
 
 ---
 

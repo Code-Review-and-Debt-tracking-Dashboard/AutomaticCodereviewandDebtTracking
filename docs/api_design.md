@@ -72,16 +72,19 @@ Invalidates the session.
 
 ## 2. Roles & Authorization
 
-Authorization has **two axes** (see `database_design.md` §3.7 for the schema rationale):
+The system is **multi-tenant at the organization level**. An organization is the tenant, every repository belongs to exactly one, and a user can never reach data in an organization they do not belong to. Authorization has **three axes** (see `database_design.md` §3.7 and §3.12 for the schema rationale):
 
-**Platform role** — `User.platformRole` (`PlatformRole` enum):
+**1. Organization membership** — the tenant boundary. `OrganizationMember` rows carrying an `OrgRole` and a `MemberStatus`:
 
-| Platform role | Can do | Sees |
-|---|---|---|
-| `ADMIN` | Everything, plus `GET /api/metrics`; may act on any repository | All repositories |
-| `USER` | Default. Capabilities depend on their per-repository relationship (below) | Repos they own or are a member of |
+| Org role | Can do |
+|---|---|
+| `OWNER` | The user's own personal account org, and GitHub org owners. Full control of the tenant's repositories |
+| `ADMIN` | Mapped from GitHub org role `admin`. Same repository control as `OWNER` |
+| `MEMBER` | In the tenant, but still needs a per-repository grant to open a given repository |
 
-**Per-repository relationship** — repo ownership (`Repository.ownerId`) plus `RepositoryMember` rows carrying a `RepositoryRole` (`TEAM_LEAD` / `DEVELOPER` / `VIEWER`) and a `MemberStatus`:
+Organizations mirror **GitHub account owners** — both real GitHub organizations and personal accounts. Membership is synced from GitHub (`read:org` scope) and is never granted through this API.
+
+**2. Per-repository relationship** — repo ownership (`Repository.ownerId`) plus `RepositoryMember` rows carrying a `RepositoryRole` (`TEAM_LEAD` / `DEVELOPER` / `VIEWER`) and a `MemberStatus`:
 
 | Relationship | Can do |
 |---|---|
@@ -90,14 +93,27 @@ Authorization has **two axes** (see `database_design.md` §3.7 for the schema ra
 | Member, `DEVELOPER` | Read-only: view findings, trends, hotspots; manage own notifications/devices |
 | Member, `VIEWER` | Read-only (reserved; not yet exercised in MVP) |
 
+**3. Platform role** — `User.platformRole` (`PlatformRole` enum):
+
+| Platform role | Can do | Sees |
+|---|---|---|
+| `ADMIN` | `GET /api/metrics` and the queue dashboard — **operational routes only** | No tenant data. An admin has no more access to any organization's repositories than any other user |
+| `USER` | Default. Capabilities depend on the two axes above | Repos in their orgs that they own or are a member of |
+
 **Defaults:**
-- Every new GitHub login defaults to `platformRole: USER`.
-- Linking a repository (`POST /api/repos`) makes the caller that repo's **owner** (`ownerId`). There is no global role change — a user can own some repos while being a member of others.
+- Every new GitHub login defaults to `platformRole: USER`, and their organizations are synced from GitHub on each login.
+- A user's own GitHub account is always one of their organizations, so personal repositories still live in a tenant.
+- Linking a repository makes the caller that repo's **owner** (`ownerId`), inside the organization that owns it on GitHub.
 - `ADMIN` is never self-service. The first admin for a deployment is set directly in the database; there is no admin-promotion endpoint in MVP.
 
-**How endpoints enforce this:** every route below that says "**Auth:** Required (must be owner)" means "the requester is the repo's `Repository.ownerId`, is an `ACTIVE` `RepositoryMember` with `role = TEAM_LEAD`, **or** has `platformRole = ADMIN`." Read routes additionally accept any `ACTIVE` `RepositoryMember` (any repo role).
+**How endpoints enforce this.** Every repo-scoped route checks two layers, in order:
 
-**Error:** `403 FORBIDDEN` if the requester is authenticated but is neither the owner, an active member, nor a platform admin.
+1. **Tenant** — is the caller an `ACTIVE` `OrganizationMember` of the repository's `orgId`? Checked against the database on every request, never from the token, so revoking membership takes effect immediately rather than when the token expires.
+2. **Repository** — "**Auth:** Required (must be owner)" means the requester is the repo's `Repository.ownerId`, is an `ACTIVE` `RepositoryMember` with `role = TEAM_LEAD`, or is an `OWNER`/`ADMIN` of the organization. Read routes additionally accept any `ACTIVE` `RepositoryMember` (any repo role).
+
+**Errors:**
+- `404 NOT_FOUND` if the caller is outside the repository's or organization's tenant. This is deliberately **not** `403` — a `403` would confirm that the resource exists, and its existence is itself information belonging to another tenant.
+- `403 FORBIDDEN` if the caller is inside the right tenant but lacks a grant on that specific repository. At that point they are entitled to know it exists.
 
 ---
 
@@ -129,6 +145,103 @@ Receives GitHub webhook events. Must respond within 10 seconds.
 
 - **Success:** `202 Accepted` `{ "message": "Job queued", "jobId": "bull-job-123" }`
 - **Errors:** `401` invalid signature | `404` repo not linked | `400` unsupported event
+
+---
+
+## 3a. Organizations (Tenants)
+
+Organizations are not created through this API — they mirror the GitHub account owners the user already belongs to, and are synced from GitHub on login. These endpoints let the user see and choose among them.
+
+### `GET /api/orgs`
+
+Organizations the caller currently belongs to. This is what the UI uses to let them pick which organization to work in.
+
+- **Auth:** Required
+- **Success `200`:**
+
+```json
+{
+  "data": [
+    {
+      "id": "clorg1...",
+      "githubOrgId": "20001",
+      "login": "acme-corp",
+      "name": "Acme Corp",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/20001",
+      "type": "ORGANIZATION",
+      "role": "MEMBER"
+    },
+    {
+      "id": "clorg2...",
+      "githubOrgId": "1234",
+      "login": "rumeshc",
+      "name": "rumeshc",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/1234",
+      "type": "USER",
+      "role": "OWNER"
+    }
+  ]
+}
+```
+
+`type: "USER"` is the caller's own GitHub account, which is always present so that personal repositories have a tenant.
+
+### `POST /api/orgs/sync`
+
+Re-reads the caller's organizations from GitHub using their stored token, for when they have just joined or left one and do not want to log out and back in. Organizations GitHub no longer reports are revoked.
+
+- **Auth:** Required
+- **Success `200`:** same shape as `GET /api/orgs` (the refreshed list)
+- **Errors:** `401` no GitHub credential on file (sign in again) | `502` GitHub unreachable
+
+### `GET /api/orgs/:orgId/members`
+
+Everyone in the organization.
+
+- **Auth:** Required (must be an active member of this organization)
+- **Success `200`:**
+
+```json
+{
+  "data": [
+    {
+      "userId": "clxyz...",
+      "username": "rumeshc",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/1234",
+      "role": "ADMIN",
+      "status": "ACTIVE",
+      "syncedAt": "2026-07-31T09:00:00Z"
+    }
+  ]
+}
+```
+
+- **Errors:** `404` caller is not a member of this organization (**not** `403` — see §2)
+
+### `GET /api/orgs/:orgId/repos`
+
+Linked repositories in this organization that the caller can actually open. Being in the organization is not on its own enough — a repository still needs ownership or an active repository membership — so a `MEMBER` with no grants correctly receives an empty list.
+
+- **Auth:** Required (must be an active member of this organization)
+- **Success `200`:**
+
+```json
+{
+  "data": [
+    {
+      "id": "clxyz...",
+      "name": "my-project",
+      "fullName": "acme-corp/my-project",
+      "language": "TypeScript",
+      "defaultBranch": "main",
+      "isActive": true,
+      "orgId": "clorg1..."
+    }
+  ]
+}
+```
+
+- **Errors:** `404` caller is not a member of this organization
 
 ---
 
@@ -206,16 +319,19 @@ Link a GitHub repository and register webhook.
 {
   "id": "clxyz...",
   "name": "my-project",
-  "fullName": "rumeshc/my-project",
+  "fullName": "acme-corp/my-project",
   "language": "TypeScript",
   "isActive": true,
+  "orgId": "clorg1...",
   "webhookId": "gh-webhook-789"
 }
 ```
 
-- **Errors:** `409` already linked | `403` no admin access to repo on GitHub's side (not our platform role) | `502` webhook registration failed
+- **Errors:** `409` already linked | `403` no admin access to repo on GitHub's side (not our platform role) | `404` the repo's GitHub owner is not an organization the caller belongs to | `502` webhook registration failed
 
 > A successful link makes the caller the repo's **owner** (`Repository.ownerId`), which grants full repo-management rights on that repo (see §2 Roles & Authorization). The caller's platform role is unaffected.
+>
+> **Tenant assignment is not a choice the caller makes.** `orgId` is resolved from the repository's GitHub owner (`repository.owner.id`), so a repo always lands in the organization that actually owns it on GitHub. The caller must be an active member of that organization, which is why linking a repo from an org you are not in is a `404` rather than a `403`.
 
 ### `DELETE /api/repos/:repoId`
 
@@ -812,6 +928,10 @@ Authorization: Bearer <jwt-token>
 | 3 | `GET` | `/auth/me` | Bearer | Get current user |
 | 4 | `POST` | `/auth/logout` | Bearer | Invalidate session |
 | 5 | `POST` | `/webhooks/github` | HMAC | Receive GitHub events |
+| 5a | `GET` | `/api/orgs` | Bearer | List the caller's organizations (tenants) |
+| 5b | `POST` | `/api/orgs/sync` | Bearer | Re-sync organizations from GitHub |
+| 5c | `GET` | `/api/orgs/:orgId/members` | Bearer (org member) | List organization members |
+| 5d | `GET` | `/api/orgs/:orgId/repos` | Bearer (org member) | Repos in this org the caller can open |
 | 6 | `GET` | `/api/repos` | Bearer | List repos user can see |
 | 7 | `GET` | `/api/repos/available` | Bearer | List unlinkable GitHub repos |
 | 8 | `POST` | `/api/repos` | Bearer | Link a repository (caller becomes repo owner) |
@@ -912,10 +1032,12 @@ Bull Board web UI for real-time BullMQ job queue monitoring.
 | 2 | **`GET /api/mobile/summary`** not in original scope | Mobile will make 3+ calls on launch without it | Add as convenience endpoint — aggregates existing queries |
 | 3 | **Snapshot status SSE/WebSocket** | Frontend has no way to know when an analysis completes without polling | Options: (a) poll `GET /api/repos/:repoId` every 10s, (b) add SSE endpoint `/api/events`. Recommend polling for MVP, SSE in Sprint 2 |
 | 4 | **`resolvedIssues` count on PRs** | Frontend wants to show "this PR fixed N issues" | Requires worker to compute resolved count during isNew comparison — add to worker pipeline |
-| 5 | **No admin-promotion endpoint** | First `ADMIN` must be set directly in the DB; existing admins cannot promote others via the API | Acceptable for MVP (small, trusted team). Add `PATCH /api/users/:userId/role` (admin-only) post-MVP if needed. |
+| 5 | **No admin-promotion endpoint** | First `ADMIN` must be set directly in the DB; existing admins cannot promote others via the API | Acceptable for MVP (small, trusted team). Add `PATCH /api/users/:userId/role` (admin-only) post-MVP if needed. Lower priority now that `platformRole` no longer grants access to any tenant's data. |
+| 6 | **Org membership is only as fresh as the last sync** | A user removed from a GitHub organization keeps access until the next login or `POST /api/orgs/sync` | Accepted for MVP. The window is bounded and closable on demand; closing it fully would mean calling GitHub on every request. Revoking in our own database takes effect immediately. |
+| 7 | **One shared `GITHUB_WEBHOOK_SECRET` across all tenants** | Anyone holding that secret can forge webhook events for any linked repository, in any organization | Per-repository secrets stored alongside `Repository.webhookId`. Needs `webhookId` to actually be written first (repo linking is not implemented yet), so it is sequenced after that. |
 
-> Resolved since the previous revision of this document: the `Device` model gap (now in `database_design.md` §2/§3.8) and the missing role/membership model (now `PlatformRole` + per-repo `RepositoryRole`/`RepositoryMember`, §2 above and `database_design.md` §3.7).
+> Resolved since the previous revision of this document: the `Device` model gap (now in `database_design.md` §2/§3.8); the missing role/membership model (now `OrgRole` + `RepositoryRole`, §2 above); and **org-level multi-tenancy** — the brief's "multi-tenant system" is now an actual `Organization` entity with enforced isolation, closing `requirements_analysis.md` Q-1 (`database_design.md` §3.12).
 
 ---
 
-*This document serves as the API contract. Frontend and mobile teammates can start building against these shapes immediately using mock data. All types should be codified in `packages/shared/src/types/api.ts`. Total endpoint count: 32 (29 REST + 3 observability/admin).*
+*This document serves as the API contract. Frontend and mobile teammates can start building against these shapes immediately using mock data. All types should be codified in `packages/shared/src/types/api.ts`. Total endpoint count: 36 (33 REST + 3 observability/admin).*
