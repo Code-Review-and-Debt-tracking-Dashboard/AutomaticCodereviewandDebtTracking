@@ -15,11 +15,28 @@ generator client {
 // ENUMS
 // ================================================================
 
-// Platform-level role.
-// Repository-level permissions are handled separately.
+// Platform-level role. This no longer grants access to tenant data —
+// it only guards operational endpoints such as the metrics route.
+// Organization and repository permissions are handled separately.
 enum PlatformRole {
   ADMIN
   USER
+}
+
+// Mirrors GitHub's repository owner type. A personal GitHub account is
+// modelled as an organization of its own so that personal repositories
+// still live inside a tenant.
+enum OrgType {
+  USER
+  ORGANIZATION
+}
+
+// Organization-level role, derived from the caller's GitHub org membership.
+// OWNER is used for a user's own personal account organization.
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
 }
 
 enum RepositoryRole {
@@ -116,6 +133,9 @@ model User {
   // Authentication sessions
   sessions Session[]
 
+  // Organizations (tenants) this user belongs to
+  orgMemberships OrganizationMember[]
+
   // Repositories directly linked/owned by this user
   ownedRepositories Repository[] @relation("RepositoryOwner")
 
@@ -168,6 +188,55 @@ model Session {
 }
 
 // ================================================================
+// ORGANIZATION (TENANT) MODELS
+// ================================================================
+
+// An organization is the tenant boundary. It mirrors a GitHub account
+// owner, so both a real GitHub organization and a personal GitHub account
+// are represented the same way. Every repository belongs to exactly one.
+model Organization {
+  id          String  @id @default(cuid())
+  githubOrgId String  @unique
+  login       String  @unique
+  name        String?
+  avatarUrl   String?
+  type        OrgType @default(ORGANIZATION)
+
+  members      OrganizationMember[]
+  repositories Repository[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Which users belong to which tenant. Rows are created and revoked by
+// syncing against GitHub, never granted inside this app, so we cannot hand
+// out access that GitHub itself would not.
+model OrganizationMember {
+  id     String       @id @default(cuid())
+  role   OrgRole      @default(MEMBER)
+  status MemberStatus @default(ACTIVE)
+
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Last time GitHub confirmed this membership still exists.
+  syncedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, userId])
+  // Every repo-scoped request asks "is this caller in this tenant", so both
+  // lookup directions are indexed.
+  @@index([userId, status])
+  @@index([orgId, status])
+}
+
+// ================================================================
 // REPOSITORY AND MEMBERSHIP MODELS
 // ================================================================
 
@@ -187,7 +256,12 @@ model Repository {
 
   isActive Boolean @default(true)
 
-  // User who linked and controls the repository.
+  // Tenant this repository belongs to. Taken from the GitHub owner of the
+  // repo, so it is known even on the webhook path where there is no caller.
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  // User who linked and controls the repository, within that tenant.
   ownerId String
   owner   User   @relation("RepositoryOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
@@ -204,6 +278,7 @@ model Repository {
 
   @@index([fullName])
   @@index([ownerId, isActive])
+  @@index([orgId, isActive])
 }
 
 // Explicit many-to-many relationship between users and repositories.
