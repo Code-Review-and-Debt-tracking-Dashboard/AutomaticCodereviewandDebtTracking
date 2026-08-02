@@ -2,23 +2,89 @@ import { motion } from "framer-motion";
 import {
   CheckCircle2,
   ChevronLeft,
-  GitPullRequest,
-  LockKeyhole,
   Save,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useState } from "react";
+
+import { api } from "../../lib/apiClient";
+
+interface QualityGate {
+  repoId: string;
+  minHealthScore: number;
+  maxCriticalFindings: number | null;
+  maxVulnerabilities: number | null;
+  maxDuplicationPct: number | null;
+  maxComplexityCount: number | null;
+  maxCodeSmellCount: number | null;
+  blockPR: boolean;
+}
 
 export function RepositoryQualityGatePage() {
   const { repoId } = useParams();
   const navigate = useNavigate();
 
-  const [enabled, setEnabled] = useState(true);
-  const [minimumScore, setMinimumScore] = useState(80);
-  const [maxCritical, setMaxCritical] = useState(0);
-  const [maxHigh, setMaxHigh] = useState(5);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [gate, setGate] = useState<QualityGate | null>(null);
+
+  useEffect(() => {
+    const fetchGate = async () => {
+      if (!repoId) return;
+
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await api.get<{ data: QualityGate }>(`/api/repos/${repoId}/quality-gate`);
+        setGate(response.data);
+      } catch (fetchError: any) {
+        setError(fetchError?.response?.data?.error?.message || "Failed to load quality gate.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchGate();
+  }, [repoId]);
+
+  const updateGate = <K extends keyof QualityGate>(key: K, value: QualityGate[K]) => {
+    setGate((current) =>
+      current
+        ? {
+            ...current,
+            [key]: value,
+          }
+        : current,
+    );
+  };
+
+  const handleSave = async () => {
+    if (!repoId || !gate) return;
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await api.put<{ data: QualityGate }>(`/api/repos/${repoId}/quality-gate`, gate);
+      setGate(response.data);
+    } catch (saveError: any) {
+      setError(saveError?.response?.data?.error?.message || "Failed to save quality gate.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const displayGate = gate ?? {
+    repoId: repoId || "",
+    minHealthScore: 60,
+    maxCriticalFindings: null,
+    maxVulnerabilities: null,
+    maxDuplicationPct: null,
+    maxComplexityCount: null,
+    maxCodeSmellCount: null,
+    blockPR: false,
+  };
 
   return (
     <main className="min-h-screen bg-background">
@@ -71,20 +137,32 @@ export function RepositoryQualityGatePage() {
               </div>
 
               <button
-                onClick={() => setEnabled(!enabled)}
+                onClick={() => updateGate("blockPR", !displayGate.blockPR)}
                 className={`relative h-6 w-11 rounded-full transition ${
-                  enabled ? "bg-success" : "bg-muted"
+                  displayGate.blockPR ? "bg-success" : "bg-muted"
                 }`}
               >
                 <span
                   className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
-                    enabled ? "left-6" : "left-1"
+                    displayGate.blockPR ? "left-6" : "left-1"
                   }`}
                 />
               </button>
             </div>
 
             <div className="space-y-6 pt-6">
+
+              {error && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              {isLoading ? (
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                  Loading quality gate…
+                </div>
+              ) : null}
 
               <div>
                 <label className="text-sm font-medium">
@@ -99,9 +177,9 @@ export function RepositoryQualityGatePage() {
                   type="number"
                   min={0}
                   max={100}
-                  value={minimumScore}
+                  value={displayGate.minHealthScore}
                   onChange={(event) =>
-                    setMinimumScore(Number(event.target.value))
+                    updateGate("minHealthScore", Number(event.target.value))
                   }
                   className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
                 />
@@ -115,9 +193,12 @@ export function RepositoryQualityGatePage() {
                 <input
                   type="number"
                   min={0}
-                  value={maxCritical}
+                  value={displayGate.maxCriticalFindings ?? ""}
                   onChange={(event) =>
-                    setMaxCritical(Number(event.target.value))
+                    updateGate(
+                      "maxCriticalFindings",
+                      event.target.value === "" ? null : Number(event.target.value),
+                    )
                   }
                   className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
                 />
@@ -125,23 +206,89 @@ export function RepositoryQualityGatePage() {
 
               <div>
                 <label className="text-sm font-medium">
-                  Maximum High Findings
+                  Maximum Vulnerabilities
                 </label>
 
                 <input
                   type="number"
                   min={0}
-                  value={maxHigh}
+                  value={displayGate.maxVulnerabilities ?? ""}
                   onChange={(event) =>
-                    setMaxHigh(Number(event.target.value))
+                    updateGate(
+                      "maxVulnerabilities",
+                      event.target.value === "" ? null : Number(event.target.value),
+                    )
                   }
                   className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
                 />
               </div>
 
-              <button className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5">
+              <div>
+                <label className="text-sm font-medium">
+                  Maximum Duplication %
+                </label>
+
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={displayGate.maxDuplicationPct ?? ""}
+                  onChange={(event) =>
+                    updateGate(
+                      "maxDuplicationPct",
+                      event.target.value === "" ? null : Number(event.target.value),
+                    )
+                  }
+                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">
+                  Maximum Complexity Count
+                </label>
+
+                <input
+                  type="number"
+                  min={0}
+                  value={displayGate.maxComplexityCount ?? ""}
+                  onChange={(event) =>
+                    updateGate(
+                      "maxComplexityCount",
+                      event.target.value === "" ? null : Number(event.target.value),
+                    )
+                  }
+                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">
+                  Maximum Code Smell Count
+                </label>
+
+                <input
+                  type="number"
+                  min={0}
+                  value={displayGate.maxCodeSmellCount ?? ""}
+                  onChange={(event) =>
+                    updateGate(
+                      "maxCodeSmellCount",
+                      event.target.value === "" ? null : Number(event.target.value),
+                    )
+                  }
+                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving || isLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 disabled:opacity-60"
+              >
                 <Save size={17} />
-                Save Quality Gate
+                {isSaving ? "Saving…" : "Save Quality Gate"}
               </button>
             </div>
           </motion.section>
@@ -161,8 +308,9 @@ export function RepositoryQualityGatePage() {
             </p>
 
             <p className="mt-2 text-sm text-muted-foreground">
-              The current repository configuration satisfies all quality gate
-              conditions.
+              {displayGate.blockPR
+                ? "Pull requests are blocked when the gate fails."
+                : "Pull requests are not blocked by the gate yet."}
             </p>
 
             <div className="mt-6 space-y-3">
@@ -172,7 +320,7 @@ export function RepositoryQualityGatePage() {
                 </span>
 
                 <span className="font-semibold">
-                  {minimumScore}
+                  {displayGate.minHealthScore}
                 </span>
               </div>
 
@@ -182,17 +330,17 @@ export function RepositoryQualityGatePage() {
                 </span>
 
                 <span className="font-semibold">
-                  ≤ {maxCritical}
+                  {displayGate.maxCriticalFindings === null ? "Any" : `≤ ${displayGate.maxCriticalFindings}`}
                 </span>
               </div>
 
               <div className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
                 <span className="text-sm">
-                  High findings
+                  Vulnerabilities
                 </span>
 
                 <span className="font-semibold">
-                  ≤ {maxHigh}
+                  {displayGate.maxVulnerabilities === null ? "Any" : `≤ ${displayGate.maxVulnerabilities}`}
                 </span>
               </div>
             </div>

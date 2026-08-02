@@ -367,6 +367,59 @@ async function main() {
     },
   });
 
+  // Seed 30 days of HealthSnapshot history for trend charts (C-04b)
+  const now = new Date();
+  for (let i = 30; i >= 1; i--) {
+    const calcDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dayJobId = `seed-analysis-history-${i}`;
+
+    const dayJob = await prisma.analysisJob.upsert({
+      where: { id: dayJobId },
+      update: {
+        status: AnalysisStatus.COMPLETED,
+        trigger: AnalysisTrigger.SCHEDULED,
+        completedAt: calcDate,
+      },
+      create: {
+        id: dayJobId,
+        repoId: repository.id,
+        status: AnalysisStatus.COMPLETED,
+        trigger: AnalysisTrigger.SCHEDULED,
+        branch: "main",
+        commitSha: `sha-history-${i}`,
+        completedAt: calcDate,
+      },
+    });
+
+    const baseScore = 75 + Math.sin(i / 3) * 10;
+    const debt = Math.round(180 + Math.cos(i / 2) * 40);
+
+    await prisma.healthSnapshot.upsert({
+      where: { analysisId: dayJob.id },
+      update: {
+        healthScore: Number(baseScore.toFixed(1)),
+        debtMinutes: debt,
+        calculatedAt: calcDate,
+      },
+      create: {
+        analysisId: dayJob.id,
+        repoId: repository.id,
+        healthScore: Number(baseScore.toFixed(1)),
+        debtMinutes: debt,
+        debtDeltaMinutes: -2,
+        vulnerabilityCount: Math.max(0, Math.floor(5 - i / 10)),
+        criticalCount: 1,
+        highCount: 2,
+        mediumCount: 4,
+        lowCount: 5,
+        totalIssues: 12,
+        gateResult: baseScore >= 70 ? GateResult.PASS : GateResult.FAIL,
+        calculatedAt: calcDate,
+      },
+    });
+  }
+
+
   await prisma.notification.deleteMany({
     where: {
       userId: developer.id,

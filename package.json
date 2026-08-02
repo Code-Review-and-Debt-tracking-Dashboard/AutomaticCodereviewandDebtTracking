@@ -1,5 +1,13 @@
 {
     "name": "codehealth",
     "private": true,
-    "workspaces": ["apps/*", "packages/*"]
-  }
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "dependencies": {
+        "cors": "^2.8.6",
+        "express": "^5.2.1",
+        "helmet": "^8.3.0"
+    }
+}

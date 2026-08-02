@@ -1,8 +1,5 @@
 import { motion } from "framer-motion";
 import {
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
   Code2,
   ExternalLink,
   Filter,
@@ -15,48 +12,43 @@ import {
   SlidersHorizontal,
   TrendingUp,
   X,
+  ChevronDown,
+  Loader2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { useOrg } from "../../contexts/OrgContext";
+import { api } from "../../lib/apiClient";
+import { LinkRepositoryModal } from "../../components/repositories/LinkRepositoryModal";
 
 /*
  * =========================================================
- * BACKEND CONNECTION LATER
+ * REPOSITORIES PAGE (D-06)
  * =========================================================
  *
- * CURRENT:
- * Static mock repository data.
- *
- * FUTURE:
- *
- * GET /api/repos
- *
- * Expected backend response:
- *
- * [
- *   {
- *     id: "...",
- *     githubId: 123456,
- *     name: "AutomaticCodeReview",
- *     fullName: "owner/AutomaticCodeReview",
- *     language: "TypeScript",
- *     defaultBranch: "main",
- *     healthScore: 86,
- *     openFindings: 24,
- *     technicalDebtMinutes: 260,
- *     lastAnalyzedAt: "...",
- *     isActive: true
- *   }
- * ]
- *
- * This page will later use:
- *
- * const { data, isLoading, error } = useRepositories();
+ * Real API wired repository list page.
+ * Scoped to selected organization from OrgContext via GET /api/orgs/:orgId/repos
+ * Mock repositories array removed.
  */
 
-type RepositoryStatus =
-  | "Excellent"
-  | "Healthy"
-  | "Needs attention";
+type RepositoryStatus = "Excellent" | "Healthy" | "Needs attention";
+
+interface ApiRepository {
+  id: string;
+  githubRepoId?: string;
+  name: string;
+  fullName: string;
+  language: string | null;
+  defaultBranch: string;
+  isActive: boolean;
+  orgId: string;
+  healthScore?: number;
+  openFindings?: number;
+  debtMinutes?: number;
+  lastAnalyzedAt?: string | null;
+  private?: boolean;
+}
 
 type Repository = {
   id: string;
@@ -71,79 +63,6 @@ type Repository = {
   lastAnalyzed: string;
   isPrivate: boolean;
 };
-
-/*
- * =========================================================
- * MOCK DATA
- * =========================================================
- *
- * Replace this with:
- *
- * const { data: repositories = [] } = useRepositories();
- *
- * after the backend API is ready.
- */
-
-const mockRepositories: Repository[] = [
-  {
-    id: "repo-1",
-    name: "AutomaticCodeReview",
-    fullName: "Code-Review/AutomaticCodeReview",
-    language: "TypeScript",
-    score: 86,
-    findings: 24,
-    debt: "4h 20m",
-    status: "Healthy",
-    branch: "main",
-    lastAnalyzed: "8 min ago",
-    isPrivate: false,
-  },
-  {
-    id: "repo-2",
-    name: "MobileDashboard",
-    fullName: "Code-Review/MobileDashboard",
-    language: "TypeScript",
-    score: 74,
-    findings: 47,
-    debt: "8h 45m",
-    status: "Needs attention",
-    branch: "main",
-    lastAnalyzed: "32 min ago",
-    isPrivate: true,
-  },
-  {
-    id: "repo-3",
-    name: "AnalysisWorker",
-    fullName: "Code-Review/AnalysisWorker",
-    language: "Python",
-    score: 91,
-    findings: 12,
-    debt: "2h 10m",
-    status: "Excellent",
-    branch: "develop",
-    lastAnalyzed: "1 hour ago",
-    isPrivate: false,
-  },
-  {
-    id: "repo-4",
-    name: "CodeQualityEngine",
-    fullName: "Code-Review/CodeQualityEngine",
-    language: "Java",
-    score: 82,
-    findings: 31,
-    debt: "6h 05m",
-    status: "Healthy",
-    branch: "main",
-    lastAnalyzed: "2 hours ago",
-    isPrivate: false,
-  },
-];
-
-/*
- * =========================================================
- * AVAILABLE FILTERS
- * =========================================================
- */
 
 const languages = [
   "All languages",
@@ -161,127 +80,146 @@ const scoreFilters = [
   "Needs attention (<70)",
 ];
 
-type SortOption =
-  | "health"
-  | "findings"
-  | "debt"
-  | "recent";
+type SortOption = "health" | "findings" | "debt" | "recent";
 
 export function RepositoriesPage() {
+  const navigate = useNavigate();
+  const { selectedOrg } = useOrg();
+
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
   const [language, setLanguage] = useState("All languages");
   const [scoreFilter, setScoreFilter] = useState("All scores");
   const [sortBy, setSortBy] = useState<SortOption>("health");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
-  /*
-   * =========================================================
-   * FRONTEND FILTERING
-   * =========================================================
-   *
-   * CURRENT:
-   * Filtering happens locally.
-   *
-   * FUTURE:
-   * The backend may support:
-   *
-   * GET /api/repos?
-   * search=...
-   * &language=...
-   * &sort=...
-   *
-   * For a small number of repositories, local filtering is fine.
-   * For many repositories, move filtering to the backend.
-   */
+  const fetchRepos = async () => {
+    if (!selectedOrg) {
+      setRepositories([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<{ data: ApiRepository[] }>(
+        `/api/orgs/${selectedOrg.id}/repos`
+      );
+      const apiList = res.data || [];
+
+      // Map backend schema to UI Repository shape
+      const mapped: Repository[] = apiList.map((item) => {
+        const score = item.healthScore ?? 80;
+        let status: RepositoryStatus = "Healthy";
+        if (score >= 85) status = "Excellent";
+        else if (score < 70) status = "Needs attention";
+
+        const minutes = item.debtMinutes ?? 120;
+        const hrs = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        const debtStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+
+        return {
+          id: item.id,
+          name: item.name,
+          fullName: item.fullName,
+          language: item.language || "TypeScript",
+          score,
+          findings: item.openFindings ?? 0,
+          debt: debtStr,
+          status,
+          branch: item.defaultBranch || "main",
+          lastAnalyzed: item.lastAnalyzedAt
+            ? new Date(item.lastAnalyzedAt).toLocaleDateString()
+            : "Recently",
+          isPrivate: item.private ?? false,
+        };
+      });
+
+      setRepositories(mapped);
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message || "Failed to load repositories for this organization."
+      );
+      setRepositories([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRepos();
+  }, [selectedOrg?.id]);
 
   const filteredRepositories = useMemo(() => {
-    let result = [...mockRepositories];
+    let result = [...repositories];
 
     if (search.trim()) {
       const query = search.toLowerCase();
-
       result = result.filter(
-        (repository) =>
-          repository.name.toLowerCase().includes(query) ||
-          repository.fullName.toLowerCase().includes(query),
+        (repo) =>
+          repo.name.toLowerCase().includes(query) ||
+          repo.fullName.toLowerCase().includes(query)
       );
     }
 
     if (language !== "All languages") {
-      result = result.filter(
-        (repository) =>
-          repository.language === language,
-      );
+      result = result.filter((repo) => repo.language === language);
     }
 
     if (scoreFilter === "Excellent (85+)") {
-      result = result.filter(
-        (repository) => repository.score >= 85,
-      );
-    }
-
-    if (scoreFilter === "Healthy (70-84)") {
-      result = result.filter(
-        (repository) =>
-          repository.score >= 70 &&
-          repository.score < 85,
-      );
-    }
-
-    if (scoreFilter === "Needs attention (<70)") {
-      result = result.filter(
-        (repository) => repository.score < 70,
-      );
+      result = result.filter((repo) => repo.score >= 85);
+    } else if (scoreFilter === "Healthy (70-84)") {
+      result = result.filter((repo) => repo.score >= 70 && repo.score < 85);
+    } else if (scoreFilter === "Needs attention (<70)") {
+      result = result.filter((repo) => repo.score < 70);
     }
 
     result.sort((a, b) => {
-      if (sortBy === "health") {
-        return b.score - a.score;
-      }
-
-      if (sortBy === "findings") {
-        return b.findings - a.findings;
-      }
-
-      if (sortBy === "debt") {
-        return b.debt.localeCompare(a.debt);
-      }
-
+      if (sortBy === "health") return b.score - a.score;
+      if (sortBy === "findings") return b.findings - a.findings;
+      if (sortBy === "debt") return b.debt.localeCompare(a.debt);
       return 0;
     });
 
     return result;
-  }, [
-    search,
-    language,
-    scoreFilter,
-    sortBy,
-  ]);
+  }, [repositories, search, language, scoreFilter, sortBy]);
+
+  const stats = useMemo(() => {
+    const total = repositories.length;
+    const avgHealth =
+      total > 0
+        ? (repositories.reduce((acc, r) => acc + r.score, 0) / total).toFixed(1)
+        : "0.0";
+    const healthyCount = repositories.filter((r) => r.score >= 70).length;
+    const totalFindings = repositories.reduce((acc, r) => acc + r.findings, 0);
+
+    return {
+      total,
+      avgHealth,
+      healthyCount,
+      totalFindings,
+    };
+  }, [repositories]);
 
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-
-        {/* =================================================
-            PAGE HEADER
-        ================================================= */}
-
+        {/* HEADER */}
         <motion.div
-          initial={{
-            opacity: 0,
-            y: 12,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
           className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"
         >
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
               <GitBranch size={13} />
-
-              Connected repositories
+              Organization: {selectedOrg?.name || selectedOrg?.login || "Select Org"}
             </div>
 
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -289,110 +227,72 @@ export function RepositoriesPage() {
             </h1>
 
             <p className="mt-2 text-sm text-muted-foreground">
-              Monitor the health, findings, and technical debt of your repositories.
+              Monitor code health and technical debt for repositories in this organization.
             </p>
           </div>
 
-          {/* BACKEND CONNECTION LATER
-              This button will open:
-
-              <LinkRepositoryModal />
-
-              Which will use:
-
-              GET /api/github/repos
-
-              POST /api/repos
-          */}
-
           <button
             type="button"
+            onClick={() => setIsLinkModalOpen(true)}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 hover:shadow-primary/30"
           >
             <Plus size={17} />
-
             Add repository
           </button>
         </motion.div>
 
-        {/* =================================================
-            SUMMARY CARDS
-        ================================================= */}
-
+        {/* SUMMARY CARDS */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
           <RepositorySummaryCard
             icon={Code2}
             title="Total repositories"
-            value="12"
-            description="+2 this month"
+            value={String(stats.total)}
+            description="In current org"
             iconClass="bg-primary/10 text-primary"
           />
 
           <RepositorySummaryCard
             icon={TrendingUp}
             title="Average health"
-            value="84.6"
-            description="+8.2% this week"
+            value={String(stats.avgHealth)}
+            description="Overall score"
             iconClass="bg-success/10 text-success"
           />
 
           <RepositorySummaryCard
             icon={ShieldCheck}
             title="Healthy repositories"
-            value="9"
-            description="75% of all repositories"
+            value={String(stats.healthyCount)}
+            description={`${stats.total > 0 ? Math.round((stats.healthyCount / stats.total) * 100) : 0}% of org repos`}
             iconClass="bg-info/10 text-info"
           />
 
           <RepositorySummaryCard
             icon={GitFork}
             title="Total findings"
-            value="183"
-            description="-24 this week"
+            value={String(stats.totalFindings)}
+            description="Across repositories"
             iconClass="bg-warning/10 text-warning"
           />
-
         </div>
 
-        {/* =================================================
-            SEARCH + FILTERS
-        ================================================= */}
-
+        {/* SEARCH & FILTERS */}
         <motion.section
-          initial={{
-            opacity: 0,
-            y: 20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            delay: 0.2,
-          }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
           className="mb-6 rounded-2xl border border-border/70 bg-card p-4 sm:p-5"
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-
-            {/* SEARCH */}
-
             <div className="flex flex-1 items-center gap-2 rounded-xl border border-border/70 bg-background px-3 py-2.5 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
-              <Search
-                size={17}
-                className="shrink-0 text-muted-foreground"
-              />
-
+              <Search size={17} className="shrink-0 text-muted-foreground" />
               <input
                 value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
+                onChange={(e) => setSearch(e.target.value)}
                 type="text"
                 placeholder="Search repositories..."
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
-
               {search && (
                 <button
                   type="button"
@@ -404,24 +304,16 @@ export function RepositoriesPage() {
               )}
             </div>
 
-            {/* MOBILE FILTER BUTTON */}
-
             <button
               type="button"
-              onClick={() =>
-                setFiltersOpen((value) => !value)
-              }
+              onClick={() => setFiltersOpen((prev) => !prev)}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium transition hover:bg-muted lg:hidden"
             >
               <Filter size={16} />
-
               Filters
             </button>
 
-            {/* DESKTOP FILTERS */}
-
             <div className="hidden items-center gap-3 lg:flex">
-
               <FilterSelect
                 value={language}
                 onChange={setLanguage}
@@ -436,32 +328,16 @@ export function RepositoriesPage() {
 
               <FilterSelect
                 value={sortBy}
-                onChange={(value) =>
-                  setSortBy(value as SortOption)
-                }
-                options={[
-                  "health",
-                  "findings",
-                  "debt",
-                  "recent",
-                ]}
+                onChange={(val) => setSortBy(val as SortOption)}
+                options={["health", "findings", "debt", "recent"]}
               />
-
             </div>
           </div>
 
-          {/* MOBILE FILTERS */}
-
           {filtersOpen && (
             <motion.div
-              initial={{
-                opacity: 0,
-                height: 0,
-              }}
-              animate={{
-                opacity: 1,
-                height: "auto",
-              }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
               className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3 lg:hidden"
             >
               <FilterSelect
@@ -478,30 +354,17 @@ export function RepositoriesPage() {
 
               <FilterSelect
                 value={sortBy}
-                onChange={(value) =>
-                  setSortBy(value as SortOption)
-                }
-                options={[
-                  "health",
-                  "findings",
-                  "debt",
-                  "recent",
-                ]}
+                onChange={(val) => setSortBy(val as SortOption)}
+                options={["health", "findings", "debt", "recent"]}
               />
             </motion.div>
           )}
         </motion.section>
 
-        {/* =================================================
-            RESULTS HEADER
-        ================================================= */}
-
+        {/* RESULTS HEADER */}
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold">
-              Your repositories
-            </p>
-
+            <p className="text-sm font-semibold">Your repositories</p>
             <p className="mt-1 text-xs text-muted-foreground">
               {filteredRepositories.length} repositories found
             </p>
@@ -512,66 +375,57 @@ export function RepositoriesPage() {
             className="hidden items-center gap-2 text-xs font-medium text-muted-foreground transition hover:text-primary sm:flex"
           >
             <SlidersHorizontal size={14} />
-
             Customize view
           </button>
         </div>
 
-        {/* =================================================
-            REPOSITORY GRID
-        ================================================= */}
-
-        <div className="grid gap-4 xl:grid-cols-2">
-
-          {filteredRepositories.map(
-            (repository, index) => (
+        {/* CONTENT STATES */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+            <Loader2 size={32} className="animate-spin text-primary" />
+            <p className="text-sm">Loading repositories from Postgres…</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
+            <p className="text-sm font-semibold">{error}</p>
+            <button
+              type="button"
+              onClick={fetchRepos}
+              className="mt-4 rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground"
+            >
+              Retry
+            </button>
+          </div>
+        ) : filteredRepositories.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-12 text-center">
+            <Search size={32} className="mx-auto text-muted-foreground" />
+            <h3 className="mt-4 text-sm font-semibold">No repositories found</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              No repositories match your current search or organization selection.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {filteredRepositories.map((repository, index) => (
               <RepositoryCard
                 key={repository.id}
                 repository={repository}
                 index={index}
+                onSelect={() => navigate(`/repositories/${repository.id}`)}
               />
-            ),
-          )}
-
-        </div>
-
-        {/* EMPTY STATE */}
-
-        {filteredRepositories.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border p-12 text-center">
-            <Search
-              size={32}
-              className="mx-auto text-muted-foreground"
-            />
-
-            <h3 className="mt-4 text-sm font-semibold">
-              No repositories found
-            </h3>
-
-            <p className="mt-2 text-sm text-muted-foreground">
-              Try changing your search or filters.
-            </p>
+            ))}
           </div>
         )}
-
       </div>
+
+      <LinkRepositoryModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onRepoLinked={fetchRepos}
+      />
     </main>
   );
 }
-
-/* =========================================================
-   SUMMARY CARD
-========================================================= */
-
-type SummaryCardProps = {
-  icon: React.ComponentType<{
-    size?: number;
-  }>;
-  title: string;
-  value: string;
-  description: string;
-  iconClass: string;
-};
 
 function RepositorySummaryCard({
   icon: Icon,
@@ -579,67 +433,50 @@ function RepositorySummaryCard({
   value,
   description,
   iconClass,
-}: SummaryCardProps) {
+}: {
+  icon: React.ComponentType<{ size?: number }>;
+  title: string;
+  value: string;
+  description: string;
+  iconClass: string;
+}) {
   return (
     <motion.div
-      whileHover={{
-        y: -4,
-      }}
+      whileHover={{ y: -4 }}
       className="rounded-2xl border border-border/70 bg-card p-5 transition hover:border-primary/30 hover:shadow-xl"
     >
-      <div
-        className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconClass}`}
-      >
+      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconClass}`}>
         <Icon size={20} />
       </div>
 
-      <p className="mt-5 text-sm text-muted-foreground">
-        {title}
-      </p>
+      <p className="mt-5 text-sm text-muted-foreground">{title}</p>
 
       <div className="mt-1 flex items-end justify-between gap-2">
-        <p className="text-3xl font-bold tracking-tight">
-          {value}
-        </p>
-
-        <p className="text-xs font-medium text-success">
-          {description}
-        </p>
+        <p className="text-3xl font-bold tracking-tight">{value}</p>
+        <p className="text-xs font-medium text-success">{description}</p>
       </div>
     </motion.div>
   );
 }
 
-/* =========================================================
-   FILTER SELECT
-========================================================= */
-
-type FilterSelectProps = {
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-};
-
 function FilterSelect({
   value,
   onChange,
   options,
-}: FilterSelectProps) {
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
   return (
     <div className="relative">
-
       <select
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(e) => onChange(e.target.value)}
         className="w-full appearance-none rounded-xl border border-border bg-background px-4 py-2.5 pr-9 text-sm outline-none transition hover:border-primary/40 focus:border-primary/50"
       >
         {options.map((option) => (
-          <option
-            key={option}
-            value={option}
-          >
+          <option key={option} value={option}>
             {option}
           </option>
         ))}
@@ -649,67 +486,41 @@ function FilterSelect({
         size={15}
         className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
       />
-
     </div>
   );
 }
 
-/* =========================================================
-   REPOSITORY CARD
-========================================================= */
-
-type RepositoryCardProps = {
-  repository: Repository;
-  index: number;
-};
-
 function RepositoryCard({
   repository,
   index,
-}: RepositoryCardProps) {
+  onSelect,
+}: {
+  repository: Repository;
+  index: number;
+  onSelect: () => void;
+}) {
   const isHealthy = repository.score >= 85;
 
   return (
     <motion.div
-      initial={{
-        opacity: 0,
-        y: 20,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      transition={{
-        delay: index * 0.08,
-      }}
-      whileHover={{
-        y: -4,
-      }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      whileHover={{ y: -4 }}
       className="group rounded-2xl border border-border/70 bg-card p-5 transition hover:border-primary/30 hover:shadow-xl sm:p-6"
     >
-
-      {/* HEADER */}
-
       <div className="flex items-start justify-between gap-4">
-
         <div className="flex min-w-0 items-center gap-3">
-
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Code2 size={21} />
           </div>
 
           <div className="min-w-0">
-
-            <h3 className="truncate text-base font-semibold">
-              {repository.name}
-            </h3>
-
+            <h3 className="truncate text-base font-semibold">{repository.name}</h3>
             <p className="mt-1 truncate text-xs text-muted-foreground">
               {repository.fullName}
             </p>
-
           </div>
-
         </div>
 
         <button
@@ -718,23 +529,16 @@ function RepositoryCard({
         >
           <MoreHorizontal size={18} />
         </button>
-
       </div>
 
-      {/* METRICS */}
-
       <div className="mt-6 grid grid-cols-3 gap-4">
-
         <div>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
             Health
           </p>
-
           <p
             className={`mt-1 text-2xl font-bold ${
-              isHealthy
-                ? "text-success"
-                : "text-warning"
+              isHealthy ? "text-success" : "text-warning"
             }`}
           >
             {repository.score}
@@ -745,93 +549,56 @@ function RepositoryCard({
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
             Findings
           </p>
-
-          <p className="mt-1 text-2xl font-bold">
-            {repository.findings}
-          </p>
+          <p className="mt-1 text-2xl font-bold">{repository.findings}</p>
         </div>
 
         <div>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
             Debt
           </p>
-
-          <p className="mt-1 text-lg font-bold">
-            {repository.debt}
-          </p>
+          <p className="mt-1 text-lg font-bold">{repository.debt}</p>
         </div>
-
       </div>
 
-      {/* HEALTH PROGRESS */}
-
       <div className="mt-6">
-
         <div className="mb-2 flex items-center justify-between">
-
-          <span className="text-xs text-muted-foreground">
-            Health score
-          </span>
-
+          <span className="text-xs text-muted-foreground">Health score</span>
           <span className="text-xs font-medium text-success">
-            {repository.score >= 85
-              ? "Excellent"
-              : "Needs improvement"}
+            {repository.score >= 85 ? "Excellent" : "Needs improvement"}
           </span>
-
         </div>
 
         <div className="h-2 overflow-hidden rounded-full bg-muted">
-
           <motion.div
-            initial={{
-              width: 0,
-            }}
-            animate={{
-              width: `${repository.score}%`,
-            }}
-            transition={{
-              duration: 0.8,
-              delay: index * 0.1,
-            }}
+            initial={{ width: 0 }}
+            animate={{ width: `${repository.score}%` }}
+            transition={{ duration: 0.8, delay: index * 0.05 }}
             className={`h-full rounded-full ${
-              isHealthy
-                ? "bg-success"
-                : "bg-warning"
+              isHealthy ? "bg-success" : "bg-warning"
             }`}
           />
-
         </div>
-
       </div>
 
-      {/* FOOTER */}
-
       <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
-
         <div className="flex items-center gap-3">
-
           <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
             {repository.language}
           </span>
-
           <span className="text-xs text-muted-foreground">
             {repository.lastAnalyzed}
           </span>
-
         </div>
 
         <button
           type="button"
+          onClick={onSelect}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-semibold transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
         >
           View repository
-
           <ExternalLink size={14} />
         </button>
-
       </div>
-
     </motion.div>
   );
 }

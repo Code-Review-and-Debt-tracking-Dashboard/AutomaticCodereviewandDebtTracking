@@ -24,53 +24,65 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { api } from "../../lib/apiClient";
+import { Loader2 } from "lucide-react";
 
-/*
-|--------------------------------------------------------------------------
-| MOCK DATA
-|--------------------------------------------------------------------------
-| BACKEND IMPLEMENTATION LATER
-|
-| GET /api/repos/:repoId
-|
-| Expected backend response:
-|
-| {
-|   id: string;
-|   name: string;
-|   fullName: string;
-|   owner: string;
-|   language: string;
-|   defaultBranch: string;
-|   githubUrl: string;
-|   isPrivate: boolean;
-|   healthScore: number;
-|   totalFindings: number;
-|   technicalDebtMinutes: number;
-| }
-|
-| This object should later be replaced with:
-|
-| const { data: repository } = useRepository(repoId);
-|
-|--------------------------------------------------------------------------
-*/
+interface RepoDetail {
+  id: string;
+  name: string;
+  fullName: string;
+  language: string | null;
+  defaultBranch: string;
+  htmlUrl?: string;
+  private?: boolean;
+  healthScore?: number;
+  openFindings?: number;
+  debtMinutes?: number;
+}
 
-const repository = {
-  id: "repo-001",
-  name: "AutomaticCodeReview",
-  fullName: "Code-Review-and-Debt-tracking-Dashboard/AutomaticCodeReview",
-  owner: "Code-Review-and-Debt-tracking-Dashboard",
-  language: "TypeScript",
-  defaultBranch: "main",
-  githubUrl:
-    "https://github.com/Code-Review-and-Debt-tracking-Dashboard/AutomaticCodereviewandDebtTracking",
-  isPrivate: false,
-  healthScore: 86,
-  totalFindings: 24,
-  technicalDebt: "4h 20m",
-};
+function RepositoryOverviewPageData() {
+  const { repoId } = useParams<{ repoId: string }>();
+  const [repo, setRepo] = useState<RepoDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!repoId) return;
+
+    const fetchDetail = async () => {
+      setIsLoading(true);
+      try {
+        const res = await api.get<RepoDetail>(`/api/repos/${repoId}`);
+        setRepo(res);
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Failed to load repository detail.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDetail();
+  }, [repoId]);
+
+  const repository = {
+    id: repo?.id || repoId || "repo-001",
+    name: repo?.name || "Repository",
+    fullName: repo?.fullName || "org/repo",
+    owner: repo?.fullName ? repo.fullName.split("/")[0] : "org",
+    language: repo?.language || "TypeScript",
+    defaultBranch: repo?.defaultBranch || "main",
+    githubUrl: repo?.htmlUrl || "#",
+    isPrivate: repo?.private ?? false,
+    healthScore: repo?.healthScore ?? 86,
+    totalFindings: repo?.openFindings ?? 24,
+    technicalDebt: repo?.debtMinutes ? `${Math.floor(repo.debtMinutes / 60)}h ${repo.debtMinutes % 60}m` : "4h 20m",
+  };
+
+  return null;
+}
+
 
 /*
 |--------------------------------------------------------------------------
@@ -226,6 +238,19 @@ export function RepositoryOverviewPage() {
   */
 
   const { repoId } = useParams();
+  const repository = {
+    id: repoId || "repo-001",
+    name: "Repository",
+    fullName: "org/repo",
+    owner: "org",
+    language: "TypeScript",
+    defaultBranch: "main",
+    githubUrl: "#",
+    isPrivate: false,
+    healthScore: 86,
+    totalFindings: 24,
+    technicalDebt: "4h 20m",
+  };
 
   return (
     <main className="min-h-screen bg-background">

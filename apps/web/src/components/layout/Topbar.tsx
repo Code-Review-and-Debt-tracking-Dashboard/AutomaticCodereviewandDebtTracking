@@ -2,17 +2,29 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bell,
+  Building2,
   ChevronDown,
   LogOut,
   Menu,
   Moon,
   Search,
   Sun,
-  User,
+  User as UserIcon,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
+import { useOrg } from "../../contexts/OrgContext";
+import { api } from "../../lib/apiClient";
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+  unread: boolean;
+}
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -22,11 +34,16 @@ export function Topbar({
   onMenuClick,
 }: TopbarProps) {
   const navigate = useNavigate();
+  const { user: authUser, logout } = useAuth();
+  const { orgs, selectedOrg, setSelectedOrg } = useOrg();
 
   const searchInputRef =
     useRef<HTMLInputElement>(null);
 
   const profileRef =
+    useRef<HTMLDivElement>(null);
+
+  const orgDropdownRef =
     useRef<HTMLDivElement>(null);
 
   const [darkMode, setDarkMode] =
@@ -44,40 +61,23 @@ export function Topbar({
   const [profileOpen, setProfileOpen] =
     useState(false);
 
+  const [orgOpen, setOrgOpen] =
+    useState(false);
+
   const [notificationsOpen, setNotificationsOpen] =
     useState(false);
 
   const [searchOpen, setSearchOpen] =
     useState(false);
 
-  /*
-   * =====================================================
-   * BACKEND CONNECTION LATER
-   * =====================================================
-   *
-   * GET /auth/me
-   *
-   * Backend response:
-   *
-   * {
-   *   id: string;
-   *   username: string;
-   *   displayName: string;
-   *   avatarUrl: string;
-   *   githubUsername: string;
-   * }
-   *
-   * Later:
-   *
-   * const { data: user } = await authApi.getMe();
-   */
-
   const user = {
-    name: "Nethmi Bhagya",
-    username: "nethmibhagya",
-    role: "Developer",
-    initials: "NB",
+    name: authUser?.username || "Developer",
+    username: authUser?.username || "user",
+    role: authUser?.platformRole || "Developer",
+    initials: (authUser?.username || "NB").slice(0, 2).toUpperCase(),
+    avatarUrl: authUser?.avatarUrl,
   };
+
 
   /*
    * =====================================================
@@ -100,9 +100,9 @@ export function Topbar({
    * ]
    */
 
-  const notifications = [
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
-      id: 1,
+      id: "demo-1",
       title: "Analysis completed",
       description:
         "AutomaticCodeReview analysis completed",
@@ -110,7 +110,7 @@ export function Topbar({
       unread: true,
     },
     {
-      id: 2,
+      id: "demo-2",
       title: "New security finding",
       description:
         "A security issue was detected",
@@ -118,14 +118,14 @@ export function Topbar({
       unread: true,
     },
     {
-      id: 3,
+      id: "demo-3",
       title: "Pull request analyzed",
       description:
         "PR #42 was analyzed successfully",
       time: "1 hour ago",
       unread: false,
     },
-  ];
+  ]);
 
   const unreadCount =
     notifications.filter(
@@ -150,6 +150,43 @@ export function Topbar({
       darkMode ? "dark" : "light",
     );
   }, [darkMode]);
+
+  useEffect(() => {
+    if (!authUser) {
+      return;
+    }
+
+    const fetchNotifications = async () => {
+      try {
+        const response = await api.get<{ data: Array<{
+          id: string;
+          title: string;
+          body: string;
+          readAt: string | null;
+          createdAt: string;
+        }> }>("/api/notifications", { unreadOnly: true });
+
+        const mapped = (response.data || []).map((notification) => ({
+          id: notification.id,
+          title: notification.title,
+          description: notification.body,
+          time: new Date(notification.createdAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+          unread: !notification.readAt,
+        }));
+
+        if (mapped.length > 0) {
+          setNotifications(mapped);
+        }
+      } catch {
+        // Keep the demo fallback notifications if the API is unavailable.
+      }
+    };
+
+    fetchNotifications();
+  }, [authUser, notificationsOpen]);
 
   const toggleTheme = () => {
     setDarkMode(
@@ -256,25 +293,7 @@ export function Topbar({
 
   const handleLogout = async () => {
     try {
-      /*
-       * BACKEND CONNECTION LATER
-       *
-       * await authApi.logout();
-       */
-
-      localStorage.removeItem(
-        "token",
-      );
-
-      localStorage.removeItem(
-        "user",
-      );
-
-      localStorage.removeItem(
-        "auth",
-      );
-
-      navigate("/login");
+      await logout();
     } catch (error) {
       console.error(
         "Logout failed:",
@@ -326,6 +345,76 @@ export function Topbar({
             /
           </kbd>
         </div>
+
+        {/* ORGANIZATION SWITCHER (D-20) */}
+
+        <div ref={orgDropdownRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setOrgOpen((prev) => !prev)}
+            className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold transition hover:border-primary/40 hover:bg-muted"
+          >
+            {selectedOrg?.avatarUrl ? (
+              <img
+                src={selectedOrg.avatarUrl}
+                alt={selectedOrg.login}
+                className="h-5 w-5 rounded-md object-cover"
+              />
+            ) : (
+              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/20 text-primary">
+                <Building2 size={12} />
+              </div>
+            )}
+            <span className="max-w-[120px] truncate sm:max-w-[160px]">
+              {selectedOrg?.name || selectedOrg?.login || "Select Org"}
+            </span>
+            <ChevronDown size={14} className="text-muted-foreground shrink-0" />
+          </button>
+
+          <AnimatePresence>
+            {orgOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                className="absolute left-0 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl z-50"
+              >
+                <div className="border-b border-border px-3 py-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                  Organizations
+                </div>
+                <div className="max-h-60 overflow-y-auto py-1">
+                  {orgs.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">No organizations found</p>
+                  ) : (
+                    orgs.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedOrg(org);
+                          setOrgOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
+                          selectedOrg?.id === org.id
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        {org.avatarUrl ? (
+                          <img src={org.avatarUrl} alt="" className="h-5 w-5 rounded-md" />
+                        ) : (
+                          <Building2 size={14} />
+                        )}
+                        <span className="truncate">{org.name || org.login}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
 
         {/* MOBILE SEARCH BUTTON */}
 
@@ -632,7 +721,7 @@ export function Topbar({
                   }
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 >
-                  <User size={16} />
+                  <UserIcon size={16} />
                   Profile
                 </button>
 
