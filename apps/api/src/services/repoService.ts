@@ -180,9 +180,8 @@ export async function listUserRepositories(userId: string, query: ListQuery){
         ? query.search.trim()
         : undefined;
 
-    // Sorting by health score would mean ordering on the latest snapshot per
-    // repo, which cannot be pushed down to the database here — doing it in
-    // memory would silently break pagination, so it is rejected outright.
+    // no sort by score — that needs the latest snapshot per repo, which we
+    // can't order on in the query, and doing it in memory breaks pagination
     const sort = query.sort ?? 'updatedAt';
     if (sort !== 'name' && sort !== 'updatedAt'){
         throw new AppError(400, 'VALIDATION_ERROR', '"sort" must be one of name, updatedAt');
@@ -193,9 +192,7 @@ export async function listUserRepositories(userId: string, query: ListQuery){
         throw new AppError(400, 'VALIDATION_ERROR', '"order" must be one of asc, desc');
     }
 
-    // The organization clause is AND-ed with the ownership clause, never OR-ed:
-    // belonging to the tenant is a filter every row has to pass, not a second
-    // way to qualify for one.
+    // org clause is AND-ed with the ownership clause, not OR-ed
     const where = {
         isActive: true,
         organization: { members: { some: { userId, status: 'ACTIVE' as const } } },
@@ -220,8 +217,7 @@ export async function listUserRepositories(userId: string, query: ListQuery){
                 language: true,
                 isActive: true,
                 defaultBranch: true,
-                // Newest two snapshots: the first is the current score, and the
-                // pair gives the change since the previous analysis.
+                // two, so we can also work out the change since last analysis
                 snapshots: {
                     orderBy: { calculatedAt: 'desc' },
                     take: 2,

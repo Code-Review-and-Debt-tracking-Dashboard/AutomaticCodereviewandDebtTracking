@@ -5,9 +5,7 @@ import { logger } from '../lib/logger';
 
 export const healthRouter = Router();
 
-// Public liveness/readiness check — no auth. Used by uptime monitors and
-// load balancers, so it must never throw; a failed dependency check is a
-// normal 503 result, not an error.
+// public, no auth. A dead dependency is a 503, not a thrown error.
 healthRouter.get('/health', async (_req, res) => {
   let databaseOk = true;
   try {

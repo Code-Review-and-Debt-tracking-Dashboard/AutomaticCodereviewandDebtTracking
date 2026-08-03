@@ -5,7 +5,6 @@ import { env } from '../config/env';
 import type { AppJwtPayload } from '../lib/jwt';
 import { AppError } from './errorHandler';
 
-/** Identity attached to `req.user` once a Bearer token has been verified. */
 export interface AuthenticatedUser {
   id: string;
   username: string;
@@ -20,12 +19,7 @@ declare global {
   }
 }
 
-/**
- * Auth guard  for protected routes. Verifies the `Authorization:
- * Bearer <token>` header against the app JWT issued by `signAppJwt`
- *  and attaches the decoded identity to `req.user`.
- * Stateless — no DB/session lookup, per the 401 UNAUTHORIZED contract.
- */
+// Verifies the Bearer token and puts the user on req.user. No DB lookup.
 export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;

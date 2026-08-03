@@ -5,14 +5,11 @@ import { buildGithubAuthorizeUrl, getAuthenticatedUser, handleGithubCallback } f
 
 export const authRouter = Router();
 
-// GET /auth/github — api_design.md §1: redirects to the GitHub OAuth consent screen.
 authRouter.get('/auth/github', (req, res) => {
   const url = buildGithubAuthorizeUrl(req.query.redirect);
   res.redirect(url);
 });
 
-// GET /auth/github/callback : exchanges code for a token,
-// creates/updates the user, and returns { token, user }.
 authRouter.get('/auth/github/callback', async (req, res, next) => {
   try {
     const code = typeof req.query.code === 'string' ? req.query.code : undefined;
@@ -25,7 +22,6 @@ authRouter.get('/auth/github/callback', async (req, res, next) => {
   }
 });
 
-// GET /auth/me : returns the currently authenticated user.
 authRouter.get('/auth/me', requireAuth, async (req, res, next) => {
   try {
     const user = await getAuthenticatedUser(req.user!.id);
@@ -35,9 +31,7 @@ authRouter.get('/auth/me', requireAuth, async (req, res, next) => {
   }
 });
 
-// POST /auth/logout : stateless JWT, so there is no
-// server-side session to invalidate; the guard already rejects missing/
-// invalid tokens with 401 before this handler runs.
+// JWT is stateless, so there's nothing to invalidate server-side
 authRouter.post('/auth/logout', requireAuth, (_req, res) => {
   res.status(204).end();
 });

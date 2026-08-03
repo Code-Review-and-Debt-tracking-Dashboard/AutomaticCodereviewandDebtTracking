@@ -9,9 +9,6 @@ import { getRepoDebt, getRepoTrend, listUserRepositories } from '../services/rep
 
 export const reposRouter = Router();
 
-// GET /api/repos : repos the caller can open, within the tenants they belong
-// to. There is no platform-admin shortcut here — the organization boundary
-// applies to everyone.
 reposRouter.get('/api/repos', requireAuth, async (req, res, next) => {
   try {
     const repos = await listUserRepositories(req.user!.id, req.query);
@@ -21,8 +18,7 @@ reposRouter.get('/api/repos', requireAuth, async (req, res, next) => {
   }
 });
 
-// POST /api/repos : link a GitHub repo and register its webhook. The caller
-// becomes the repo's owner; the tenant comes from the repo's GitHub owner.
+// links the repo and registers its webhook; caller becomes the repo owner
 reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   try {
     const { githubRepoId } = req.body ?? {};
@@ -40,9 +36,7 @@ reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   }
 });
 
-// DELETE /api/repos/:repoId : unlink and remove the GitHub webhook. The guard
-// checks the tenant and loads the caller's org role; the service then narrows
-// it further to the repo's owner or an organization owner/admin.
+// the service narrows this further than the write guard does
 reposRouter.delete(
   '/api/repos/:repoId',
   requireAuth,
@@ -57,8 +51,6 @@ reposRouter.delete(
   },
 );
 
-// GET /api/repos/:repoId/trend : any active member (any role), the owner,
-// or a platform admin can view the trend data.
 reposRouter.get(
   '/api/repos/:repoId/trend',
   requireAuth,
@@ -73,8 +65,6 @@ reposRouter.get(
   },
 );
 
-// GET /api/repos/:repoId/members : any active member (any role), the owner,
-// or a platform admin can view the member list.
 reposRouter.get(
   '/api/repos/:repoId/members',
   requireAuth,
@@ -89,8 +79,6 @@ reposRouter.get(
   },
 );
 
-// GET /api/repos/:repoId/debt : any active member (any role), the owner,
-// or a platform admin can view the debt breakdown.
 reposRouter.get(
   '/api/repos/:repoId/debt',
   requireAuth,
@@ -105,8 +93,6 @@ reposRouter.get(
   },
 );
 
-// POST /api/repos/:repoId/members : owner, an active TEAM_LEAD, or a platform
-// admin can grant another existing platform user access to the repo.
 reposRouter.post(
   '/api/repos/:repoId/members',
   requireAuth,
@@ -134,8 +120,6 @@ reposRouter.post(
   },
 );
 
-// DELETE /api/repos/:repoId/members/:userId : owner, an active TEAM_LEAD, or a
-// platform admin can revoke another member's access.
 reposRouter.delete(
   '/api/repos/:repoId/members/:userId',
   requireAuth,

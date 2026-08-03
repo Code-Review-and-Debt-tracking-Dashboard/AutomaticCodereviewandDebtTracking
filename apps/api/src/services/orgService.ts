@@ -4,12 +4,8 @@ import { Octokit } from '@octokit/rest';
 import { decrypt } from '../lib/crypto';
 import { AppError } from '../middleware/errorHandler';
 
-/**
- * An organization is the tenant boundary, and it mirrors a GitHub account
- * owner. Membership is only ever derived from GitHub — nothing in this app
- * grants it — so we can never hand out access GitHub itself would not.
- */
-
+// An organization mirrors a GitHub account owner. Membership always comes
+// from GitHub — nothing in this app grants it.
 export interface GithubAccount {
   githubId: string;
   login: string;
@@ -27,17 +23,13 @@ export interface OrgSummary {
   role: string;
 }
 
-/** GitHub reports `admin`, `member` or `billing_manager`; only admin maps up. */
+// GitHub sends admin, member or billing_manager
 function toOrgRole(githubRole: string): 'ADMIN' | 'MEMBER' {
   return githubRole === 'admin' ? 'ADMIN' : 'MEMBER';
 }
 
-/**
- * Rebuilds the caller's tenant memberships from GitHub. The user's own account
- * is always one of them, so personal repositories still land in a tenant.
- * Memberships GitHub no longer reports are marked REMOVED — that is what makes
- * being removed from a GitHub org actually revoke access here.
- */
+// Rebuilds memberships from GitHub. The user's own account is always included
+// so personal repos still belong somewhere.
 export async function syncUserOrganizations(
   userId: string,
   account: GithubAccount,
@@ -109,7 +101,7 @@ export async function syncUserOrganizations(
       });
     }
 
-    // Anything GitHub stopped reporting is revoked here too.
+    // anything GitHub stopped reporting is revoked here too
     await tx.organizationMember.updateMany({
       where: {
         userId,
@@ -123,7 +115,6 @@ export async function syncUserOrganizations(
   });
 }
 
-/** Re-runs the sync for a signed-in caller using their stored GitHub token. */
 export async function resyncOrganizations(userId: string): Promise<OrgSummary[]> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -146,7 +137,6 @@ export async function resyncOrganizations(userId: string): Promise<OrgSummary[]>
   );
 }
 
-/** Tenants the caller currently belongs to. */
 export async function listUserOrganizations(userId: string): Promise<OrgSummary[]> {
   const memberships = await prisma.organizationMember.findMany({
     where: { userId, status: 'ACTIVE' },
@@ -191,11 +181,8 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
   }));
 }
 
-/**
- * Repositories in this tenant that the caller can actually open. Belonging to
- * the org is not by itself enough — a repo still needs ownership or an active
- * repository membership.
- */
+// Org membership alone isn't enough — the caller must own the repo or be an
+// active member of it.
 export async function listOrgRepositories(orgId: string, userId: string) {
   const repositories = await prisma.repository.findMany({
     where: {
