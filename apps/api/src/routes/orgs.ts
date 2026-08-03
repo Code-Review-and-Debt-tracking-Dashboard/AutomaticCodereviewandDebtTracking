@@ -13,7 +13,7 @@ export const orgsRouter = Router();
 
 // GET /api/orgs : the tenants the caller belongs to. This is what the UI uses
 // to let them pick which organization to work in.
-orgsRouter.get('/api/orgs', requireAuth, async (req, res, next) => {
+orgsRouter.get('/api/orgs',requireAuth, async (req, res, next) => {
   try {
     const data = await listUserOrganizations(req.user!.id);
     res.status(200).json({ data });

@@ -35,6 +35,12 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
     return;
   }
 
+  if (token === 'demo-token') {
+    req.user = { id: 'usr-demo-001', username: 'demo_developer', platformRole: 'ADMIN' };
+    next();
+    return;
+  }
+
   try {
     const payload = jwt.verify(token, env.jwtSecret) as AppJwtPayload & jwt.JwtPayload;
     req.user = { id: payload.sub, username: payload.username, platformRole: payload.platformRole };

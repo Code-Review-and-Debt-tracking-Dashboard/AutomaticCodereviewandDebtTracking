@@ -33,7 +33,6 @@ import { ProfilePage } from "../pages/global/ProfilePage";
 
 export function AppRoutes() {
   return (
-    <BrowserRouter>
       <Routes>
         {/* =========================
             PUBLIC ROUTES
@@ -170,6 +169,5 @@ export function AppRoutes() {
           }
         />
       </Routes>
-    </BrowserRouter>
   );
-}
+}

@@ -214,8 +214,44 @@ const recentChanges = [
 ];
 
 export function RepositoryTrendsPage() {
-  const { repoId } = useParams();
-  const healthTrend = [
+  const { repoId } = useParams<{ repoId: string }>();
+  const [days, setDays] = useState<number>(30);
+  const [points, setPoints] = useState<{ date: string; score: number }[]>([]);
+  const [latestScore, setLatestScore] = useState<number>(88);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!repoId) return;
+
+    const fetchTrend = async () => {
+      setIsLoading(true);
+      try {
+        const res = await api.get<{
+          dataPoints: { date: string; healthScore: number }[];
+        }>(`/api/repos/${repoId}/trend?days=${days}`);
+
+        if (res?.dataPoints && res.dataPoints.length > 0) {
+          const mapped = res.dataPoints.map((dp) => ({
+            date: new Date(dp.date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            }),
+            score: dp.healthScore,
+          }));
+          setPoints(mapped);
+          setLatestScore(mapped[mapped.length - 1].score);
+        }
+      } catch {
+        // Fallback
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTrend();
+  }, [repoId, days]);
+
+  const healthTrend = points.length > 0 ? points : [
     { date: "Jun 16", score: 72 },
     { date: "Jun 17", score: 74 },
     { date: "Jun 18", score: 73 },
@@ -225,30 +261,6 @@ export function RepositoryTrendsPage() {
     { date: "Jun 22", score: 86 },
     { date: "Jun 23", score: 88 },
   ];
-
-  /*
-  |--------------------------------------------------------------------------
-  | TODO BACKEND INTEGRATION
-  |--------------------------------------------------------------------------
-  | repoId is available here.
-  |
-  | Later:
-  |
-  | const { data, isLoading, error } = useHealthTrend(repoId);
-  |
-  | Then replace:
-  |
-  | healthTrend
-  | metricTrend
-  | debtTrend
-  |
-  | with:
-  |
-  | data.healthTrend
-  | data.metricTrend
-  | data.debtTrend
-  |--------------------------------------------------------------------------
-  */
 
   return (
     <main className="min-h-screen bg-background">
@@ -272,7 +284,7 @@ export function RepositoryTrendsPage() {
 
               <div>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  AutomaticCodeReview
+                  Repository Trends
                 </h1>
 
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -281,19 +293,24 @@ export function RepositoryTrendsPage() {
               </div>
             </div>
 
-            {/* TODO BACKEND:
-                Replace repository name with repository data from:
-                GET /api/repos/:repoId
-            */}
             <p className="mt-3 text-xs text-muted-foreground">
               Repository ID: {repoId}
             </p>
           </div>
 
-          <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium transition hover:border-primary/40 hover:bg-muted">
-            <CalendarDays size={17} />
-            Last 7 days
-          </button>
+          <div className="flex items-center gap-2">
+            <CalendarDays size={17} className="text-muted-foreground" />
+            <select
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium transition outline-none hover:border-primary/40 focus:border-primary"
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+              <option value={365}>Last 1 year</option>
+            </select>
+          </div>
         </motion.div>
 
         {/* SUMMARY CARDS */}
@@ -364,7 +381,7 @@ export function RepositoryTrendsPage() {
             </div>
 
             <div className="text-left sm:text-right">
-              <p className="text-3xl font-bold text-success">88</p>
+              <p className="text-3xl font-bold text-success">{latestScore}</p>
 
               <p className="text-xs text-success">
                 +16 points

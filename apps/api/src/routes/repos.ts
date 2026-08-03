@@ -4,12 +4,49 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { getRepoDebt, getRepoTrend } from '../services/repoService';
+import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoPullRequests, getRepoTrend, linkRepository } from '../services/repoService';
 
 export const reposRouter = Router();
 
+// GET /api/repos/available : returns repositories available to link
+reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
+  try {
+    const orgId = typeof req.query.orgId === 'string' ? req.query.orgId : undefined;
+    const data = await getAvailableRepos(req.user!.id, orgId);
+    res.status(200).json({ data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/repos : link a repository to an org
+reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
+  try {
+    const repo = await linkRepository(req.user!.id, req.body ?? {});
+    res.status(201).json(repo);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/repos/:repoId : fetch single repository details
+reposRouter.get(
+  '/api/repos/:repoId',
+  requireAuth,
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const repo = await getRepoDetail(req.params.repoId);
+      res.status(200).json(repo);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 // GET /api/repos/:repoId/trend : any active member (any role), the owner,
 // or a platform admin can view the trend data.
+
 reposRouter.get(
   '/api/repos/:repoId/trend',
   requireAuth,
@@ -50,6 +87,21 @@ reposRouter.get(
     try {
       const debt = await getRepoDebt(req.params.repoId);
       res.status(200).json(debt);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/repos/:repoId/pulls : list pull requests with health & debt delta
+reposRouter.get(
+  '/api/repos/:repoId/pulls',
+  requireAuth,
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const pulls = await getRepoPullRequests(req.params.repoId);
+      res.status(200).json({ data: pulls });
     } catch (err) {
       next(err);
     }

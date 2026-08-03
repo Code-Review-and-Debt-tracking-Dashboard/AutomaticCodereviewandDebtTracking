@@ -1,6 +1,9 @@
 {
     "name": "codehealth",
     "private": true,
+    "scripts": {
+        "dev": "npm run dev --workspace @codehealth/api"
+    },
     "workspaces": [
         "apps/*",
         "packages/*"
