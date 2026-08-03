@@ -24,6 +24,11 @@ export const env = {
   // the X-Hub-Signature-256 HMAC-SHA256 signature on incoming payloads.
   githubWebhookSecret: required('GITHUB_WEBHOOK_SECRET'),
 
+  // Publicly reachable URL GitHub delivers webhook events to. Set on every
+  // hook we register when a repository is linked, so it has to be the address
+  // GitHub can actually reach — a tunnel URL during local development.
+  githubWebhookUrl: required('GITHUB_WEBHOOK_URL'),
+
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
