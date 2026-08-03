@@ -4,9 +4,58 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { getRepoDebt, getRepoTrend } from '../services/repoService';
+import { linkRepository, unlinkRepository } from '../services/repoLinkService';
+import { getRepoDebt, getRepoTrend, listUserRepositories } from '../services/repoService';
 
 export const reposRouter = Router();
+
+// GET /api/repos : repos the caller can open, within the tenants they belong
+// to. There is no platform-admin shortcut here — the organization boundary
+// applies to everyone.
+reposRouter.get('/api/repos', requireAuth, async (req, res, next) => {
+  try {
+    const repos = await listUserRepositories(req.user!.id, req.query);
+    res.status(200).json(repos);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/repos : link a GitHub repo and register its webhook. The caller
+// becomes the repo's owner; the tenant comes from the repo's GitHub owner.
+reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
+  try {
+    const { githubRepoId } = req.body ?? {};
+
+    if (!Number.isInteger(githubRepoId) || githubRepoId <= 0) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
+        { field: 'githubRepoId', message: 'must be a positive integer' },
+      ]);
+    }
+
+    const repository = await linkRepository(req.user!.id, githubRepoId);
+    res.status(201).json(repository);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/repos/:repoId : unlink and remove the GitHub webhook. The guard
+// checks the tenant and loads the caller's org role; the service then narrows
+// it further to the repo's owner or an organization owner/admin.
+reposRouter.delete(
+  '/api/repos/:repoId',
+  requireAuth,
+  requireRepoAccess('write'),
+  async (req, res, next) => {
+    try {
+      await unlinkRepository(req.params.repoId, req.user!.id, req.org!.role);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // GET /api/repos/:repoId/trend : any active member (any role), the owner,
 // or a platform admin can view the trend data.

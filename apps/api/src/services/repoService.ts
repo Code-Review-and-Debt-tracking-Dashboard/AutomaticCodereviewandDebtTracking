@@ -149,3 +149,110 @@ export async function getRepoDebt(repoId: string){
 
 
 }
+
+interface ListQuery{
+    page?: unknown;
+    limit?: unknown;
+    search?: unknown;
+    sort?: unknown;
+    order?: unknown;
+}
+
+function parsePageParam(raw: unknown, fallback: number, field: string, max: number): number{
+    if (raw === undefined) return fallback;
+    if (typeof raw !== 'string'){
+        throw new AppError(400, 'VALIDATION_ERROR', `"${field}" must be a number`);
+    }
+
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 1 || value > max){
+        throw new AppError(400, 'VALIDATION_ERROR', `"${field}" must be an integer between 1 and ${max}`);
+    }
+
+    return value;
+}
+
+export async function listUserRepositories(userId: string, query: ListQuery){
+    const page = parsePageParam(query.page, 1, 'page', 100000);
+    const limit = parsePageParam(query.limit, 20, 'limit', 100);
+
+    const search = typeof query.search === 'string' && query.search.trim() !== ''
+        ? query.search.trim()
+        : undefined;
+
+    // Sorting by health score would mean ordering on the latest snapshot per
+    // repo, which cannot be pushed down to the database here — doing it in
+    // memory would silently break pagination, so it is rejected outright.
+    const sort = query.sort ?? 'updatedAt';
+    if (sort !== 'name' && sort !== 'updatedAt'){
+        throw new AppError(400, 'VALIDATION_ERROR', '"sort" must be one of name, updatedAt');
+    }
+
+    const order = query.order ?? 'desc';
+    if (order !== 'asc' && order !== 'desc'){
+        throw new AppError(400, 'VALIDATION_ERROR', '"order" must be one of asc, desc');
+    }
+
+    // The organization clause is AND-ed with the ownership clause, never OR-ed:
+    // belonging to the tenant is a filter every row has to pass, not a second
+    // way to qualify for one.
+    const where = {
+        isActive: true,
+        organization: { members: { some: { userId, status: 'ACTIVE' as const } } },
+        OR: [
+            { ownerId: userId },
+            { members: { some: { userId, status: 'ACTIVE' as const } } },
+        ],
+        ...(search ? { fullName: { contains: search, mode: 'insensitive' as const } } : {}),
+    };
+
+    const [total, repositories] = await Promise.all([
+        prisma.repository.count({ where }),
+        prisma.repository.findMany({
+            where,
+            orderBy: sort === 'name' ? { name: order } : { updatedAt: order },
+            skip: (page - 1) * limit,
+            take: limit,
+            select: {
+                id: true,
+                name: true,
+                fullName: true,
+                language: true,
+                isActive: true,
+                defaultBranch: true,
+                // Newest two snapshots: the first is the current score, and the
+                // pair gives the change since the previous analysis.
+                snapshots: {
+                    orderBy: { calculatedAt: 'desc' },
+                    take: 2,
+                    select: { healthScore: true, calculatedAt: true },
+                },
+                _count: { select: { pullRequests: { where: { status: 'OPEN' } } } },
+            },
+        }),
+    ]);
+
+    const data = repositories.map((repo) => {
+        const [latest, previous] = repo.snapshots;
+
+        return {
+            id: repo.id,
+            name: repo.name,
+            fullName: repo.fullName,
+            language: repo.language,
+            isActive: repo.isActive,
+            defaultBranch: repo.defaultBranch,
+            latestScore: latest?.healthScore ?? null,
+            latestScoreChange: latest && previous
+                ? Number((latest.healthScore - previous.healthScore).toFixed(1))
+                : null,
+            totalOpenPRs: repo._count.pullRequests,
+            lastAnalyzedAt: latest?.calculatedAt.toISOString() ?? null,
+        };
+    });
+
+    return {
+        data,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+}
