@@ -64,6 +64,8 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
 | 17 | Rumesh | `A-09` | BullMQ setup — Redis connection, queue definition | 11 | 4 |
+| **17a** | Nethmi | `A-34` | **Session/token revocation — Redis-backed denylist checked in `requireAuth`, real invalidation on `POST /auth/logout`, admin force-logout endpoint (reviewed by Rumesh)** | 17 | 4 |
+| **17b** | Vidushi | `A-35` | **OAuth `state` nonce — wire to a single-use Redis check, or drop it and correct the docs that describe it as replay protection (reviewed by Rumesh)** | 17 | 2 |
 | 18 | Nethmi | `C-04b` | Extend seed with ~30 days of `HealthSnapshot` history | 4 | 3 |
 | 19 | Vidushi | `A-15` | `GET /api/repos/:id/hotspots` — worst files | 16 | 3 |
 | 20 | Rumesh | `A-10` | Enqueue analysis job from webhook handler (replace the `202` drop) | 17 | 2 |
@@ -237,8 +239,8 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | Person | Steps | Hours | Weeks 6–14 avg |
 |---|---|---|---|
 | **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, 20, 23, 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~121h | ~13.5h/wk |
-| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84 | ~79h | ~8.8h/wk |
-| **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 48, 50, 51, 54, 57, 60, 65, 67, 71, 74, 79, 82, 85, 87, 88 | ~83h | ~9h/wk |
+| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84, **17a** | ~83h | ~9.2h/wk |
+| **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 48, 50, 51, 54, 57, 60, 65, 67, 71, 74, 79, 82, 85, 87, 88, **17b** | ~85h | ~9.4h/wk |
 
 Lighter than the original plan because documentation sits on a separate track. Treat the difference as buffer for exam weeks and integration bugs — both consistently cost more than anyone budgets.
 

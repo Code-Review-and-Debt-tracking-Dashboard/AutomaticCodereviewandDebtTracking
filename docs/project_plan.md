@@ -9,7 +9,7 @@
 
 ### WBS-A: Backend API (Owner: You — Team Lead)
 
-> Five endpoint tasks that were originally listed here — A-14, A-20, A-21, A-23, A-31 — have been moved into WBS-D/WBS-C/WBS-E below and are cross-trained to the teammate who owns the page/screen that consumes them. They keep their original `A-xx` IDs (so `A-11 through A-23`-style ranges in A-25/A-27 below still resolve correctly), but physically live in their new owner's section now. See §1.1 for the full rationale.
+> Seven endpoint/hardening tasks that were originally listed here — A-14, A-20, A-21, A-23, A-31, A-34, A-35 — have been moved into WBS-D/WBS-C/WBS-E below and are cross-trained to a teammate, reviewed by you before merge. They keep their original `A-xx` IDs (so `A-11 through A-23`-style ranges in A-25/A-27 below still resolve correctly), but physically live in their new owner's section now. See §1.1 for the full rationale.
 
 | ID | Task | Est. Hours | Dependencies |
 |---|---|---|---|
@@ -90,6 +90,7 @@
 | C-08 | Add role model: `PlatformRole` enum (+ `platformRole` on User) and per-repo `RepositoryRole`/`MemberStatus` on the `RepositoryMember` model | 2h | C-01 |
 | C-09 | Add organization tenancy: `Organization` + `OrganizationMember` models, `OrgType`/`OrgRole` enums, `Repository.orgId`. Needs a hand-written backfill inside the migration because `orgId` is `NOT NULL` on an already-populated table | 3h | C-01, C-08 |
 | A-31 | *(cross-trained from WBS-A)* REST: Application metrics endpoint (`GET /api/metrics`, admin-only) | 2h | A-04, C-03 |
+| A-35 | *(cross-trained from WBS-A, reviewed by you)* OAuth `state` nonce: currently generated in `signState` but never checked in `verifyState`, so it does not provide the replay protection the design docs claim — either wire it to a single-use Redis check (TTL = state expiry) or remove it and correct the docs | 2h | A-05, A-09 |
 
 ### WBS-D: Frontend Web Dashboard (Owner: Teammate 1)
 
@@ -118,6 +119,7 @@
 | D-18 | Responsive layout adjustments (1024px–1920px) | 3h | D-03 to D-16 |
 | D-19 | Frontend unit/component tests | 5h | D-06 to D-16 |
 | D-20 | Organization switcher in the topbar (fed by `GET /api/orgs`); selected organization scopes the repo list and the link-repo picker | 3h | D-05, A-33 |
+| A-34 | *(cross-trained from WBS-A, reviewed by you)* Session/token revocation: Redis-backed denylist checked in `requireAuth`, real invalidation on `POST /auth/logout` (currently a stateless no-op, but FR-4 and `api_design.md` §1 both say logout "invalidates the session"), plus an admin-only force-logout endpoint | 4h | A-06, A-09 |
 
 ### WBS-E: Mobile App (Owner: Teammate 2)
 
@@ -154,8 +156,8 @@
 | Person | Sections | Total Hours | Weeks | Avg h/week |
 |---|---|---|---|---|
 | You (Team Lead) | WBS-A (101h) + WBS-B (91h) + WBS-F (56h) | ~248h | 15 | ~16.5h |
-| Teammate 1 | WBS-D (86h) | ~86h | 15 | ~5.7h |
-| Teammate 2 | WBS-C (20h) + WBS-E (42h) | ~62h | 15 | ~4.1h |
+| Teammate 1 | WBS-D (86h + A-34's 4h) | ~90h | 15 | ~6.0h |
+| Teammate 2 | WBS-C (20h + A-35's 2h) + WBS-E (42h) | ~64h | 15 | ~4.3h |
 
 
 

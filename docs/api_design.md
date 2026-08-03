@@ -249,10 +249,13 @@ Linked repositories in this organization that the caller can actually open. Bein
 
 ### `GET /api/repos`
 
-List repositories the current user can see: repos they own, repos they are a member of, or all repos if `platformRole: ADMIN`.
+List repositories the current user can see: within the organizations they belong to, repos they own or are a member of. There is no platform-admin shortcut — the tenant boundary applies to every caller, including `platformRole: ADMIN` (see §2 Roles & Authorization).
 
 - **Auth:** Required
-- **Query:** `?page=1&limit=20&search=my-proj&sort=healthScore|name|updatedAt&order=asc|desc`
+- **Query:** `?page=1&limit=20&search=my-proj&sort=name|updatedAt&order=asc|desc`
+- **Errors:** `400` invalid `page`, `limit`, `sort` or `order`
+
+> `sort=healthScore` is **not supported**. Ordering by health score means ordering on each repo's *latest* snapshot, which cannot be pushed down to the database from the ORM, and sorting in memory would silently break pagination. Supporting it properly needs a denormalized latest-score column on `Repository`; until then the endpoint returns `400` for that value. `search` matches `fullName`, case-insensitively.
 - **Success `200`:**
 
 ```json
@@ -337,10 +340,14 @@ Link a GitHub repository and register webhook.
 
 Unlink repository and remove GitHub webhook.
 
-- **Auth:** Required (must be owner or `ADMIN`)
+- **Auth:** Required (must be the repository's owner, or an `OWNER`/`ADMIN` of the organization it belongs to — not `platformRole: ADMIN`)
 - **Params:** `repoId` (string)
 - **Success:** `204 No Content`
-- **Errors:** `404` not found | `403` not owner/admin
+- **Errors:** `404` not found, or in an organization the caller does not belong to | `403` in the organization, but neither the repo's owner nor an org owner/admin
+
+> A repository `TEAM_LEAD` can manage the repo's member list but **cannot** unlink it.
+>
+> Unlink is a soft delete: the row stays with `isActive: false` and `webhookId` cleared, so the repo's snapshots, findings and PR history survive. Linking the same repo again revives that row rather than starting a new one.
 
 ### `GET /api/repos/:repoId`
 
@@ -1035,6 +1042,8 @@ Bull Board web UI for real-time BullMQ job queue monitoring.
 | 5 | **No admin-promotion endpoint** | First `ADMIN` must be set directly in the DB; existing admins cannot promote others via the API | Acceptable for MVP (small, trusted team). Add `PATCH /api/users/:userId/role` (admin-only) post-MVP if needed. Lower priority now that `platformRole` no longer grants access to any tenant's data. |
 | 6 | **Org membership is only as fresh as the last sync** | A user removed from a GitHub organization keeps access until the next login or `POST /api/orgs/sync` | Accepted for MVP. The window is bounded and closable on demand; closing it fully would mean calling GitHub on every request. Revoking in our own database takes effect immediately. |
 | 7 | **One shared `GITHUB_WEBHOOK_SECRET` across all tenants** | Anyone holding that secret can forge webhook events for any linked repository, in any organization | Per-repository secrets stored alongside `Repository.webhookId`. Needs `webhookId` to actually be written first (repo linking is not implemented yet), so it is sequenced after that. |
+| 8 | **`POST /auth/logout` doesn't actually invalidate anything** | A stolen or leaked JWT (or one an admin wants to kill) stays valid until it naturally expires — no way to force a user out early | Tracked as `A-34`. Add a Redis-backed denylist (reuses A-09's Redis, no new infra) checked in `requireAuth`; wire real invalidation into logout plus an admin force-logout endpoint |
+| 9 | **OAuth `state` nonce is generated but never verified** | `signState` puts a `nonce` in the payload; `verifyState`'s return value is discarded at the call site, so nothing ever checks it — the field currently does nothing | Tracked as `A-35`. Either add a single-use Redis check keyed by nonce, or drop the field and correct the docs that describe it as replay protection |
 
 > Resolved since the previous revision of this document: the `Device` model gap (now in `database_design.md` §2/§3.8); the missing role/membership model (now `OrgRole` + `RepositoryRole`, §2 above); and **org-level multi-tenancy** — the brief's "multi-tenant system" is now an actual `Organization` entity with enforced isolation, closing `requirements_analysis.md` Q-1 (`database_design.md` §3.12).
 
