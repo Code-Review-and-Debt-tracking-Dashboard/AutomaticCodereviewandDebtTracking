@@ -11,6 +11,10 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   logLevel: process.env.LOG_LEVEL || 'info',
 
+  // Redis backs the analysis job queue. Defaults to the local Compose
+  // service so a fresh checkout boots without extra setup.
+  redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+
   githubClientId: required('GITHUB_CLIENT_ID'),
   githubClientSecret: required('GITHUB_CLIENT_SECRET'),
   githubOAuthCallbackUrl: required('GITHUB_OAUTH_CALLBACK_URL'),
