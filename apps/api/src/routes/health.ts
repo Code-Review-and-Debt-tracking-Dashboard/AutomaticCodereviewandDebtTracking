@@ -2,6 +2,7 @@ import { prisma } from '@codehealth/db';
 import { Router } from 'express';
 
 import { logger } from '../lib/logger';
+import { redis } from '../lib/redis';
 
 export const healthRouter = Router();
 
@@ -17,7 +18,15 @@ healthRouter.get('/health', async (_req, res) => {
     databaseOk = false;
   }
 
-  const healthy = databaseOk;
+  let redisOk = true;
+  try {
+    await redis.ping();
+  } catch (err) {
+    logger.warn({ err }, 'Redis health check failed');
+    redisOk = false;
+  }
+
+  const healthy = databaseOk && redisOk;
 
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'healthy' : 'degraded',
@@ -26,6 +35,7 @@ healthRouter.get('/health', async (_req, res) => {
     timestamp: new Date().toISOString(),
     checks: {
       database: databaseOk,
+      redis: redisOk,
     },
   });
 });
