@@ -7,12 +7,7 @@ import { AppError } from './errorHandler';
 
 const SIGNATURE_PREFIX = 'sha256=';
 
-/**
- * Verifies the GitHub `X-Hub-Signature-256` header 
- * against `GITHUB_WEBHOOK_SECRET`. Must run after a raw body parser — it
- * needs the exact bytes GitHub signed, so `req.body` is expected to be a
- * `Buffer`, not JSON already parsed by `express.json()`.
- */
+// Needs the raw bytes GitHub signed, so req.body must still be a Buffer here.
 export function verifyWebhookSignature(req: Request, _res: Response, next: NextFunction): void {
   const signature = req.headers['x-hub-signature-256'];
 

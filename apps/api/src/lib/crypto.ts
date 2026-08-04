@@ -2,14 +2,9 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 import { env } from '../config/env';
 
-/**
- * AES-256-GCM encryption for secrets stored at rest (e.g.
- * GitHubCredential.encryptedAccessToken ).
- * Encrypted values are stored as `iv:authTag:ciphertext`, each hex-encoded.
- */
-
+// Tokens are stored as `iv:authTag:ciphertext`, hex-encoded.
 const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12; // recommended IV length for GCM
+const IV_LENGTH = 12;
 
 function getKey(): Buffer {
   const key = Buffer.from(env.tokenEncryptionKey, 'hex');

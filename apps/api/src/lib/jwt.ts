@@ -4,13 +4,8 @@ import jwt from 'jsonwebtoken';
 
 import { env } from '../config/env';
 
-/**
- * The app-issued JWT returned to clients on login 
- * `GET /auth/github/callback` response `token` field). Session/logout
- * handling  is out of scope here — this is a stateless JWT only.
- */
 export interface AppJwtPayload {
-  sub: string; // User.id
+  sub: string; // user id
   username: string;
   platformRole: string;
 }
@@ -19,12 +14,8 @@ export function signAppJwt(payload: AppJwtPayload): string {
   return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'] });
 }
 
-/**
- * Signed, short-lived OAuth `state` param. Since the API is stateless (no
- * pre-login session store), CSRF protection + the optional post-login
- * `redirect` are carried inside a signed token instead of server-side
- * storage. `verifyState` rejects anything invalid, tampered, or expired.
- */
+// No session store before login, so the OAuth state (CSRF + redirect) is
+// carried in a signed token instead.
 export interface OAuthStatePayload {
   redirect?: string;
   nonce: string;

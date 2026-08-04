@@ -61,8 +61,6 @@ reposRouter.get(
   },
 );
 
-// GET /api/repos/:repoId/members : any active member (any role), the owner,
-// or a platform admin can view the member list.
 reposRouter.get(
   '/api/repos/:repoId/members',
   requireAuth,
@@ -77,8 +75,6 @@ reposRouter.get(
   },
 );
 
-// GET /api/repos/:repoId/debt : any active member (any role), the owner,
-// or a platform admin can view the debt breakdown.
 reposRouter.get(
   '/api/repos/:repoId/debt',
   requireAuth,
@@ -137,8 +133,6 @@ reposRouter.post(
   },
 );
 
-// DELETE /api/repos/:repoId/members/:userId : owner, an active TEAM_LEAD, or a
-// platform admin can revoke another member's access.
 reposRouter.delete(
   '/api/repos/:repoId/members/:userId',
   requireAuth,

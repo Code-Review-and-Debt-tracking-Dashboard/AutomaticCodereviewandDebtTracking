@@ -17,8 +17,7 @@ export function createApp(): Express {
   app.use(helmet());
   app.use(cors());
 
-  // Must be mounted before express.json() — it parses its own body as a raw
-  // Buffer so the HMAC signature can be verified against the exact bytes
+  // must come before express.json() — signature check needs the raw body
   app.use(webhookRouter);
 
   app.use(express.json());
