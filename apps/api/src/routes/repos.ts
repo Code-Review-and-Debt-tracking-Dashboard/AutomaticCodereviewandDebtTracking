@@ -4,7 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoPullRequests, getRepoTrend, linkRepository } from '../services/repoService';
+import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoTrend, linkRepository } from '../services/repoService';
 
 export const reposRouter = Router();
 
@@ -83,6 +83,20 @@ reposRouter.get(
     try {
       const debt = await getRepoDebt(req.params.repoId);
       res.status(200).json(debt);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+reposRouter.get(
+  '/api/repos/:repoId/hotspots',
+  requireAuth,
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const hotspots = await getRepoHotspots(req.params.repoId, req.query);
+      res.status(200).json(hotspots);
     } catch (err) {
       next(err);
     }
