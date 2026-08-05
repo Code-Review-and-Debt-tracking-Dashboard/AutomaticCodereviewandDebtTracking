@@ -38,8 +38,7 @@ function toRepoMember(member: {
   };
 }
 
-// GET /api/repos/:repoId/members : active members only — the owner is
-// deliberately excluded, since ownership isn't a RepositoryMember row.
+// active members only; the owner isn't a member row so isn't listed here
 export async function listMembers(repoId: string): Promise<RepoMember[]> {
   const members = await prisma.repositoryMember.findMany({
     where: { repoId, status: 'ACTIVE' },
@@ -50,14 +49,8 @@ export async function listMembers(repoId: string): Promise<RepoMember[]> {
   return members.map(toRepoMember);
 }
 
-// POST /api/repos/:repoId/members : grants access by username. Re-adding a
-// previously removed member reactivates that row instead of erroring, so the
-// unique(userId, repoId) constraint only ever rejects a currently-active one.
-//
-// The target has to already belong to the repo's organization, otherwise this
-// would be a way to pull an outsider into the tenant. Someone outside it gets
-// the same "no such user" response as a username that does not exist, so this
-// cannot be used to probe for accounts in other tenants either.
+// Re-adding a removed member reactivates the old row. The target must already
+// be in the repo's org — anyone else gets the same 404 as an unknown username.
 export async function addMember(
   repoId: string,
   username: string,
@@ -104,8 +97,7 @@ export async function addMember(
   return toRepoMember(member);
 }
 
-// DELETE /api/repos/:repoId/members/:userId : soft-removes the membership
-// (status + removedAt) instead of deleting the row, to keep the audit trail.
+// soft delete, so the audit trail stays
 export async function removeMember(repoId: string, userId: string): Promise<void> {
   const existing = await prisma.repositoryMember.findUnique({
     where: { userId_repoId: { userId, repoId } },

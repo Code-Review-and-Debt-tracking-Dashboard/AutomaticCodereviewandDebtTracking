@@ -1,179 +1,210 @@
-
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bell,
+  Building2,
   ChevronDown,
   LogOut,
   Menu,
   Moon,
   Search,
   Sun,
-  User,
+  User as UserIcon,
   X,
 } from "lucide-react";
+
 import { useEffect, useRef, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
+
+import { useAuth } from "../../contexts/AuthContext";
+
+import { useOrg } from "../../contexts/OrgContext";
+
+import { api } from "../../lib/apiClient";
+
+interface NotificationItem {
+  id: string;
+
+  title: string;
+
+  description: string;
+
+  time: string;
+
+  unread: boolean;
+}
 
 interface TopbarProps {
   onMenuClick: () => void;
 }
 
-export function Topbar({
-  onMenuClick,
-}: TopbarProps) {
+export function Topbar({ onMenuClick }: TopbarProps) {
   const navigate = useNavigate();
 
-  const searchInputRef =
-    useRef<HTMLInputElement>(null);
+  const { user: authUser, logout } = useAuth();
 
-  const profileRef =
-    useRef<HTMLDivElement>(null);
+  const { orgs, selectedOrg, setSelectedOrg } = useOrg();
 
-  const [darkMode, setDarkMode] =
-    useState<boolean>(() => {
-      const savedTheme =
-        localStorage.getItem("theme");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-      if (savedTheme) {
-        return savedTheme === "dark";
-      }
+  const profileRef = useRef<HTMLDivElement>(null);
 
-      return true;
-    });
+  const orgDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [profileOpen, setProfileOpen] =
-    useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
 
-  const [notificationsOpen, setNotificationsOpen] =
-    useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem("theme");
 
-  const [searchOpen, setSearchOpen] =
-    useState(false);
+    if (saved) {
+      return saved === "dark";
+    }
 
-  /*
-   * =====================================================
-   * BACKEND CONNECTION LATER
-   * =====================================================
-   *
-   * GET /auth/me
-   *
-   * Backend response:
-   *
-   * {
-   *   id: string;
-   *   username: string;
-   *   displayName: string;
-   *   avatarUrl: string;
-   *   githubUsername: string;
-   * }
-   *
-   * Later:
-   *
-   * const { data: user } = await authApi.getMe();
-   */
+    return true;
+  });
+
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const [orgOpen, setOrgOpen] = useState(false);
+
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
 
   const user = {
-    name: "Nethmi Bhagya",
-    username: "nethmibhagya",
-    role: "Developer",
-    initials: "NB",
+    name: authUser?.username || "Developer",
+
+    username: authUser?.username || "user",
+
+    role: authUser?.platformRole || "Developer",
+
+    initials: (authUser?.username || "NB").slice(0, 2).toUpperCase(),
+
+    avatarUrl: authUser?.avatarUrl,
   };
 
-  /*
-   * =====================================================
-   * BACKEND CONNECTION LATER
-   * =====================================================
-   *
-   * GET /api/notifications
-   *
-   * Backend response:
-   *
-   * [
-   *   {
-   *     id: string;
-   *     type: "ANALYSIS_COMPLETED";
-   *     title: string;
-   *     message: string;
-   *     isRead: boolean;
-   *     createdAt: string;
-   *   }
-   * ]
-   */
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: "demo-1",
 
-  const notifications = [
-    {
-      id: 1,
       title: "Analysis completed",
-      description:
-        "AutomaticCodeReview analysis completed",
+
+      description: "Automatic Code Review analysis completed",
+
       time: "8 min ago",
+
       unread: true,
     },
+
     {
-      id: 2,
+      id: "demo-2",
+
       title: "New security finding",
-      description:
-        "A security issue was detected",
+
+      description: "A security issue was detected",
+
       time: "32 min ago",
+
       unread: true,
     },
+
     {
-      id: 3,
+      id: "demo-3",
+
       title: "Pull request analyzed",
-      description:
-        "PR #42 was analyzed successfully",
+
+      description: "PR #42 was analyzed successfully",
+
       time: "1 hour ago",
+
       unread: false,
     },
-  ];
+  ]);
 
-  const unreadCount =
-    notifications.filter(
-      (notification) =>
-        notification.unread,
-    ).length;
+  const unreadCount = notifications.filter((item) => item.unread).length;
 
   /*
-   * =====================================================
-   * THEME MANAGEMENT
-   * =====================================================
-   */
+==============================
+THEME
+==============================
+*/
 
   useEffect(() => {
-    document.documentElement.classList.toggle(
-      "dark",
-      darkMode,
-    );
+    document.documentElement.classList.toggle("dark", darkMode);
 
-    localStorage.setItem(
-      "theme",
-      darkMode ? "dark" : "light",
-    );
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
-  const toggleTheme = () => {
-    setDarkMode(
-      (previous) => !previous,
-    );
-  };
-
   /*
-   * =====================================================
-   * KEYBOARD SEARCH SHORTCUT
-   * =====================================================
-   *
-   * Press "/" to focus search.
-   */
+==============================
+NOTIFICATIONS API
+==============================
+*/
 
   useEffect(() => {
-    const handleKeyDown = (
-      event: KeyboardEvent,
-    ) => {
-      if (
-        event.key === "/" &&
-        document.activeElement?.tagName !==
-          "INPUT"
-      ) {
+    if (!authUser) return;
+
+    const fetchNotifications = async () => {
+      try {
+        setLoadingNotifications(true);
+
+        const response = await api.get<{
+          data: Array<{
+            id: string;
+
+            title: string;
+
+            body: string;
+
+            readAt: string | null;
+
+            createdAt: string;
+          }>;
+        }>("/api/notifications", {
+          unreadOnly: true,
+        });
+
+        const mapped = (response.data || []).map((notification) => ({
+          id: notification.id,
+
+          title: notification.title,
+
+          description: notification.body,
+
+          time: new Date(notification.createdAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+
+          unread: !notification.readAt,
+        }));
+
+        if (mapped.length > 0) {
+          setNotifications(mapped);
+        }
+      } catch {
+        // keep demo data
+      } finally {
+        setLoadingNotifications(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [authUser]);
+
+  /*
+==============================
+KEYBOARD SHORTCUT
+==============================
+*/
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
         event.preventDefault();
 
         searchInputRef.current?.focus();
@@ -181,117 +212,97 @@ export function Topbar({
 
       if (event.key === "Escape") {
         setProfileOpen(false);
+
         setNotificationsOpen(false);
+
+        setOrgOpen(false);
+
         setSearchOpen(false);
       }
     };
 
-    window.addEventListener(
-      "keydown",
-      handleKeyDown,
-    );
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      window.removeEventListener(
-        "keydown",
-        handleKeyDown,
-      );
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
   /*
-   * =====================================================
-   * CLOSE PROFILE DROPDOWN OUTSIDE CLICK
-   * =====================================================
-   */
+==============================
+OUTSIDE CLICK HANDLER
+==============================
+*/
 
   useEffect(() => {
-    const handleOutsideClick = (
-      event: MouseEvent,
-    ) => {
-      const target =
-        event.target as Node;
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (profileRef.current && !profileRef.current.contains(target)) {
+        setProfileOpen(false);
+      }
+
+      if (orgDropdownRef.current && !orgDropdownRef.current.contains(target)) {
+        setOrgOpen(false);
+      }
 
       if (
-        profileRef.current &&
-        !profileRef.current.contains(
-          target,
-        )
+        notificationRef.current &&
+        !notificationRef.current.contains(target)
       ) {
-        setProfileOpen(false);
+        setNotificationsOpen(false);
       }
     };
 
-    document.addEventListener(
-      "mousedown",
-      handleOutsideClick,
-    );
+    document.addEventListener("mousedown", handleOutsideClick);
 
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleOutsideClick,
-      );
+      document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
 
-  /*
-   * =====================================================
-   * LOGOUT
-   * =====================================================
-   *
-   * CURRENT:
-   * Clears local authentication data.
-   *
-   * BACKEND LATER:
-   *
-   * POST /auth/logout
-   *
-   * Then:
-   * 1. Invalidate backend session
-   * 2. Clear JWT/token
-   * 3. Clear auth store
-   * 4. Navigate to /login
-   */
+  const toggleTheme = () => {
+    setDarkMode((previous) => !previous);
+  };
 
   const handleLogout = async () => {
     try {
-      /*
-       * BACKEND CONNECTION LATER
-       *
-       * await authApi.logout();
-       */
-
-      localStorage.removeItem(
-        "token",
-      );
-
-      localStorage.removeItem(
-        "user",
-      );
-
-      localStorage.removeItem(
-        "auth",
-      );
-
-      navigate("/login");
+      await logout();
     } catch (error) {
-      console.error(
-        "Logout failed:",
-        error,
-      );
+      console.error("Logout failed", error);
     }
   };
 
+  const handleOrganizationChange = (org: any) => {
+    setSelectedOrg(org);
+
+    localStorage.setItem("selectedOrg", JSON.stringify(org));
+
+    setOrgOpen(false);
+  };
+
+  const handleSearch = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && searchQuery.trim()) {
+      navigate(`/repositories?search=${searchQuery}`);
+    }
+  };
   return (
-    <header className="sticky top-0 z-40 flex h-20 items-center justify-between border-b border-border/70 bg-background/80 px-4 backdrop-blur-xl sm:px-6">
-
-      {/* =====================================================
-          LEFT SIDE
-          ===================================================== */}
-
-      <div className="flex min-w-0 items-center gap-3">
-
+    <header
+      className="
+sticky top-0 z-40 flex h-20 items-center 
+justify-between border-b border-border/70 
+bg-background/80 px-4 backdrop-blur-xl 
+sm:px-6
+"
+    >
+      {/* ==============================
+    LEFT SIDE
+================================ */}
+      <div
+        className="
+flex min-w-0 items-center gap-3
+"
+      >
         {/* MOBILE MENU */}
 
         <motion.button
@@ -301,30 +312,218 @@ export function Topbar({
           type="button"
           onClick={onMenuClick}
           aria-label="Toggle navigation menu"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
+          className="
+flex h-10 w-10 shrink-0 items-center 
+justify-center rounded-xl border 
+border-border bg-card text-muted-foreground 
+transition hover:bg-muted hover:text-foreground 
+lg:hidden
+"
         >
           <Menu size={20} />
         </motion.button>
 
         {/* DESKTOP SEARCH */}
 
-        <div className="hidden items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 md:flex md:w-72">
-
+        <div
+          className="
+hidden items-center gap-2 rounded-xl 
+border border-border bg-card px-3 py-2 
+transition focus-within:border-primary/50 
+focus-within:ring-4 focus-within:ring-primary/10 
+md:flex md:w-72
+"
+        >
           <Search
             size={17}
-            className="shrink-0 text-muted-foreground"
+            className="
+shrink-0 text-muted-foreground
+"
           />
 
           <input
             ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearch}
             type="text"
-            placeholder="Search repositories..."
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            placeholder="
+Search repositories...
+"
+            className="
+w-full bg-transparent text-sm 
+outline-none placeholder:text-muted-foreground
+"
           />
 
-          <kbd className="hidden rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground lg:block">
+          <kbd
+            className="
+hidden rounded-md border border-border 
+bg-muted px-1.5 py-0.5 text-[10px] 
+text-muted-foreground lg:block
+"
+          >
             /
           </kbd>
+        </div>
+
+        {/* ORGANIZATION SWITCHER */}
+
+        <div
+          ref={orgDropdownRef}
+          className="
+relative
+"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setOrgOpen((previous) => !previous);
+
+              setProfileOpen(false);
+
+              setNotificationsOpen(false);
+            }}
+            className="
+flex items-center gap-2 rounded-xl 
+border border-border bg-card px-3 py-2 
+text-xs font-semibold transition 
+hover:border-primary/40 hover:bg-muted
+"
+          >
+            {selectedOrg?.avatarUrl ? (
+              <img
+                src={selectedOrg.avatarUrl}
+                alt={selectedOrg.login}
+                className="
+h-5 w-5 rounded-md object-cover
+"
+              />
+            ) : (
+              <div
+                className="
+flex h-5 w-5 items-center 
+justify-center rounded-md 
+bg-primary/20 text-primary
+"
+              >
+                <Building2 size={12} />
+              </div>
+            )}
+
+            <span
+              className="
+max-w-[120px] truncate sm:max-w-[160px]
+"
+            >
+              {selectedOrg?.name || selectedOrg?.login || "Select Org"}
+            </span>
+
+            <ChevronDown
+              size={14}
+              className="
+shrink-0 text-muted-foreground
+"
+            />
+          </button>
+
+          <AnimatePresence>
+            {orgOpen && (
+              <motion.div
+                initial={{
+                  opacity: 0,
+
+                  y: -8,
+
+                  scale: 0.96,
+                }}
+                animate={{
+                  opacity: 1,
+
+                  y: 0,
+
+                  scale: 1,
+                }}
+                exit={{
+                  opacity: 0,
+
+                  y: -8,
+
+                  scale: 0.96,
+                }}
+                className="
+absolute left-0 mt-2 w-56 
+overflow-hidden rounded-2xl 
+border border-border bg-card 
+p-2 shadow-2xl z-50
+"
+              >
+                <div
+                  className="
+border-b border-border px-3 py-2 
+text-[10px] font-semibold 
+tracking-wider text-muted-foreground 
+uppercase
+"
+                >
+                  Organizations
+                </div>
+
+                <div
+                  className="
+max-h-60 overflow-y-auto py-1
+"
+                >
+                  {orgs.length === 0 ? (
+                    <p
+                      className="
+px-3 py-2 text-xs 
+text-muted-foreground
+"
+                    >
+                      No organizations found
+                    </p>
+                  ) : (
+                    orgs.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        onClick={() => handleOrganizationChange(org)}
+                        className={`
+flex w-full items-center gap-2.5 
+rounded-xl px-3 py-2 text-xs 
+font-medium transition
+
+${
+  selectedOrg?.id === org.id
+    ? "bg-primary/10 text-primary font-semibold"
+    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+}
+
+`}
+                      >
+                        {org.avatarUrl ? (
+                          <img
+                            src={org.avatarUrl}
+                            alt=""
+                            className="
+h-5 w-5 rounded-md
+"
+                          />
+                        ) : (
+                          <Building2 size={14} />
+                        )}
+
+                        <span className="truncate">
+                          {org.name || org.login}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* MOBILE SEARCH BUTTON */}
@@ -334,28 +533,27 @@ export function Topbar({
             scale: 0.9,
           }}
           type="button"
-          onClick={() =>
-            setSearchOpen(
-              (previous) => !previous,
-            )
-          }
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:bg-muted hover:text-foreground md:hidden"
+          onClick={() => {
+            setSearchOpen((previous) => !previous);
+          }}
           aria-label="Open search"
+          className="
+flex h-10 w-10 items-center 
+justify-center rounded-xl 
+border border-border bg-card 
+text-muted-foreground transition 
+hover:bg-muted hover:text-foreground 
+md:hidden
+"
         >
-          {searchOpen ? (
-            <X size={18} />
-          ) : (
-            <Search size={18} />
-          )}
+          {searchOpen ? <X size={18} /> : <Search size={18} />}
         </motion.button>
       </div>
-
-      {/* =====================================================
-          RIGHT SIDE
-          ===================================================== */}
-
-      <div className="flex items-center gap-2 sm:gap-3">
-
+      <div
+        className="
+flex items-center gap-2 sm:gap-3
+"
+      >
         {/* THEME TOGGLE */}
 
         <motion.button
@@ -365,12 +563,15 @@ export function Topbar({
           type="button"
           onClick={toggleTheme}
           aria-label="Toggle theme"
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:border-primary/40 hover:bg-muted hover:text-foreground"
+          className="
+flex h-10 w-10 items-center justify-center 
+rounded-xl border border-border bg-card 
+text-muted-foreground transition 
+hover:border-primary/40 hover:bg-muted 
+hover:text-foreground
+"
         >
-          <AnimatePresence
-            mode="wait"
-            initial={false}
-          >
+          <AnimatePresence mode="wait" initial={false}>
             {darkMode ? (
               <motion.div
                 key="sun"
@@ -419,28 +620,43 @@ export function Topbar({
 
         {/* NOTIFICATIONS */}
 
-        <div className="relative">
-
+        <div
+          ref={notificationRef}
+          className="
+relative
+"
+        >
           <motion.button
             whileTap={{
               scale: 0.9,
             }}
             type="button"
             onClick={() => {
-              setNotificationsOpen(
-                (previous) =>
-                  !previous,
-              );
+              setNotificationsOpen((previous) => !previous);
 
               setProfileOpen(false);
             }}
             aria-label="Notifications"
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:border-primary/40 hover:bg-muted hover:text-foreground"
+            className="
+relative flex h-10 w-10 items-center 
+justify-center rounded-xl border 
+border-border bg-card text-muted-foreground 
+transition hover:border-primary/40 
+hover:bg-muted hover:text-foreground
+"
           >
             <Bell size={18} />
 
             {unreadCount > 0 && (
-              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+              <span
+                className="
+absolute right-1.5 top-1.5 flex h-4 
+min-w-4 items-center justify-center 
+rounded-full bg-destructive px-1 
+text-[9px] font-bold 
+text-destructive-foreground
+"
+              >
                 {unreadCount}
               </span>
             )}
@@ -464,84 +680,134 @@ export function Topbar({
                   y: -8,
                   scale: 0.96,
                 }}
-                className=" bg-white dark:bg-slate-950 absolute right-0 mt-3 w-80  z-[9999] overflow-hidden rounded-2xl border-2 border-primary bg-card  backdrop-blur-md"
+                className="
+absolute right-0 mt-3 w-80 z-[9999]
+overflow-hidden rounded-2xl 
+border border-border bg-card 
+shadow-2xl
+"
               >
-
-                <div className="border-b border-border p-4">
-
-                  <div className="flex items-center justify-between">
-
+                <div
+                  className="
+border-b border-border p-4
+"
+                >
+                  <div
+                    className="
+flex items-center justify-between
+"
+                  >
                     <div>
-                      <p className="text-sm font-semibold">
+                      <p
+                        className="
+text-sm font-semibold
+"
+                      >
                         Notifications
                       </p>
 
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p
+                        className="
+mt-1 text-xs text-muted-foreground
+"
+                      >
                         {unreadCount} unread
                       </p>
                     </div>
 
                     <button
                       type="button"
-                      className="text-xs font-medium text-primary hover:underline"
+                      onClick={() => {
+                        setNotifications(
+                          notifications.map((item) => ({
+                            ...item,
+
+                            unread: false,
+                          })),
+                        );
+                      }}
+                      className="
+text-xs font-medium text-primary 
+hover:underline
+"
                     >
                       Mark all read
                     </button>
                   </div>
                 </div>
 
-                <div className="max-h-80 overflow-y-auto">
+                <div
+                  className="
+max-h-80 overflow-y-auto
+"
+                >
+                  {loadingNotifications && (
+                    <p
+                      className="
+p-4 text-xs text-muted-foreground
+"
+                    >
+                      Loading notifications...
+                    </p>
+                  )}
 
-                  {notifications.map(
-                    (
-                      notification,
-                    ) => (
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className="
+border-b border-border/50 p-4 
+transition hover:bg-muted/50
+"
+                    >
                       <div
-                        key={
-                          notification.id
-                        }
-                        className="border-b border-border/50 p-4 transition hover:bg-muted/50"
+                        className="
+flex gap-3
+"
                       >
+                        <span
+                          className={`mt-1.5 h-2 w-2 
+shrink-0 rounded-full
 
-                        <div className="flex gap-3">
+${notification.unread ? "bg-primary" : "bg-muted"}`}
+                        />
 
-                          <span
-                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                              notification.unread
-                                ? "bg-primary"
-                                : "bg-muted"
-                            }`}
-                          />
+                        <div>
+                          <p
+                            className="
+text-sm font-medium
+"
+                          >
+                            {notification.title}
+                          </p>
 
-                          <div className="min-w-0">
+                          <p
+                            className="
+mt-1 text-xs text-muted-foreground
+"
+                          >
+                            {notification.description}
+                          </p>
 
-                            <p className="text-sm font-medium">
-                              {
-                                notification.title
-                              }
-                            </p>
-
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {
-                                notification.description
-                              }
-                            </p>
-
-                            <p className="mt-2 text-[11px] text-muted-foreground">
-                              {
-                                notification.time
-                              }
-                            </p>
-                          </div>
+                          <p
+                            className="
+mt-2 text-[11px] text-muted-foreground
+"
+                          >
+                            {notification.time}
+                          </p>
                         </div>
                       </div>
-                    ),
-                  )}
+                    </div>
+                  ))}
                 </div>
 
                 <button
                   type="button"
-                  className="w-full p-3 text-center text-xs font-medium text-primary transition hover:bg-muted/50"
+                  className="
+w-full p-3 text-center text-xs 
+font-medium text-primary 
+transition hover:bg-muted/50
+"
                 >
                   View all notifications
                 </button>
@@ -554,42 +820,72 @@ export function Topbar({
 
         <div
           ref={profileRef}
-          className="relative"
+          className="
+relative
+"
         >
-
           <button
             type="button"
             onClick={() => {
-              setProfileOpen(
-                (previous) =>
-                  !previous,
-              );
+              setProfileOpen((previous) => !previous);
 
-              setNotificationsOpen(
-                false,
-              );
+              setNotificationsOpen(false);
             }}
-            className="flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1.5 transition hover:bg-muted sm:px-3"
+            className="
+flex items-center gap-2 rounded-xl 
+border border-border bg-card px-2 
+py-1.5 transition hover:bg-muted 
+sm:px-3
+"
           >
+            {user.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.name}
+                className="
+h-8 w-8 rounded-lg object-cover
+"
+              />
+            ) : (
+              <div
+                className="
+flex h-8 w-8 items-center 
+justify-center rounded-lg bg-primary 
+text-xs font-bold 
+text-primary-foreground
+"
+              >
+                {user.initials}
+              </div>
+            )}
 
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
-              {user.initials}
-            </div>
-
-            <div className="hidden text-left sm:block">
-
-              <p className="text-xs font-semibold">
+            <div
+              className="
+hidden text-left sm:block
+"
+            >
+              <p
+                className="
+text-xs font-semibold
+"
+              >
                 {user.name}
               </p>
 
-              <p className="text-[10px] text-muted-foreground">
+              <p
+                className="
+text-[10px] text-muted-foreground
+"
+              >
                 @{user.username}
               </p>
             </div>
 
             <ChevronDown
               size={15}
-              className="hidden text-muted-foreground sm:block"
+              className="
+hidden text-muted-foreground sm:block
+"
             />
           </button>
 
@@ -611,37 +907,64 @@ export function Topbar({
                   y: -8,
                   scale: 0.96,
                 }}
-                className="absolute right-0 top-14 w-56 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl"
+                className="
+absolute right-0 top-14 w-56 
+overflow-hidden rounded-2xl 
+border border-border bg-card 
+p-2 shadow-2xl
+"
               >
-
-                <div className="border-b border-border px-3 py-3">
-
-                  <p className="text-sm font-semibold">
+                <div
+                  className="
+border-b border-border px-3 py-3
+"
+                >
+                  <p
+                    className="
+text-sm font-semibold
+"
+                  >
                     {user.name}
                   </p>
 
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p
+                    className="
+mt-1 text-xs text-muted-foreground
+"
+                  >
                     @{user.username}
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate("/settings")
-                  }
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  onClick={() => navigate("/settings")}
+                  className="
+flex w-full items-center gap-3 
+rounded-xl px-3 py-2.5 text-sm 
+text-muted-foreground transition 
+hover:bg-muted hover:text-foreground
+"
                 >
-                  <User size={16} />
+                  <UserIcon size={16} />
                   Profile
                 </button>
 
-                <div className="my-2 h-px bg-border" />
+                <div
+                  className="
+my-2 h-px bg-border
+"
+                />
 
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-destructive transition hover:bg-destructive/10"
+                  className="
+flex w-full items-center gap-3 
+rounded-xl px-3 py-2.5 text-sm 
+text-destructive transition 
+hover:bg-destructive/10
+"
                 >
                   <LogOut size={16} />
                   Logout
@@ -651,9 +974,7 @@ export function Topbar({
           </AnimatePresence>
         </div>
       </div>
-
       {/* MOBILE SEARCH PANEL */}
-
       <AnimatePresence>
         {searchOpen && (
           <motion.div
@@ -669,20 +990,38 @@ export function Topbar({
               opacity: 0,
               height: 0,
             }}
-            className="absolute left-0 right-0 top-20 border-b border-border bg-background px-4 py-3 md:hidden"
+            className="
+absolute left-0 right-0 top-20 
+border-b border-border 
+bg-background px-4 py-3 md:hidden
+"
           >
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-
+            <div
+              className="
+flex items-center gap-2 rounded-xl 
+border border-border bg-card px-3 py-2.5
+"
+            >
               <Search
                 size={17}
-                className="text-muted-foreground"
+                className="
+text-muted-foreground
+"
               />
 
               <input
                 autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearch}
                 type="text"
-                placeholder="Search repositories..."
-                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                placeholder="
+Search repositories...
+"
+                className="
+w-full bg-transparent text-sm 
+outline-none placeholder:text-muted-foreground
+"
               />
             </div>
           </motion.div>
@@ -691,4 +1030,3 @@ export function Topbar({
     </header>
   );
 }
-

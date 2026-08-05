@@ -9,16 +9,31 @@ import {
   Sparkles,
   XCircle,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { api } from "../../lib/apiClient";
 
-const pullRequests = [
+interface PullItem {
+  id: number;
+  title: string;
+  author: string;
+  branch: string;
+  score: number;
+  findings: number;
+  debtDelta: number;
+  status: string;
+  time: string;
+}
+
+const fallbackPullRequests: PullItem[] = [
   {
     id: 42,
-    title: "Add repository health scoring",
-    author: "Nethmi Bhagya",
-    branch: "feature/health-score",
+    title: "Improve repository health dashboard",
+    author: "seed-developer",
+    branch: "feature/health-dashboard",
     score: 91,
     findings: 3,
+    debtDelta: -15,
     status: "Passed",
     time: "2 hours ago",
   },
@@ -29,24 +44,41 @@ const pullRequests = [
     branch: "perf/worker-optimization",
     score: 78,
     findings: 8,
+    debtDelta: +25,
     status: "Needs attention",
     time: "Yesterday",
-  },
-  {
-    id: 40,
-    title: "Update authentication flow",
-    author: "Amaya Silva",
-    branch: "feature/oauth",
-    score: 96,
-    findings: 1,
-    status: "Passed",
-    time: "2 days ago",
   },
 ];
 
 export function RepositoryPullRequestsPage() {
-  const { repoId } = useParams();
+  const { repoId } = useParams<{ repoId: string }>();
   const navigate = useNavigate();
+  const [prs, setPrs] = useState<PullItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!repoId) return;
+
+    const fetchPulls = async () => {
+      setIsLoading(true);
+      try {
+        const res = await api.get<{ data: PullItem[] }>(`/api/repos/${repoId}/pulls`);
+        if (res?.data && res.data.length > 0) {
+          setPrs(res.data);
+        } else {
+          setPrs(fallbackPullRequests);
+        }
+      } catch {
+        setPrs(fallbackPullRequests);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPulls();
+  }, [repoId]);
+
+  const pullRequests = prs.length > 0 ? prs : fallbackPullRequests;
 
   return (
     <main className="min-h-screen bg-background">
@@ -204,6 +236,20 @@ export function RepositoryPullRequestsPage() {
 
                     <p className="mt-1 text-sm font-semibold">
                       {pr.findings}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Debt Delta
+                    </p>
+
+                    <p
+                      className={`mt-1 text-sm font-bold ${
+                        pr.debtDelta <= 0 ? "text-success" : "text-destructive"
+                      }`}
+                    >
+                      {pr.debtDelta > 0 ? `+${pr.debtDelta}m` : `${pr.debtDelta}m`}
                     </p>
                   </div>
 

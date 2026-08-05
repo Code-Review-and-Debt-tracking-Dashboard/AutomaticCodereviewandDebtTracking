@@ -3,22 +3,8 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 import { AppError } from './errorHandler';
 
-/**
- * Repo-scoped authorization guard, run after requireAuth. Access is checked in
- * two layers: first that the caller belongs to the organization owning the
- * repo, then what they may do with that specific repo.
- *
- * Failing the first layer returns 404, not 403, so one tenant cannot confirm
- * another tenant's repositories exist. Failing only the second returns 403,
- * because at that point the caller is entitled to know the repo is there.
- *
- * `read` allows the owner or any ACTIVE member. `write` narrows the member
- * case to an ACTIVE TEAM_LEAD, and also admits organization owners/admins,
- * since managing the tenant's repos is their job.
- *
- * There is deliberately no platform-level bypass here — tenant isolation
- * applies to everyone, and platformRole only guards operational routes.
- */
+// Two checks: is the caller in the owning org, then what they can do with the
+// repo. Failing the first is a 404 so other tenants' repos stay hidden.
 export function requireRepoAccess(level: 'read' | 'write'): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -58,7 +44,7 @@ export function requireRepoAccess(level: 'read' | 'write'): RequestHandler {
 
       req.org = { id: repository.orgId, role: orgMembership.role };
 
-      // The repo's own owner, and whoever runs the tenant, always pass.
+      // repo owner and org owners/admins always pass
       const isOrgManager = orgMembership.role === 'OWNER' || orgMembership.role === 'ADMIN';
       if (repository.ownerId === userId || isOrgManager) {
         next();

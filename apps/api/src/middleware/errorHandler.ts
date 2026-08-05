@@ -2,11 +2,6 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { logger } from '../lib/logger';
 
-/**
- * Structured error for known failure cases. Controllers/middleware throw
- * this (or call next(new AppError(...))) to get the standard error response
- * shape defined in api_design.md section 10.
- */
 export class AppError extends Error {
   public readonly statusCode: number;
   public readonly code: string;
@@ -20,18 +15,11 @@ export class AppError extends Error {
   }
 }
 
-/**
- * Catches any request that didn't match a route. Must be registered after
- * all routes and before errorHandler.
- */
 export function notFoundHandler(req: Request, _res: Response, next: NextFunction): void {
   next(new AppError(404, 'NOT_FOUND', `Route ${req.method} ${req.path} not found`));
 }
 
-/**
- * Final error-handling middleware (Express recognizes it by its 4 params).
- * Must be registered last, after all other app.use()/routes.
- */
+// register last — Express picks this up from the 4 params
 export function errorHandler(
   err: unknown,
   _req: Request,
@@ -49,7 +37,7 @@ export function errorHandler(
     return;
   }
 
-  // Unexpected error — never leak internals (stack trace, message) to the client.
+  // don't leak internals to the client
   logger.error({ err }, 'Unhandled error');
   res.status(500).json({
     error: {

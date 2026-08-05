@@ -24,53 +24,65 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { api } from "../../lib/apiClient";
+import { Loader2 } from "lucide-react";
 
-/*
-|--------------------------------------------------------------------------
-| MOCK DATA
-|--------------------------------------------------------------------------
-| BACKEND IMPLEMENTATION LATER
-|
-| GET /api/repos/:repoId
-|
-| Expected backend response:
-|
-| {
-|   id: string;
-|   name: string;
-|   fullName: string;
-|   owner: string;
-|   language: string;
-|   defaultBranch: string;
-|   githubUrl: string;
-|   isPrivate: boolean;
-|   healthScore: number;
-|   totalFindings: number;
-|   technicalDebtMinutes: number;
-| }
-|
-| This object should later be replaced with:
-|
-| const { data: repository } = useRepository(repoId);
-|
-|--------------------------------------------------------------------------
-*/
+interface RepoDetail {
+  id: string;
+  name: string;
+  fullName: string;
+  language: string | null;
+  defaultBranch: string;
+  htmlUrl?: string;
+  private?: boolean;
+  healthScore?: number;
+  openFindings?: number;
+  debtMinutes?: number;
+}
 
-const repository = {
-  id: "repo-001",
-  name: "AutomaticCodeReview",
-  fullName: "Code-Review-and-Debt-tracking-Dashboard/AutomaticCodeReview",
-  owner: "Code-Review-and-Debt-tracking-Dashboard",
-  language: "TypeScript",
-  defaultBranch: "main",
-  githubUrl:
-    "https://github.com/Code-Review-and-Debt-tracking-Dashboard/AutomaticCodereviewandDebtTracking",
-  isPrivate: false,
-  healthScore: 86,
-  totalFindings: 24,
-  technicalDebt: "4h 20m",
-};
+function RepositoryOverviewPageData() {
+  const { repoId } = useParams<{ repoId: string }>();
+  const [repo, setRepo] = useState<RepoDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!repoId) return;
+
+    const fetchDetail = async () => {
+      setIsLoading(true);
+      try {
+        const res = await api.get<RepoDetail>(`/api/repos/${repoId}`);
+        setRepo(res);
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Failed to load repository detail.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDetail();
+  }, [repoId]);
+
+  const repository = {
+    id: repo?.id || repoId || "repo-001",
+    name: repo?.name || "Repository",
+    fullName: repo?.fullName || "org/repo",
+    owner: repo?.fullName ? repo.fullName.split("/")[0] : "org",
+    language: repo?.language || "TypeScript",
+    defaultBranch: repo?.defaultBranch || "main",
+    githubUrl: repo?.htmlUrl || "#",
+    isPrivate: repo?.private ?? false,
+    healthScore: repo?.healthScore ?? 86,
+    totalFindings: repo?.openFindings ?? 24,
+    technicalDebt: repo?.debtMinutes ? `${Math.floor(repo.debtMinutes / 60)}h ${repo.debtMinutes % 60}m` : "4h 20m",
+  };
+
+  return null;
+}
+
 
 /*
 |--------------------------------------------------------------------------
@@ -206,26 +218,66 @@ const recentActivity = [
 ];
 
 export function RepositoryOverviewPage() {
-  /*
-  |--------------------------------------------------------------------------
-  | ROUTE PARAMETER
-  |--------------------------------------------------------------------------
-  |
-  | Route:
-  |
-  | /repositories/:repoId
-  |
-  | Example:
-  |
-  | /repositories/repo-001
-  |
-  | Later:
-  |
-  | const { data } = useRepository(repoId);
-  |--------------------------------------------------------------------------
-  */
+  const { repoId } = useParams<{ repoId: string }>();
+  const [repoDetail, setRepoDetail] = useState<RepoDetail | null>(null);
+  const [trendPoints, setTrendPoints] = useState<{ date: string; score: number }[]>([]);
+  const [debtData, setDebtData] = useState<{ totalDebtMinutes: number; debtDelta: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { repoId } = useParams();
+  useEffect(() => {
+    if (!repoId) return;
+
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [repoRes, trendRes, debtRes] = await Promise.allSettled([
+          api.get<RepoDetail>(`/api/repos/${repoId}`),
+          api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
+          api.get<{ totalDebtMinutes: number; debtDelta: number }>(`/api/repos/${repoId}/debt`),
+        ]);
+
+        if (repoRes.status === "fulfilled") {
+          setRepoDetail(repoRes.value);
+        }
+        if (trendRes.status === "fulfilled" && trendRes.value?.dataPoints) {
+          setTrendPoints(
+            trendRes.value.dataPoints.map((dp) => ({
+              date: new Date(dp.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+              score: dp.healthScore,
+            }))
+          );
+        }
+        if (debtRes.status === "fulfilled") {
+          setDebtData(debtRes.value);
+        }
+      } catch {
+        // Fallback
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [repoId]);
+
+  const repository = {
+    id: repoDetail?.id || repoId || "repo-001",
+    name: repoDetail?.name || "code-health-demo",
+    fullName: repoDetail?.fullName || "seed-acme/code-health-demo",
+    owner: repoDetail?.fullName ? repoDetail.fullName.split("/")[0] : "seed-acme",
+    language: repoDetail?.language || "TypeScript",
+    defaultBranch: repoDetail?.defaultBranch || "main",
+    githubUrl: repoDetail?.htmlUrl || "https://github.com",
+    isPrivate: repoDetail?.private ?? false,
+    healthScore: repoDetail?.healthScore ?? 88,
+    totalFindings: repoDetail?.openFindings ?? 5,
+    technicalDebt: debtData?.totalDebtMinutes
+      ? `${Math.floor(debtData.totalDebtMinutes / 60)}h ${debtData.totalDebtMinutes % 60}m`
+      : "1h 35m",
+    debtDelta: debtData?.debtDelta ?? -5,
+  };
+
+  const chartTrend = trendPoints.length > 0 ? trendPoints : healthTrend;
 
   return (
     <main className="min-h-screen bg-background">
@@ -391,7 +443,7 @@ export function RepositoryOverviewPage() {
 
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={healthTrend}>
+                <AreaChart data={chartTrend}>
                   <defs>
                     <linearGradient
                       id="repositoryHealthGradient"

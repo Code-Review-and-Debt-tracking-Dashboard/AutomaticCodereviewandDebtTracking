@@ -12,14 +12,8 @@ declare global {
   }
 }
 
-/**
- * Tenant guard for routes with an :orgId param, run after requireAuth.
- *
- * A caller who is not an active member gets 404 rather than 403: a 403 would
- * confirm the organization exists, which is itself information belonging to
- * another tenant. Membership is read from the database on every request, not
- * from the token, so revoking it takes effect immediately.
- */
+// Runs after requireAuth on any :orgId route. Non-members get 404, not 403,
+// so we don't confirm the org exists. Membership is read fresh every request.
 export function requireOrgAccess(level: 'read' | 'write'): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {

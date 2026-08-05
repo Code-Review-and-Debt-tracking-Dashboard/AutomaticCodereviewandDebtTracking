@@ -9,8 +9,7 @@ import { syncUserOrganizations } from './orgService';
 
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-// read:org is what lets us see which organizations the user belongs to,
-// including private memberships. Tenant access is derived from that.
+// read:org covers private org memberships too
 const GITHUB_OAUTH_SCOPE = 'repo,user:email,read:org';
 
 export interface AuthResult {
@@ -24,7 +23,7 @@ export interface AuthResult {
   };
 }
 
-/** Only allow relative in-app paths as a post-login redirect target (no open redirects). */
+// relative paths only, otherwise this is an open redirect
 function sanitizeRedirect(redirect: unknown): string | undefined {
   return typeof redirect === 'string' && redirect.startsWith('/') ? redirect : undefined;
 }
@@ -73,11 +72,6 @@ async function exchangeCodeForToken(code: string): Promise<GithubTokenResponse> 
   return (await response.json()) as GithubTokenResponse;
 }
 
-/**
- * Verifies the `state` param and exchanges `code` for a GitHub access token,
- * then creates/updates the local User + encrypted GitHubCredential and
- * issues an app JWT. Matches the response shape .
- */
 export async function handleGithubCallback(
   code: string | undefined,
   state: string | undefined,
@@ -158,7 +152,7 @@ export async function handleGithubCallback(
     return savedUser;
   });
 
-  // Tenant membership comes from GitHub, so it is refreshed on every login.
+  // org membership comes from GitHub, so refresh it on every login
   await syncUserOrganizations(
     user.id,
     {
@@ -193,11 +187,7 @@ export interface CurrentUser {
   createdAt: Date;
 }
 
-/**
- * Fetches the caller of `GET /auth/me` . The token can
- * outlive the user row (e.g. deleted account), so a missing user is treated
- * the same as an invalid token — `401 UNAUTHORIZED` — rather than a 404.
- */
+// A token can outlive the user row, so a missing user is a 401, not a 404.
 export async function getAuthenticatedUser(userId: string): Promise<CurrentUser> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {

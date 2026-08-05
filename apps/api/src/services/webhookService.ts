@@ -2,12 +2,11 @@ import { prisma } from '@codehealth/db';
 
 import { AppError } from '../middleware/errorHandler';
 
-//  only these `pull_request` actions are subscribed to;
-// anything else (e.g. "edited", "labeled") is a no-op for this pipeline.
+// anything else (edited, labeled, ...) is a no-op
 export const SUPPORTED_PR_ACTIONS = ['opened', 'synchronize', 'reopened', 'closed'] as const;
 export type SupportedPrAction = (typeof SUPPORTED_PR_ACTIONS)[number];
 
-/** The subset of GitHub's `pull_request` webhook payload we read . */
+// the part of the payload we actually read
 interface GithubPullRequestPayload {
   action: string;
   number?: number;
@@ -25,7 +24,6 @@ interface GithubPullRequestPayload {
   };
 }
 
-/** Extracted PR data, matching the shape */
 export interface ParsedPullRequestEvent {
   action: string;
   prNumber: number;
@@ -64,12 +62,7 @@ function isGithubPullRequestPayload(value: unknown): value is GithubPullRequestP
   );
 }
 
-/**
- * Parses a raw `pull_request` webhook body into the
- * documented extract shape. `rawBody` is the `Buffer` produced by
- * `express.raw()` in `webhooks.ts` — the same bytes the signature was
- * verified against.
- */
+// rawBody is the same Buffer the signature was verified against
 export function parsePullRequestEvent(rawBody: Buffer): ParsedPullRequestEvent {
   let payload: unknown;
   try {
@@ -96,11 +89,7 @@ export function parsePullRequestEvent(rawBody: Buffer): ParsedPullRequestEvent {
   };
 }
 
-/**
- * Validates that the repository targeted by a webhook event is linked
- *  `404` "repo not linked". A repo that was unlinked
- * (soft-deleted via `isActive: false`) counts as not linked.
- */
+// an unlinked (inactive) repo counts as not linked
 export async function findLinkedRepository(githubRepoId: string) {
   const repository = await prisma.repository.findUnique({ where: { githubRepoId } });
 

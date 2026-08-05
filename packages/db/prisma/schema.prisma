@@ -1,38 +1,310 @@
-// ================================================================
-// DATABASE CONFIGURATION
-// ================================================================
-
-// Connection URL is configured in prisma.config.ts (Prisma v7+).
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// ================================================================
-// ENUMS
-// ================================================================
+datasource db {
+  provider = "postgresql"
+}
 
-// Platform-level role. This no longer grants access to tenant data —
-// it only guards operational endpoints such as the metrics route.
-// Organization and repository permissions are handled separately.
+model User {
+  id                String               @id @default(cuid())
+  githubId          String               @unique
+  username          String               @unique
+  email             String?
+  avatarUrl         String?
+  platformRole      PlatformRole         @default(USER)
+  active            Boolean              @default(true)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  devices           Device[]
+  githubCredential  GitHubCredential?
+  notifications     Notification[]
+  orgMemberships    OrganizationMember[]
+  ownedRepositories Repository[]         @relation("RepositoryOwner")
+  membersAdded      RepositoryMember[]   @relation("MembershipAddedBy")
+  memberships       RepositoryMember[]   @relation("RepositoryMembership")
+  sessions          Session[]
+
+  @@index([platformRole])
+  @@index([active])
+}
+
+model GitHubCredential {
+  id                   String   @id @default(cuid())
+  encryptedAccessToken String
+  tokenType            String?
+  scope                String?
+  userId               String   @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userId    String
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId, revokedAt])
+}
+
+model Organization {
+  id           String               @id @default(cuid())
+  githubOrgId  String               @unique
+  login        String               @unique
+  name         String?
+  avatarUrl    String?
+  type         OrgType              @default(ORGANIZATION)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  members      OrganizationMember[]
+  repositories Repository[]
+}
+
+model OrganizationMember {
+  id           String       @id @default(cuid())
+  role         OrgRole      @default(MEMBER)
+  status       MemberStatus @default(ACTIVE)
+  orgId        String
+  userId       String
+  syncedAt     DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId, status])
+  @@index([orgId, status])
+}
+
+model Repository {
+  id            String             @id @default(cuid())
+  githubRepoId  String             @unique
+  name          String
+  fullName      String
+  htmlUrl       String
+  cloneUrl      String?
+  defaultBranch String             @default("main")
+  language      String?
+  private       Boolean            @default(false)
+  webhookId     String?            @unique
+  isActive      Boolean            @default(true)
+  ownerId       String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  orgId         String
+  analysisJobs  AnalysisJob[]
+  findings      Finding[]
+  snapshots     HealthSnapshot[]
+  notifications Notification[]
+  pullRequests  PullRequest[]
+  qualityGate   QualityGate?
+  organization  Organization       @relation(fields: [orgId], references: [id])
+  owner         User               @relation("RepositoryOwner", fields: [ownerId], references: [id])
+  members       RepositoryMember[]
+
+  @@index([fullName])
+  @@index([ownerId, isActive])
+  @@index([orgId, isActive])
+}
+
+model RepositoryMember {
+  id         String         @id @default(cuid())
+  role       RepositoryRole @default(DEVELOPER)
+  status     MemberStatus   @default(ACTIVE)
+  userId     String
+  repoId     String
+  addedById  String?
+  addedAt    DateTime       @default(now())
+  removedAt  DateTime?
+  updatedAt  DateTime       @updatedAt
+  addedBy    User?          @relation("MembershipAddedBy", fields: [addedById], references: [id])
+  repository Repository     @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  user       User           @relation("RepositoryMembership", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, repoId])
+  @@index([repoId, status])
+  @@index([addedById])
+}
+
+model PullRequest {
+  id              String        @id @default(cuid())
+  prNumber        Int
+  title           String
+  authorLogin     String
+  htmlUrl         String
+  headBranch      String
+  baseBranch      String
+  headSha         String
+  status          PRStatus      @default(OPEN)
+  repoId          String
+  githubCreatedAt DateTime?
+  githubUpdatedAt DateTime?
+  mergedAt        DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  analysisJobs    AnalysisJob[]
+  repository      Repository    @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, prNumber])
+  @@index([repoId, status])
+  @@index([repoId, updatedAt(sort: Desc)])
+}
+
+model AnalysisJob {
+  id            String          @id @default(cuid())
+  status        AnalysisStatus  @default(PENDING)
+  trigger       AnalysisTrigger @default(WEBHOOK)
+  progress      Int             @default(0)
+  branch        String
+  commitSha     String
+  bullJobId     String?         @unique
+  retryCount    Int             @default(0)
+  errorMessage  String?
+  repoId        String
+  pullRequestId String?
+  queuedAt      DateTime        @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+  updatedAt     DateTime        @updatedAt
+  pullRequest   PullRequest?    @relation(fields: [pullRequestId], references: [id])
+  repository    Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  snapshot      HealthSnapshot?
+
+  @@index([repoId, status])
+  @@index([status, queuedAt])
+  @@index([pullRequestId])
+  @@index([repoId, queuedAt(sort: Desc)])
+}
+
+model HealthSnapshot {
+  id                   String         @id @default(cuid())
+  healthScore          Float
+  debtMinutes          Float          @default(0)
+  debtDeltaMinutes     Float          @default(0)
+  vulnerabilityCount   Int            @default(0)
+  criticalCount        Int            @default(0)
+  highCount            Int            @default(0)
+  mediumCount          Int            @default(0)
+  lowCount             Int            @default(0)
+  complexityCount      Int            @default(0)
+  duplicationCount     Int            @default(0)
+  codeSmellCount       Int            @default(0)
+  maintainabilityCount Int            @default(0)
+  duplicationPct       Float          @default(0)
+  totalIssues          Int            @default(0)
+  linesOfCode          Int            @default(0)
+  gateResult           GateResult?
+  rawMetrics           Json?
+  analysisId           String         @unique
+  repoId               String
+  calculatedAt         DateTime       @default(now())
+  findings             Finding[]
+  analysis             AnalysisJob    @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  repository           Repository     @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  notifications        Notification[]
+
+  @@index([repoId, calculatedAt(sort: Desc)])
+  @@index([calculatedAt(sort: Desc)])
+}
+
+model Finding {
+  id          String          @id @default(cuid())
+  file        String?
+  line        Int?
+  endLine     Int?
+  column      Int?
+  endColumn   Int?
+  severity    Severity
+  category    FindingCategory
+  state       FindingState    @default(NEW)
+  rule        String
+  message     String
+  tool        String
+  debtMinutes Float           @default(5)
+  snapshotId  String
+  repoId      String
+  createdAt   DateTime        @default(now())
+  repository  Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  snapshot    HealthSnapshot  @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId, category])
+  @@index([snapshotId, severity])
+  @@index([snapshotId, state])
+  @@index([snapshotId, file])
+  @@index([repoId, severity])
+  @@index([repoId, state])
+}
+
+model QualityGate {
+  id                  String     @id @default(cuid())
+  minHealthScore      Float      @default(60)
+  maxCriticalFindings Int?
+  maxVulnerabilities  Int?
+  maxDuplicationPct   Float?
+  maxComplexityCount  Int?
+  maxCodeSmellCount   Int?
+  blockPR             Boolean    @default(false)
+  repoId              String     @unique
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  repository          Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  type       NotificationType
+  title      String
+  body       String
+  data       Json?
+  readAt     DateTime?
+  userId     String
+  repoId     String?
+  snapshotId String?
+  createdAt  DateTime         @default(now())
+  repository Repository?      @relation(fields: [repoId], references: [id])
+  snapshot   HealthSnapshot?  @relation(fields: [snapshotId], references: [id])
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([repoId])
+  @@index([snapshotId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt, createdAt(sort: Desc)])
+}
+
+model Device {
+  id             String         @id @default(cuid())
+  expoPushToken  String         @unique
+  platform       DevicePlatform
+  deviceName     String?
+  installationId String?        @unique
+  active         Boolean        @default(true)
+  lastUsedAt     DateTime?
+  userId         String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active])
+}
+
 enum PlatformRole {
   ADMIN
   USER
 }
 
-// Mirrors GitHub's repository owner type. A personal GitHub account is
-// modelled as an organization of its own so that personal repositories
-// still live inside a tenant.
 enum OrgType {
   USER
   ORGANIZATION
 }
 
-// Organization-level role, derived from the caller's GitHub org membership.
-// OWNER is used for a user's own personal account organization.
 enum OrgRole {
   OWNER
   ADMIN
@@ -112,476 +384,4 @@ enum NotificationType {
 enum DevicePlatform {
   IOS
   ANDROID
-}
-
-// ================================================================
-// USER AND AUTHENTICATION MODELS
-// ================================================================
-
-model User {
-  id           String       @id @default(cuid())
-  githubId     String       @unique
-  username     String       @unique
-  email        String?
-  avatarUrl    String?
-  platformRole PlatformRole @default(USER)
-  active       Boolean      @default(true)
-
-  // GitHub OAuth credential
-  githubCredential GitHubCredential?
-
-  // Authentication sessions
-  sessions Session[]
-
-  // Organizations (tenants) this user belongs to
-  orgMemberships OrganizationMember[]
-
-  // Repositories directly linked/owned by this user
-  ownedRepositories Repository[] @relation("RepositoryOwner")
-
-  // Repository memberships
-  memberships RepositoryMember[] @relation("RepositoryMembership")
-
-  // Membership records created by this user
-  membersAdded RepositoryMember[] @relation("MembershipAddedBy")
-
-  notifications Notification[]
-  devices       Device[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([platformRole])
-  @@index([active])
-}
-
-// GitHub OAuth credentials are separated from the normal user profile.
-// encryptedAccessToken must be encrypted before it is stored.
-model GitHubCredential {
-  id                   String  @id @default(cuid())
-  encryptedAccessToken String
-  tokenType            String?
-  scope                String?
-
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Store only a hash of the session or refresh token.
-// Do not store the original token.
-model Session {
-  id        String    @id @default(cuid())
-  tokenHash String    @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([expiresAt])
-  @@index([userId, revokedAt])
-}
-
-// ================================================================
-// ORGANIZATION (TENANT) MODELS
-// ================================================================
-
-// An organization is the tenant boundary. It mirrors a GitHub account
-// owner, so both a real GitHub organization and a personal GitHub account
-// are represented the same way. Every repository belongs to exactly one.
-model Organization {
-  id          String  @id @default(cuid())
-  githubOrgId String  @unique
-  login       String  @unique
-  name        String?
-  avatarUrl   String?
-  type        OrgType @default(ORGANIZATION)
-
-  members      OrganizationMember[]
-  repositories Repository[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Which users belong to which tenant. Rows are created and revoked by
-// syncing against GitHub, never granted inside this app, so we cannot hand
-// out access that GitHub itself would not.
-model OrganizationMember {
-  id     String       @id @default(cuid())
-  role   OrgRole      @default(MEMBER)
-  status MemberStatus @default(ACTIVE)
-
-  orgId        String
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Last time GitHub confirmed this membership still exists.
-  syncedAt DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([orgId, userId])
-  // Every repo-scoped request asks "is this caller in this tenant", so both
-  // lookup directions are indexed.
-  @@index([userId, status])
-  @@index([orgId, status])
-}
-
-// ================================================================
-// REPOSITORY AND MEMBERSHIP MODELS
-// ================================================================
-
-model Repository {
-  id            String  @id @default(cuid())
-  githubRepoId  String  @unique
-  name          String
-  fullName      String
-  htmlUrl       String
-  cloneUrl      String?
-  defaultBranch String  @default("main")
-  language      String?
-  private       Boolean @default(false)
-
-  // Each repository may have at most one registered webhook.
-  webhookId String? @unique
-
-  isActive Boolean @default(true)
-
-  // Tenant this repository belongs to. Taken from the GitHub owner of the
-  // repo, so it is known even on the webhook path where there is no caller.
-  orgId        String
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
-
-  // User who linked and controls the repository, within that tenant.
-  ownerId String
-  owner   User   @relation("RepositoryOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-
-  members       RepositoryMember[]
-  pullRequests  PullRequest[]
-  analysisJobs  AnalysisJob[]
-  snapshots     HealthSnapshot[]
-  findings      Finding[]
-  qualityGate   QualityGate?
-  notifications Notification[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([fullName])
-  @@index([ownerId, isActive])
-  @@index([orgId, isActive])
-}
-
-// Explicit many-to-many relationship between users and repositories.
-// This stores repository-specific roles and membership information.
-model RepositoryMember {
-  id     String         @id @default(cuid())
-  role   RepositoryRole @default(DEVELOPER)
-  status MemberStatus   @default(ACTIVE)
-
-  userId String
-  user   User   @relation("RepositoryMembership", fields: [userId], references: [id], onDelete: Cascade)
-
-  repoId     String
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-
-  // User who added this member.
-  addedById String?
-  addedBy   User?   @relation("MembershipAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
-
-  addedAt   DateTime  @default(now())
-  removedAt DateTime?
-  // Tracks the last time role or status changed for audit purposes.
-  updatedAt DateTime  @updatedAt
-
-  @@unique([userId, repoId])
-  @@index([repoId, status])
-  @@index([addedById])
-}
-
-// ================================================================
-// PULL REQUEST MODEL
-// ================================================================
-
-model PullRequest {
-  id          String   @id @default(cuid())
-  prNumber    Int
-  title       String
-  // authorLogin is stored as a plain string because PR authors may not be
-  // registered users of this platform. Match against User.username in queries
-  // when you need to link a PR to a platform user.
-  authorLogin String
-  htmlUrl     String
-  headBranch  String
-  baseBranch  String
-  headSha     String
-  status      PRStatus @default(OPEN)
-
-  repoId     String
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-
-  analysisJobs AnalysisJob[]
-
-  githubCreatedAt DateTime?
-  githubUpdatedAt DateTime?
-  mergedAt        DateTime?
-  closedAt        DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([repoId, prNumber])
-  @@index([repoId, status])
-  @@index([repoId, updatedAt(sort: Desc)])
-}
-
-// ================================================================
-// ANALYSIS PROCESSING MODEL
-// ================================================================
-
-// Represents the lifecycle of an analysis job:
-//
-// PENDING -> RUNNING -> COMPLETED
-//                    -> FAILED
-//
-// This model stores queue, worker and execution information.
-// NOTE: progress is expected to be in the range 0–100.
-// Enforcement of this range is the responsibility of the service layer.
-model AnalysisJob {
-  id       String          @id @default(cuid())
-  status   AnalysisStatus  @default(PENDING)
-  trigger  AnalysisTrigger @default(WEBHOOK)
-  progress Int             @default(0)
-
-  branch    String
-  commitSha String
-
-  // BullMQ or other queue job identifier.
-  bullJobId String? @unique
-
-  retryCount   Int     @default(0)
-  errorMessage String?
-
-  repoId     String
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-
-  // Optional because manual repository analyses may not belong to a PR.
-  pullRequestId String?
-  pullRequest   PullRequest? @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
-
-  // An analysis produces zero or one final snapshot.
-  snapshot HealthSnapshot?
-
-  queuedAt    DateTime  @default(now())
-  startedAt   DateTime?
-  completedAt DateTime?
-  updatedAt   DateTime  @updatedAt
-
-  @@index([repoId, status])
-  @@index([status, queuedAt])
-  @@index([pullRequestId])
-  @@index([repoId, queuedAt(sort: Desc)])
-}
-
-// ================================================================
-// HEALTH SNAPSHOT MODEL
-// ================================================================
-
-// Stores the final calculated result produced by an analysis job.
-// Multiple snapshots are retained for historical trend analysis.
-model HealthSnapshot {
-  id String @id @default(cuid())
-
-  // Composite repository score from 0 to 100.
-  healthScore Float
-
-  // Technical debt totals.
-  // debtMinutes      — absolute accumulated debt in minutes for this snapshot.
-  // debtDeltaMinutes — change in debt relative to the immediately preceding
-  //                    snapshot for this repository (negative = improvement).
-  debtMinutes      Float @default(0)
-  debtDeltaMinutes Float @default(0)
-
-  // Finding counts.
-  vulnerabilityCount Int @default(0)
-  criticalCount      Int @default(0)
-  highCount          Int @default(0)
-  mediumCount        Int @default(0)
-  lowCount           Int @default(0)
-
-  complexityCount      Int @default(0)
-  duplicationCount     Int @default(0)
-  codeSmellCount       Int @default(0)
-  maintainabilityCount Int @default(0)
-
-  duplicationPct Float @default(0)
-
-  totalIssues Int @default(0)
-  linesOfCode Int @default(0)
-
-  // Quality gate result for this snapshot.
-  // NOTE: maxCriticalFindings and maxVulnerabilities in QualityGate are
-  // evaluated independently — a finding can be both CRITICAL severity and
-  // VULNERABILITY category, and will count toward both thresholds.
-  gateResult GateResult?
-
-  // Full output from analysis tools.
-  // This should not normally be returned to the mobile application.
-  rawMetrics Json?
-
-  // One-to-one relationship with the analysis job.
-  analysisId String      @unique
-  analysis   AnalysisJob @relation(fields: [analysisId], references: [id], onDelete: Cascade)
-
-  // Direct repository relationship supports faster trend queries.
-  repoId     String
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-
-  findings      Finding[]
-  notifications Notification[]
-
-  calculatedAt DateTime @default(now())
-
-  @@index([repoId, calculatedAt(sort: Desc)])
-  @@index([calculatedAt(sort: Desc)])
-}
-
-// ================================================================
-// FINDING MODEL
-// ================================================================
-
-// Represents one issue detected by a static-analysis tool.
-model Finding {
-  id String @id @default(cuid())
-
-  file      String?
-  line      Int?
-  endLine   Int?
-  column    Int?
-  endColumn Int?
-
-  severity Severity
-  category FindingCategory
-  // Defaults to NEW because a finding is always freshly detected at creation.
-  state    FindingState    @default(NEW)
-
-  rule    String
-  message String
-  tool    String
-
-  debtMinutes Float @default(5)
-
-  snapshotId String
-  snapshot   HealthSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
-
-  // Direct repository link for efficient repo-scoped dashboard queries
-  // without joining through HealthSnapshot.
-  repoId     String
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([snapshotId, category])
-  @@index([snapshotId, severity])
-  @@index([snapshotId, state])
-  @@index([snapshotId, file])
-  @@index([repoId, severity])
-  @@index([repoId, state])
-}
-
-// ================================================================
-// QUALITY GATE MODEL
-// ================================================================
-
-// Each repository may have one quality-gate configuration.
-// maxCriticalFindings — cap on findings with Severity.CRITICAL (any category).
-// maxVulnerabilities  — cap on findings with FindingCategory.VULNERABILITY (any severity).
-// These two thresholds are evaluated independently.
-model QualityGate {
-  id String @id @default(cuid())
-
-  minHealthScore      Float  @default(60)
-  maxCriticalFindings Int?
-  maxVulnerabilities  Int?
-  maxDuplicationPct   Float?
-  maxComplexityCount  Int?
-  maxCodeSmellCount   Int?
-
-  // Determines whether a failed gate should block the PR.
-  blockPR Boolean @default(false)
-
-  repoId     String     @unique
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// ================================================================
-// NOTIFICATION MODEL
-// ================================================================
-
-// The `data` field carries a type-specific JSON payload.
-// Expected shapes per NotificationType are enforced in the service layer
-// via Zod schemas — see src/notifications/schemas.ts.
-model Notification {
-  id    String           @id @default(cuid())
-  type  NotificationType
-  title String
-  body  String
-  data  Json?
-
-  readAt DateTime?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Repository may be deleted while notification history remains.
-  repoId     String?
-  repository Repository? @relation(fields: [repoId], references: [id], onDelete: SetNull)
-
-  // Snapshot may also be removed while notification history remains.
-  snapshotId String?
-  snapshot   HealthSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-
-  @@index([repoId])
-  @@index([snapshotId])
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, readAt, createdAt(sort: Desc)])
-}
-
-// ================================================================
-// MOBILE DEVICE MODEL
-// ================================================================
-
-// Stores Expo push-notification tokens for users' mobile devices.
-model Device {
-  id             String         @id @default(cuid())
-  expoPushToken  String         @unique
-  platform       DevicePlatform
-  deviceName     String?
-  // Unique identifier for a specific app installation on a device.
-  // Used to prevent duplicate device registrations.
-  installationId String?        @unique
-  active         Boolean        @default(true)
-  lastUsedAt     DateTime?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId, active])
 }

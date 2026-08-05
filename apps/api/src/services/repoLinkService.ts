@@ -6,14 +6,7 @@ import { decrypt } from '../lib/crypto';
 import { logger } from '../lib/logger';
 import { AppError } from '../middleware/errorHandler';
 
-/**
- * Linking is the only way a repository enters the platform, so this is where
- * the tenant is decided. It is taken from the repo's GitHub owner rather than
- * from anything the caller sends, which means a repo always lands in the
- * organization that really owns it on GitHub.
- */
-
-/** The fields we read off GitHub's repository resource. */
+// The org a repo lands in comes from its GitHub owner, never from the request.
 interface GithubRepo {
   id: number;
   name: string;
@@ -37,11 +30,8 @@ async function githubClientFor(userId: string): Promise<Octokit> {
   return new Octokit({ auth: decrypt(credential.encryptedAccessToken) });
 }
 
-/**
- * Looked up by id rather than owner/name so a rename on GitHub cannot silently
- * point us at a different repository. This route is not in Octokit's typed
- * endpoint map, hence the explicit shape on the response.
- */
+// By id, not owner/name, so a rename on GitHub can't point us elsewhere.
+// Octokit has no typed method for this route, hence the cast.
 async function fetchRepo(octokit: Octokit, githubRepoId: number): Promise<GithubRepo> {
   try {
     const response = await octokit.request('GET /repositories/{repository_id}', {
@@ -60,8 +50,7 @@ export async function linkRepository(userId: string, githubRepoId: number) {
   const octokit = await githubClientFor(userId);
   const repo = await fetchRepo(octokit, githubRepoId);
 
-  // Registering a webhook needs admin rights on GitHub's side. This is about
-  // the caller's GitHub permissions, not their role on this platform.
+  // creating a webhook needs admin on GitHub's side
   if (repo.permissions?.admin !== true) {
     throw new AppError(403, 'FORBIDDEN', 'You need admin access to this repository on GitHub');
   }
@@ -71,9 +60,7 @@ export async function linkRepository(userId: string, githubRepoId: number) {
     select: { id: true, members: { where: { userId }, select: { status: true } } },
   });
 
-  // Not a member of the owning organization, so the repo is out of reach. This
-  // is a 404 rather than a 403 for the same reason as everywhere else — one
-  // tenant should not be able to probe another's boundary.
+  // 404 not 403, so you can't probe another org's repos
   if (!organization || organization.members[0]?.status !== 'ACTIVE') {
     throw new AppError(
       404,
@@ -109,9 +96,7 @@ export async function linkRepository(userId: string, githubRepoId: number) {
     throw new AppError(502, 'GITHUB_UNAVAILABLE', 'Could not register the webhook on GitHub');
   }
 
-  // Upsert rather than create: a repo that was unlinked earlier still has its
-  // row, along with all its past snapshots and findings, so relinking revives
-  // that history instead of starting over.
+  // upsert, so relinking an old repo keeps its snapshots and findings
   const fields = {
     name: repo.name,
     fullName: repo.full_name,
@@ -154,9 +139,7 @@ export async function unlinkRepository(
     throw new AppError(404, 'NOT_FOUND', 'Repository not found');
   }
 
-  // Deliberately narrower than the route's write guard: a TEAM_LEAD may manage
-  // the member list, but removing the repo altogether is for its owner or for
-  // whoever runs the organization.
+  // narrower than the route's write guard — a TEAM_LEAD can't unlink
   const isOrgManager = orgRole === 'OWNER' || orgRole === 'ADMIN';
   if (repository.ownerId !== userId && !isOrgManager) {
     throw new AppError(
@@ -175,15 +158,12 @@ export async function unlinkRepository(
         hook_id: Number(repository.webhookId),
       });
     } catch (err) {
-      // A repo that was deleted on GitHub, or that we lost access to, still has
-      // to be removable here — so a failed hook deletion is logged, not fatal.
+      // repo may be gone on GitHub already — unlinking still has to work
       logger.warn({ err, repoId }, 'Could not remove GitHub webhook while unlinking');
     }
   }
 
-  // Soft delete, matching how the webhook path already treats an inactive repo
-  // as unlinked. webhookId is unique, so it has to be cleared or a later
-  // relink would collide on the stale value.
+  // soft delete. webhookId is unique, so clear it or a relink collides.
   await prisma.repository.update({
     where: { id: repoId },
     data: { isActive: false, webhookId: null },

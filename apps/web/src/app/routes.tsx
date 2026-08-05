@@ -6,8 +6,10 @@ import {
 } from "react-router-dom";
 
 import { AppLayout } from "../components/layout/AppLayout";
+import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 
 import { LoginPage } from "../pages/auth/LoginPage";
+import { AuthCallbackPage } from "../pages/auth/AuthCallbackPage";
 import { DashboardPage } from "../pages/dashboard/DashboardPage";
 
 import { RepositoriesPage } from "../pages/repositories/RepositoriesPage";
@@ -31,7 +33,6 @@ import { ProfilePage } from "../pages/global/ProfilePage";
 
 export function AppRoutes() {
   return (
-    <BrowserRouter>
       <Routes>
         {/* =========================
             PUBLIC ROUTES
@@ -42,109 +43,116 @@ export function AppRoutes() {
           element={<LoginPage />}
         />
 
+        <Route
+          path="/auth/callback"
+          element={<AuthCallbackPage />}
+        />
+
         {/* =========================
             PROTECTED APPLICATION ROUTES
         ========================== */}
 
-        <Route element={<AppLayout />}>
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
 
-          {/* Dashboard */}
-          <Route
-            path="/dashboard"
-            element={<DashboardPage />}
-          />
+            {/* Dashboard */}
+            <Route
+              path="/dashboard"
+              element={<DashboardPage />}
+            />
 
-          {/* Repositories List */}
-          <Route
-            path="/repositories"
-            element={<RepositoriesPage />}
-          />
+            {/* Repositories List */}
+            <Route
+              path="/repositories"
+              element={<RepositoriesPage />}
+            />
 
-          {/* Global Pages */}
-          <Route
-            path="/pull-requests"
-            element={<GlobalPullRequestsPage />}
-          />
+            {/* Global Pages */}
+            <Route
+              path="/pull-requests"
+              element={<GlobalPullRequestsPage />}
+            />
 
-          <Route
-            path="/findings"
-            element={<GlobalFindingsPage />}
-          />
+            <Route
+              path="/findings"
+              element={<GlobalFindingsPage />}
+            />
 
-          <Route
-            path="/analytics"
-            element={<GlobalAnalyticsPage />}
-          />
+            <Route
+              path="/analytics"
+              element={<GlobalAnalyticsPage />}
+            />
 
-          <Route
-            path="/notifications"
-            element={<GlobalNotificationsPage />}
-          />
+            <Route
+              path="/notifications"
+              element={<GlobalNotificationsPage />}
+            />
 
-          <Route
-            path="/members"
-            element={<GlobalMembersPage />}
-          />
+            <Route
+              path="/members"
+              element={<GlobalMembersPage />}
+            />
 
-          <Route
-            path="/ai-copilot"
-            element={<AiCopilotPage />}
-          />
+            <Route
+              path="/ai-copilot"
+              element={<AiCopilotPage />}
+            />
 
-          <Route
-            path="/settings"
-            element={<SettingsPage />}
-          />
+            <Route
+              path="/settings"
+              element={<SettingsPage />}
+            />
 
-          <Route
-            path="/profile"
-            element={<ProfilePage />}
-          />
+            <Route
+              path="/profile"
+              element={<ProfilePage />}
+            />
 
-          {/* =========================
-              REPOSITORY SPECIFIC ROUTES
-          ========================== */}
+            {/* =========================
+                REPOSITORY SPECIFIC ROUTES
+            ========================== */}
 
-          <Route
-            path="/repositories/:repoId"
-            element={<RepositoryOverviewPage />}
-          />
+            <Route
+              path="/repositories/:repoId"
+              element={<RepositoryOverviewPage />}
+            />
 
-          <Route
-            path="/repositories/:repoId/files"
-            element={<RepositoryFilesPage />}
-          />
+            <Route
+              path="/repositories/:repoId/files"
+              element={<RepositoryFilesPage />}
+            />
 
-          <Route
-            path="/repositories/:repoId/analyze"
-            element={<RepositoryAnalyzePage />}
-          />
+            <Route
+              path="/repositories/:repoId/analyze"
+              element={<RepositoryAnalyzePage />}
+            />
 
-          <Route
-            path="/repositories/:repoId/trends"
-            element={<RepositoryTrendsPage />}
-          />
+            <Route
+              path="/repositories/:repoId/trends"
+              element={<RepositoryTrendsPage />}
+            />
 
-          <Route
-            path="/repositories/:repoId/findings"
-            element={<RepositoryFindingsPage />}
-          />
+            <Route
+              path="/repositories/:repoId/findings"
+              element={<RepositoryFindingsPage />}
+            />
 
-          <Route
-            path="/repositories/:repoId/pull-requests"
-            element={<RepositoryPullRequestsPage />}
-          />
+            <Route
+              path="/repositories/:repoId/pull-requests"
+              element={<RepositoryPullRequestsPage />}
+            />
 
-          <Route
-            path="/repositories/:repoId/quality-gate"
-            element={<RepositoryQualityGatePage />}
-          />
+            <Route
+              path="/repositories/:repoId/quality-gate"
+              element={<RepositoryQualityGatePage />}
+            />
 
-          <Route
-            path="/repositories/:repoId/members"
-            element={<RepositoryMembersPage />}
-          />
+            <Route
+              path="/repositories/:repoId/members"
+              element={<RepositoryMembersPage />}
+            />
 
+          </Route>
         </Route>
 
         {/* =========================
@@ -161,6 +169,5 @@ export function AppRoutes() {
           }
         />
       </Routes>
-    </BrowserRouter>
   );
 }
