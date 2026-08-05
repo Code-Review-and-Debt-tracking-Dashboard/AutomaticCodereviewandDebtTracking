@@ -61,6 +61,24 @@ async function main() {
     },
   });
 
+  const demoUser = await prisma.user.upsert({
+    where: { githubId: "seed-github-demo" },
+    update: {
+      id: "usr-demo-001",
+      username: "demo_developer",
+      email: "demo@codehealth.dev",
+      platformRole: PlatformRole.ADMIN,
+      active: true,
+    },
+    create: {
+      id: "usr-demo-001",
+      githubId: "seed-github-demo",
+      username: "demo_developer",
+      email: "demo@codehealth.dev",
+      platformRole: PlatformRole.ADMIN,
+    },
+  });
+
   // Two tenants are seeded on purpose. The second one exists so that cross-org
   // isolation can actually be demonstrated: its user must not be able to reach
   // anything belonging to the first.
@@ -111,6 +129,7 @@ async function main() {
   for (const [orgId, userId, role] of [
     [acme.id, admin.id, OrgRole.OWNER],
     [acme.id, developer.id, OrgRole.MEMBER],
+    [acme.id, demoUser.id, OrgRole.OWNER],
     [globex.id, outsider.id, OrgRole.OWNER],
   ]) {
     await prisma.organizationMember.upsert({
@@ -197,6 +216,28 @@ async function main() {
     },
   });
 
+  await prisma.repositoryMember.upsert({
+    where: {
+      userId_repoId: {
+        userId: demoUser.id,
+        repoId: repository.id,
+      },
+    },
+    update: {
+      role: RepositoryRole.TEAM_LEAD,
+      status: MemberStatus.ACTIVE,
+      addedById: admin.id,
+      removedAt: null,
+    },
+    create: {
+      userId: demoUser.id,
+      repoId: repository.id,
+      role: RepositoryRole.TEAM_LEAD,
+      status: MemberStatus.ACTIVE,
+      addedById: admin.id,
+    },
+  });
+
   const pullRequest = await prisma.pullRequest.upsert({
     where: {
       repoId_prNumber: {
@@ -228,74 +269,99 @@ async function main() {
     },
   });
 
-  const analysis = await prisma.analysisJob.upsert({
-    where: { bullJobId: "seed-analysis-job-1001" },
-    update: {
-      status: AnalysisStatus.COMPLETED,
-      trigger: AnalysisTrigger.MANUAL,
-      progress: 100,
-      branch: pullRequest.headBranch,
-      commitSha: pullRequest.headSha,
-      repoId: repository.id,
-      pullRequestId: pullRequest.id,
-      errorMessage: null,
-      completedAt: new Date("2026-07-19T05:35:00.000Z"),
-    },
-    create: {
-      bullJobId: "seed-analysis-job-1001",
-      status: AnalysisStatus.COMPLETED,
-      trigger: AnalysisTrigger.MANUAL,
-      progress: 100,
-      branch: pullRequest.headBranch,
-      commitSha: pullRequest.headSha,
-      repoId: repository.id,
-      pullRequestId: pullRequest.id,
-      startedAt: new Date("2026-07-19T05:31:00.000Z"),
-      completedAt: new Date("2026-07-19T05:35:00.000Z"),
-    },
-  });
+  // Seed ~30 days of HealthSnapshot history (Task C-04b)
+  const now = new Date("2026-08-03T12:00:00.000Z");
+  let latestSnapshot = null;
 
-  const snapshot = await prisma.healthSnapshot.upsert({
-    where: { analysisId: analysis.id },
-    update: {
-      repoId: repository.id,
-      healthScore: 78,
-      debtMinutes: 95,
-      debtDeltaMinutes: -15,
-      vulnerabilityCount: 1,
-      criticalCount: 0,
-      highCount: 1,
-      mediumCount: 1,
-      lowCount: 0,
-      complexityCount: 1,
-      duplicationCount: 1,
-      codeSmellCount: 1,
-      maintainabilityCount: 0,
-      duplicationPct: 4.2,
-      totalIssues: 3,
-      linesOfCode: 2450,
-      gateResult: GateResult.PASS,
-      rawMetrics: { source: "seed", analysisVersion: "1.0" },
-    },
-    create: {
-      analysisId: analysis.id,
-      repoId: repository.id,
-      healthScore: 78,
-      debtMinutes: 95,
-      debtDeltaMinutes: -15,
-      vulnerabilityCount: 1,
-      highCount: 1,
-      mediumCount: 1,
-      complexityCount: 1,
-      duplicationCount: 1,
-      codeSmellCount: 1,
-      duplicationPct: 4.2,
-      totalIssues: 3,
-      linesOfCode: 2450,
-      gateResult: GateResult.PASS,
-      rawMetrics: { source: "seed", analysisVersion: "1.0" },
-    },
-  });
+  for (let i = 30; i >= 0; i--) {
+    const calcDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const bullJobId = i === 0 ? "seed-analysis-job-1001" : `seed-analysis-job-hist-${i}`;
+    
+    // Gradual health improvement: score 65 -> 88
+    const healthScore = Math.min(88, Math.max(60, Math.round(65 + (30 - i) * 0.75 + (i % 3))));
+    const debtMinutes = Math.max(80, Math.round(240 - (30 - i) * 4.8));
+    const debtDeltaMinutes = i === 30 ? 0 : -5;
+    const vuln = Math.max(0, 3 - Math.floor((30 - i) / 10));
+    const complexity = Math.max(1, 6 - Math.floor((30 - i) / 6));
+    const codeSmells = Math.max(1, 8 - Math.floor((30 - i) / 4));
+
+    const histJob = await prisma.analysisJob.upsert({
+      where: { bullJobId },
+      update: {
+        status: AnalysisStatus.COMPLETED,
+        trigger: i % 2 === 0 ? AnalysisTrigger.WEBHOOK : AnalysisTrigger.MANUAL,
+        progress: 100,
+        branch: "main",
+        commitSha: `sha-${1000 + i}`,
+        repoId: repository.id,
+        pullRequestId: i === 0 ? pullRequest.id : null,
+        completedAt: calcDate,
+      },
+      create: {
+        bullJobId,
+        status: AnalysisStatus.COMPLETED,
+        trigger: i % 2 === 0 ? AnalysisTrigger.WEBHOOK : AnalysisTrigger.MANUAL,
+        progress: 100,
+        branch: "main",
+        commitSha: `sha-${1000 + i}`,
+        repoId: repository.id,
+        pullRequestId: i === 0 ? pullRequest.id : null,
+        startedAt: new Date(calcDate.getTime() - 4 * 60 * 1000),
+        completedAt: calcDate,
+      },
+    });
+
+    const histSnap = await prisma.healthSnapshot.upsert({
+      where: { analysisId: histJob.id },
+      update: {
+        repoId: repository.id,
+        healthScore,
+        debtMinutes,
+        debtDeltaMinutes,
+        vulnerabilityCount: vuln,
+        highCount: vuln,
+        mediumCount: complexity,
+        lowCount: codeSmells,
+        complexityCount: complexity,
+        duplicationCount: 1,
+        codeSmellCount: codeSmells,
+        maintainabilityCount: 0,
+        duplicationPct: Number((4.5 - (30 - i) * 0.05).toFixed(1)),
+        totalIssues: vuln + complexity + codeSmells,
+        linesOfCode: 2450 + (30 - i) * 15,
+        gateResult: healthScore >= 70 ? GateResult.PASS : GateResult.FAIL,
+        calculatedAt: calcDate,
+        rawMetrics: { source: "seed", day: i },
+      },
+      create: {
+        analysisId: histJob.id,
+        repoId: repository.id,
+        healthScore,
+        debtMinutes,
+        debtDeltaMinutes,
+        vulnerabilityCount: vuln,
+        highCount: vuln,
+        mediumCount: complexity,
+        lowCount: codeSmells,
+        complexityCount: complexity,
+        duplicationCount: 1,
+        codeSmellCount: codeSmells,
+        maintainabilityCount: 0,
+        duplicationPct: Number((4.5 - (30 - i) * 0.05).toFixed(1)),
+        totalIssues: vuln + complexity + codeSmells,
+        linesOfCode: 2450 + (30 - i) * 15,
+        gateResult: healthScore >= 70 ? GateResult.PASS : GateResult.FAIL,
+        calculatedAt: calcDate,
+        rawMetrics: { source: "seed", day: i },
+      },
+    });
+
+    if (i === 0) {
+      latestSnapshot = histSnap;
+    }
+  }
+
+  const snapshot = latestSnapshot;
 
   await prisma.finding.deleteMany({
     where: {
@@ -380,7 +446,7 @@ async function main() {
       type: NotificationType.ANALYSIS_COMPLETED,
       title: "Seed analysis completed",
       body: "The demo repository scored 78 and passed its quality gate.",
-      data: { analysisId: analysis.id, healthScore: 78 },
+      data: { analysisId: snapshot.analysisId, healthScore: 78 },
       userId: developer.id,
       repoId: repository.id,
       snapshotId: snapshot.id,
@@ -425,7 +491,7 @@ async function main() {
         },
       }),
       prisma.healthSnapshot.count({
-        where: { analysisId: analysis.id },
+        where: { repoId: repository.id },
       }),
       prisma.finding.count({
         where: {

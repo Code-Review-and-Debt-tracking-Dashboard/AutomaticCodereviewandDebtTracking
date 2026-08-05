@@ -1,2 +1,6 @@
 | Date | Task ID | What it does  | Why this approach  | Question I'd get asked |
 |---|---|---|---|---|
+| 2026-08-02 | D-05 / D-04a / D-04b / D-06 / D-20 / A-21 | Web auth, org context, repo list, and org-scoped available-repo flow now use the real API. | Keep auth/token/org state in one place so repo pages can read the selected tenant without duplicating fetch logic. | How does the selected org stay in sync with the repo list after login and refresh? |
+| 2026-08-02 | A-19 / A-20 / A-25 | Added the quality-gate and notification API surface plus a small request-validation helper. | Keep the API shape consistent and fail fast with the existing AppError contract instead of ad hoc parsing. | Why not put all validation inside each route handler? |
+| 2026-08-02 | D-07 / D-09 / D-10 / D-13 / D-14 / D-16 / D-17 / D-18 / D-19 | Replaced the main repo and global placeholder screens with data-shaped UI. | Ship a usable shell first so later data wiring and tests have stable targets. | Which of these pages are still mock-backed, and why? |
+| 2026-08-02 | E-05 / E-07 / E-10 | Finished the visible mobile-facing dashboard surfaces in the web app that mirror the later mobile flow. | Reuse the same concepts and vocabulary across web and mobile so the UI stays consistent. | What shared data shape should the mobile and web screens agree on? |

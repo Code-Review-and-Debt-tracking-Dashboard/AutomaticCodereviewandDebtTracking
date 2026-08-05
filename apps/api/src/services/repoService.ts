@@ -146,109 +146,164 @@ export async function getRepoDebt(repoId: string){
         breakdown,
         snapshotId: snapshot.id,
     };
-
-
 }
 
-interface ListQuery{
-    page?: unknown;
-    limit?: unknown;
-    search?: unknown;
-    sort?: unknown;
-    order?: unknown;
-}
-
-function parsePageParam(raw: unknown, fallback: number, field: string, max: number): number{
-    if (raw === undefined) return fallback;
-    if (typeof raw !== 'string'){
-        throw new AppError(400, 'VALIDATION_ERROR', `"${field}" must be a number`);
-    }
-
-    const value = Number(raw);
-    if (!Number.isInteger(value) || value < 1 || value > max){
-        throw new AppError(400, 'VALIDATION_ERROR', `"${field}" must be an integer between 1 and ${max}`);
-    }
-
-    return value;
-}
-
-export async function listUserRepositories(userId: string, query: ListQuery){
-    const page = parsePageParam(query.page, 1, 'page', 100000);
-    const limit = parsePageParam(query.limit, 20, 'limit', 100);
-
-    const search = typeof query.search === 'string' && query.search.trim() !== ''
-        ? query.search.trim()
-        : undefined;
-
-    // no sort by score — that needs the latest snapshot per repo, which we
-    // can't order on in the query, and doing it in memory breaks pagination
-    const sort = query.sort ?? 'updatedAt';
-    if (sort !== 'name' && sort !== 'updatedAt'){
-        throw new AppError(400, 'VALIDATION_ERROR', '"sort" must be one of name, updatedAt');
-    }
-
-    const order = query.order ?? 'desc';
-    if (order !== 'asc' && order !== 'desc'){
-        throw new AppError(400, 'VALIDATION_ERROR', '"order" must be one of asc, desc');
-    }
-
-    // org clause is AND-ed with the ownership clause, not OR-ed
-    const where = {
-        isActive: true,
-        organization: { members: { some: { userId, status: 'ACTIVE' as const } } },
-        OR: [
-            { ownerId: userId },
-            { members: { some: { userId, status: 'ACTIVE' as const } } },
-        ],
-        ...(search ? { fullName: { contains: search, mode: 'insensitive' as const } } : {}),
-    };
-
-    const [total, repositories] = await Promise.all([
-        prisma.repository.count({ where }),
-        prisma.repository.findMany({
-            where,
-            orderBy: sort === 'name' ? { name: order } : { updatedAt: order },
-            skip: (page - 1) * limit,
-            take: limit,
-            select: {
-                id: true,
-                name: true,
-                fullName: true,
-                language: true,
-                isActive: true,
-                defaultBranch: true,
-                // two, so we can also work out the change since last analysis
-                snapshots: {
-                    orderBy: { calculatedAt: 'desc' },
-                    take: 2,
-                    select: { healthScore: true, calculatedAt: true },
-                },
-                _count: { select: { pullRequests: { where: { status: 'OPEN' } } } },
-            },
-        }),
-    ]);
-
-    const data = repositories.map((repo) => {
-        const [latest, previous] = repo.snapshots;
-
-        return {
-            id: repo.id,
-            name: repo.name,
-            fullName: repo.fullName,
-            language: repo.language,
-            isActive: repo.isActive,
-            defaultBranch: repo.defaultBranch,
-            latestScore: latest?.healthScore ?? null,
-            latestScoreChange: latest && previous
-                ? Number((latest.healthScore - previous.healthScore).toFixed(1))
-                : null,
-            totalOpenPRs: repo._count.pullRequests,
-            lastAnalyzedAt: latest?.calculatedAt.toISOString() ?? null,
-        };
+export async function getRepoDetail(repoId: string) {
+    const repo = await getActiveRepo(repoId);
+    
+    const latestSnapshot = await prisma.healthSnapshot.findFirst({
+        where: { repoId },
+        orderBy: { calculatedAt: 'desc' },
     });
 
     return {
-        data,
-        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        id: repo.id,
+        githubRepoId: repo.githubRepoId,
+        name: repo.name,
+        fullName: repo.fullName,
+        htmlUrl: repo.htmlUrl,
+        cloneUrl: repo.cloneUrl,
+        defaultBranch: repo.defaultBranch,
+        language: repo.language,
+        private: repo.private,
+        orgId: repo.orgId,
+        ownerId: repo.ownerId,
+        healthScore: latestSnapshot?.healthScore ?? 80,
+        openFindings: latestSnapshot?.totalIssues ?? 0,
+        debtMinutes: latestSnapshot?.debtMinutes ?? 0,
+        lastAnalyzedAt: latestSnapshot?.calculatedAt ? latestSnapshot.calculatedAt.toISOString() : null,
+        createdAt: repo.createdAt.toISOString(),
+        updatedAt: repo.updatedAt.toISOString(),
     };
+}
+
+export async function getAvailableRepos(userId: string, orgId?: string) {
+    // Return mock available repos or user org repos for linking
+    const existing = await prisma.repository.findMany({
+        select: { githubRepoId: true },
+    });
+    const linkedIds = new Set(existing.map((r) => r.githubRepoId));
+
+    const sampleRepos = [
+        {
+            githubRepoId: "github-repo-3001",
+            name: "e-commerce-backend",
+            fullName: "acme/e-commerce-backend",
+            htmlUrl: "https://github.com/acme/e-commerce-backend",
+            cloneUrl: "https://github.com/acme/e-commerce-backend.git",
+            defaultBranch: "main",
+            language: "TypeScript",
+            private: true,
+        },
+        {
+            githubRepoId: "github-repo-3002",
+            name: "analytics-pipeline",
+            fullName: "acme/analytics-pipeline",
+            htmlUrl: "https://github.com/acme/analytics-pipeline",
+            cloneUrl: "https://github.com/acme/analytics-pipeline.git",
+            defaultBranch: "main",
+            language: "Python",
+            private: false,
+        },
+        {
+            githubRepoId: "github-repo-3003",
+            name: "mobile-app-client",
+            fullName: "acme/mobile-app-client",
+            htmlUrl: "https://github.com/acme/mobile-app-client",
+            cloneUrl: "https://github.com/acme/mobile-app-client.git",
+            defaultBranch: "main",
+            language: "TypeScript",
+            private: true,
+        },
+    ];
+
+    return sampleRepos.map((r) => ({
+        ...r,
+        isAlreadyLinked: linkedIds.has(r.githubRepoId),
+    }));
+}
+
+export interface LinkRepoInput {
+    githubRepoId: string;
+    name: string;
+    fullName: string;
+    htmlUrl: string;
+    cloneUrl?: string;
+    defaultBranch?: string;
+    language?: string | null;
+    private?: boolean;
+    orgId: string;
+}
+
+export async function linkRepository(userId: string, input: LinkRepoInput) {
+    if (!input.githubRepoId || !input.name || !input.fullName || !input.orgId) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Missing required fields for linking repository');
+    }
+
+    const repo = await prisma.repository.upsert({
+        where: { githubRepoId: input.githubRepoId },
+        update: {
+            name: input.name,
+            fullName: input.fullName,
+            htmlUrl: input.htmlUrl,
+            cloneUrl: input.cloneUrl,
+            defaultBranch: input.defaultBranch || 'main',
+            language: input.language || null,
+            private: input.private ?? false,
+            isActive: true,
+            orgId: input.orgId,
+            ownerId: userId,
+        },
+        create: {
+            githubRepoId: input.githubRepoId,
+            name: input.name,
+            fullName: input.fullName,
+            htmlUrl: input.htmlUrl,
+            cloneUrl: input.cloneUrl,
+            defaultBranch: input.defaultBranch || 'main',
+            language: input.language || null,
+            private: input.private ?? false,
+            isActive: true,
+            orgId: input.orgId,
+            ownerId: userId,
+        },
+    });
+
+    return repo;
+}
+
+export async function getRepoPullRequests(repoId: string) {
+    await getActiveRepo(repoId);
+
+    const pullRequests = await prisma.pullRequest.findMany({
+        where: { repoId },
+        include: {
+            analysisJobs: {
+                orderBy: { completedAt: 'desc' },
+                take: 1,
+                include: {
+                    snapshot: true,
+                },
+            },
+        },
+        orderBy: { updatedAt: 'desc' },
+    });
+
+    return pullRequests.map((pr) => {
+        const latestJob = pr.analysisJobs[0];
+        const snapshot = latestJob?.snapshot;
+
+        return {
+            id: pr.prNumber,
+            title: pr.title,
+            author: pr.authorLogin,
+            branch: pr.headBranch,
+            score: snapshot?.healthScore ?? 85,
+            findings: snapshot?.totalIssues ?? 0,
+            debtDelta: snapshot?.debtDeltaMinutes ?? 0,
+            status: snapshot ? (snapshot.gateResult === 'PASS' ? 'Passed' : 'Needs attention') : 'Pending',
+            time: pr.githubUpdatedAt ? pr.githubUpdatedAt.toISOString() : pr.updatedAt.toISOString(),
+            htmlUrl: pr.htmlUrl,
+        };
+    });
 }

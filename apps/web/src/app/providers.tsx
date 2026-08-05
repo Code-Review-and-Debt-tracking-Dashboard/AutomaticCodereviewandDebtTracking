@@ -5,6 +5,8 @@ import {
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { AuthProvider } from "../contexts/AuthContext";
+import { OrgProvider } from "../contexts/OrgContext";
 
 interface ProvidersProps {
   children: ReactNode;
@@ -26,7 +28,9 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <AuthProvider>
+        <OrgProvider>{children}</OrgProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
-}
+}
