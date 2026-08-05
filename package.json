@@ -1,16 +1,5 @@
 {
     "name": "codehealth",
     "private": true,
-    "scripts": {
-        "dev": "npm run dev --workspace @codehealth/api"
-    },
-    "workspaces": [
-        "apps/*",
-        "packages/*"
-    ],
-    "dependencies": {
-        "cors": "^2.8.6",
-        "express": "^5.2.1",
-        "helmet": "^8.3.0"
-    }
-}
+    "workspaces": ["apps/*", "packages/*"]
+  }
