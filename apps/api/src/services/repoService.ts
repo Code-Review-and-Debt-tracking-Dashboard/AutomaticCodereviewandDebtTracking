@@ -148,6 +148,96 @@ export async function getRepoDebt(repoId: string){
     };
 }
 
+interface HotspotQuery {
+    limit?: unknown;
+    snapshotId?: unknown;
+}
+
+const SEVERITY_KEYS: Record<string, string> = {
+    CRITICAL: 'critical',
+    HIGH: 'high',
+    MEDIUM: 'medium',
+    LOW: 'low',
+    INFO: 'info',
+};
+
+function resolveHotspotLimit(query: HotspotQuery): number {
+    const limitRaw = typeof query.limit === 'string' ? query.limit : undefined;
+    const limit = limitRaw === undefined ? 10 : Number(limitRaw);
+
+    if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+        throw new AppError(400, 'VALIDATION_ERROR', '"limit" must be an integer between 1 and 100');
+    }
+
+    return limit;
+}
+
+export async function getRepoHotspots(repoId: string, query: HotspotQuery) {
+    await getActiveRepo(repoId);
+
+    const limit = resolveHotspotLimit(query);
+    const snapshotId = typeof query.snapshotId === 'string' ? query.snapshotId : undefined;
+
+    const snapshot = snapshotId
+        ? await prisma.healthSnapshot.findFirst({ where: { id: snapshotId, repoId } })
+        : await prisma.healthSnapshot.findFirst({ where: { repoId }, orderBy: { calculatedAt: 'desc' } });
+
+    if (!snapshot) {
+        throw new AppError(404, 'NOT_FOUND', 'No analysis found for this repository');
+    }
+
+    const ranked = await prisma.finding.groupBy({
+        by: ['file'],
+        where: { snapshotId: snapshot.id, file: { not: null } },
+        _count: true,
+        _sum: { debtMinutes: true },
+        orderBy: { _count: { file: 'desc' } },
+        take: limit,
+    });
+
+    const topFiles = ranked.map((r) => r.file as string);
+
+    const breakdown = await prisma.finding.groupBy({
+        by: ['file', 'severity', 'state'],
+        where: { snapshotId: snapshot.id, file: { in: topFiles } },
+        _count: true,
+    });
+
+    const bySeverityByFile = new Map<string, Record<string, number>>();
+    const newFindingsByFile = new Map<string, number>();
+
+    for (const file of topFiles) {
+        const zeroed: Record<string, number> = {};
+        for (const key of Object.values(SEVERITY_KEYS)) {
+            zeroed[key] = 0;
+        }
+        bySeverityByFile.set(file, zeroed);
+        newFindingsByFile.set(file, 0);
+    }
+
+    for (const row of breakdown) {
+        const file = row.file as string;
+        const severityKey = SEVERITY_KEYS[row.severity];
+        const bySeverity = bySeverityByFile.get(file)!;
+        bySeverity[severityKey] += row._count;
+
+        if (row.state === 'NEW') {
+            newFindingsByFile.set(file, (newFindingsByFile.get(file) ?? 0) + row._count);
+        }
+    }
+
+    return {
+        snapshotId: snapshot.id,
+        files: ranked.map((r) => ({
+            file: r.file as string,
+            totalFindings: r._count,
+            newFindings: newFindingsByFile.get(r.file as string) ?? 0,
+            bySeverity: bySeverityByFile.get(r.file as string)!,
+            debtMinutes: r._sum.debtMinutes ?? 0,
+        })),
+    };
+}
+
 export async function getRepoDetail(repoId: string) {
     const repo = await getActiveRepo(repoId);
     
