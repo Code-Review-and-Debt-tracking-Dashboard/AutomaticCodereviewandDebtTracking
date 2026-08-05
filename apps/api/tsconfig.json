@@ -12,9 +12,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "compilerOptions": {
-      "types": ["node"]
-    },
+    "types": ["node"],
     "declaration": false,
     "sourceMap": true
   },
