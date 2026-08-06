@@ -4,6 +4,7 @@ import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
 import { env } from '../config/env';
 import { encrypt } from '../lib/crypto';
 import { signAppJwt, signState, verifyState } from '../lib/jwt';
+import { consumeStateNonce } from '../lib/oauthStateStore';
 import { AppError } from '../middleware/errorHandler';
 import { syncUserOrganizations } from './orgService';
 
@@ -83,10 +84,16 @@ export async function handleGithubCallback(
     throw new AppError(400, 'INVALID_STATE', 'Missing "state" query parameter');
   }
 
+  let statePayload;
   try {
-    verifyState(state);
+    statePayload = verifyState(state);
   } catch {
     throw new AppError(400, 'INVALID_STATE', 'OAuth "state" is invalid or expired');
+  }
+
+  const isFirstUse = await consumeStateNonce(statePayload.nonce);
+  if (!isFirstUse) {
+    throw new AppError(400, 'INVALID_STATE', 'OAuth "state" has already been used');
   }
 
   const tokenResponse = await exchangeCodeForToken(code);
