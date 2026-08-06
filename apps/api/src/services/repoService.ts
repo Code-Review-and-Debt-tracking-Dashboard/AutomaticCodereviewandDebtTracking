@@ -397,3 +397,53 @@ export async function getRepoPullRequests(repoId: string) {
         };
     });
 }
+
+export async function getRepoPullRequestDetail(repoId: string, prNumber: number) {
+  await getActiveRepo(repoId);
+  const pr = await prisma.pullRequest.findUnique({
+    where: { repoId_prNumber: { repoId, prNumber } },
+    include: {
+      analysisJobs: {
+        orderBy: { completedAt: 'desc' },
+        include: { snapshot: true },
+      },
+    },
+  });
+
+  if (!pr) {
+    throw new AppError(404, 'NOT_FOUND', 'Pull request not found');
+  }
+
+  const snapshots = await Promise.all(
+    pr.analysisJobs
+      .filter((job) => job.snapshot !== null)
+      .map(async (job) => {
+        const snapshot = job.snapshot!;
+        const newIssues = await prisma.finding.count({
+          where: { snapshotId: snapshot.id, state: 'NEW' },
+        });
+
+        return {
+          id: snapshot.id,
+          healthScore: snapshot.healthScore,
+          debtMinutes: snapshot.debtMinutes,
+          totalIssues: snapshot.totalIssues,
+          newIssues,
+          status: job.status,
+          gateResult: snapshot.gateResult,
+          createdAt: snapshot.calculatedAt.toISOString(),
+        };
+      }),
+  );
+
+  return {
+    id: pr.id,
+    prNumber: pr.prNumber,
+    title: pr.title,
+    authorLogin: pr.authorLogin,
+    headBranch: pr.headBranch,
+    baseBranch: pr.baseBranch,
+    status: pr.status,
+    snapshots,
+  };
+}
