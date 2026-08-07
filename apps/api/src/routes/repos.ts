@@ -4,7 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoTrend, linkRepository } from '../services/repoService';
+import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend, linkRepository } from '../services/repoService';
 
 export const reposRouter = Router();
 
@@ -117,6 +117,26 @@ reposRouter.get(
     }
   },
 );
+
+// GET /api/repos/:repoId/pulls/:prNumber : single PR detail with full analysis history
+reposRouter.get(
+  '/api/repos/:repoId/pulls/:prNumber',
+  requireAuth,
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const prNumber = Number(req.params.prNumber);
+      if (!Number.isInteger(prNumber)) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'prNumber must be an integer');
+      }
+      const pr = await getRepoPullRequestDetail(req.params.repoId, prNumber);
+      res.status(200).json(pr);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 
 // POST /api/repos/:repoId/members : owner, an active TEAM_LEAD, or a platform
 // admin can grant another existing platform user access to the repo.

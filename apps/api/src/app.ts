@@ -9,6 +9,7 @@ import { notificationsRouter } from './routes/notifications';
 import { orgsRouter } from './routes/orgs';
 import { reposRouter } from './routes/repos';
 import { qualityGatesRouter } from './routes/qualityGates';
+import { snapshotsRouter } from './routes/snapshots';
 import { webhookRouter } from './routes/webhooks';
 
 export function createApp(): Express {
@@ -28,6 +29,7 @@ export function createApp(): Express {
   app.use(orgsRouter);
   app.use(reposRouter);
   app.use(qualityGatesRouter);
+  app.use(snapshotsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

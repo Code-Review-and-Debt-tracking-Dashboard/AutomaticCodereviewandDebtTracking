@@ -565,6 +565,8 @@ List PRs for a repository.
 
 > **⚠️ FLAG:** `resolvedIssues` (findings present in base but absent in PR head) is useful for the frontend to show "this PR fixed 5 issues." Requires the `isNew` comparison logic from the worker.
 
+> **⚠️ DRIFT (2026-08-06):** the implementation (`apps/api/src/services/repoService.ts` `getRepoPullRequests`) does not match this shape yet — it returns `id/author/branch/score/findings/debtDelta/status/time/htmlUrl` instead of the fields above, and has no pagination. Check apps/web isn't already depending on the current field names before renaming anything.
+
 ### `GET /api/repos/:repoId/pulls/:prNumber`
 
 Get PR detail with all snapshots.
