@@ -1,19 +1,18 @@
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
-  ArrowDownRight,
-  ArrowUpRight,
   CheckCircle2,
   Code2,
+  ExternalLink,
   GitPullRequest,
-  MoreHorizontal,
+  Plus,
+  Search,
   ShieldAlert,
   Sparkles,
   TrendingUp,
   Wrench,
-  Search,
-  Plus,
 } from "lucide-react";
 
 import {
@@ -25,6 +24,25 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  FilterBar,
+  IconBox,
+  PageHeader,
+  PageHeaderBadge,
+  PageHeaderTitle,
+  PageHeaderDescription,
+  PageHeaderActions,
+  Select,
+  StatCard,
+} from "../../components/ui";
 
 
 /* =========================================================
@@ -83,33 +101,62 @@ const stats = [
     title: "Repositories",
     value: "12",
     change: "+2 this month",
-    trend: "up",
+    trend: "up" as const,
     icon: Code2,
-    iconClass: "bg-primary/10 text-primary",
+    iconColor: "bg-primary/10 text-primary",
   },
   {
     title: "Average Health",
     value: "84.6",
     change: "+8.2% this week",
-    trend: "up",
+    trend: "up" as const,
     icon: TrendingUp,
-    iconClass: "bg-success/10 text-success",
+    iconColor: "bg-success/10 text-success",
   },
   {
     title: "Open Findings",
     value: "183",
     change: "-24 this week",
-    trend: "down",
+    trend: "down" as const,
     icon: ShieldAlert,
-    iconClass: "bg-warning/10 text-warning",
+    iconColor: "bg-warning/10 text-warning",
   },
   {
     title: "Technical Debt",
     value: "42h",
     change: "-6h this week",
-    trend: "down",
+    trend: "down" as const,
     icon: Wrench,
-    iconClass: "bg-info/10 text-info",
+    iconColor: "bg-info/10 text-info",
+  },
+];
+
+
+/* =========================================================
+   RECENT ACTIVITY
+========================================================= */
+
+const recentActivity = [
+  {
+    icon: CheckCircle2,
+    title: "Analysis completed",
+    description: "AutomaticCodeReview passed quality analysis",
+    time: "8 min ago",
+    iconColor: "text-success bg-success/10",
+  },
+  {
+    icon: GitPullRequest,
+    title: "Pull request analyzed",
+    description: "PR #42 introduced 3 new findings",
+    time: "32 min ago",
+    iconColor: "text-info bg-info/10",
+  },
+  {
+    icon: ShieldAlert,
+    title: "Security finding detected",
+    description: "MobileDashboard flagged a new high severity issue",
+    time: "1 hr ago",
+    iconColor: "text-warning bg-warning/10",
   },
 ];
 
@@ -120,360 +167,84 @@ const stats = [
 
 export function DashboardPage() {
 
-  /* =======================================================
-     SEARCH + FILTER STATE
-  ======================================================= */
+  const navigate = useNavigate();
 
+  /* Search + Filter State */
   const [searchQuery, setSearchQuery] = useState("");
-
-  const [languageFilter, setLanguageFilter] =
-    useState("All");
-
-  const [scoreFilter, setScoreFilter] =
-    useState("All");
+  const [languageFilter, setLanguageFilter] = useState("All");
+  const [scoreFilter, setScoreFilter] = useState("All");
 
 
-  /* =======================================================
-     FILTER REPOSITORIES
-  ======================================================= */
-
+  /* Filter Repositories */
   const filteredRepositories = useMemo(() => {
-
-    return repositories.filter((repository) => {
-
-      /* SEARCH FILTER */
-
-      const matchesSearch =
-        repository.name
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
-
-
-      /* LANGUAGE FILTER */
+    return repositories.filter((repo) => {
+      const matchesSearch = repo.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
 
       const matchesLanguage =
-        languageFilter === "All" ||
-        repository.language === languageFilter;
-
-
-      /* SCORE FILTER */
+        languageFilter === "All" || repo.language === languageFilter;
 
       const matchesScore =
         scoreFilter === "All" ||
+        (scoreFilter === "Excellent" && repo.score >= 85) ||
+        (scoreFilter === "Needs attention" && repo.score < 85);
 
-        (
-          scoreFilter === "Excellent" &&
-          repository.score >= 85
-        ) ||
-
-        (
-          scoreFilter === "Needs attention" &&
-          repository.score < 85
-        );
-
-
-      return (
-        matchesSearch &&
-        matchesLanguage &&
-        matchesScore
-      );
-
+      return matchesSearch && matchesLanguage && matchesScore;
     });
-
-  }, [
-    searchQuery,
-    languageFilter,
-    scoreFilter,
-  ]);
+  }, [searchQuery, languageFilter, scoreFilter]);
 
 
   return (
-
     <main className="min-h-screen bg-background">
-
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-
 
         {/* =====================================================
             PAGE HEADER
         ====================================================== */}
 
-        <motion.div
-          initial={{
-            opacity: 0,
-            y: 12,
-          }}
-
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-
-          className="
-            mb-8
-            flex
-            flex-col
-            justify-between
-            gap-4
-            sm:flex-row
-            sm:items-end
-          "
-        >
-
+        <PageHeader>
           <div>
-
-            {/* Repository Intelligence Badge */}
-
-            <div
-              className="
-                mb-3
-                inline-flex
-                items-center
-                gap-2
-                rounded-full
-                border
-                border-primary/80
-                bg-primary/10
-                px-3
-                py-1.5
-                text-xs
-                font-medium
-                text-primary
-              "
-            >
-
+            <PageHeaderBadge>
               <Sparkles size={13} />
-
               Repository intelligence
+            </PageHeaderBadge>
 
-            </div>
-
-
-            <h1
-              className="
-                text-3xl
-                font-bold
-                tracking-tight
-                sm:text-4xl
-              "
-            >
+            <PageHeaderTitle>
               Good evening, Nethmi
-            </h1>
+            </PageHeaderTitle>
 
-
-            <p
-              className="
-                mt-2
-                text-sm
-                text-muted-foreground
-              "
-            >
-              Here is the latest overview of your code quality and technical
-              debt.
-            </p>
-
+            <PageHeaderDescription>
+              Here is the latest overview of your code quality and technical debt.
+            </PageHeaderDescription>
           </div>
 
-
-          {/* Add Repository Button */}
-
-          <button
-            className="
-              inline-flex
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
-              bg-primary
-              px-4
-              py-2.5
-              text-sm
-              font-semibold
-              text-primary-foreground
-              shadow-lg
-              shadow-primary/20
-              transition
-              hover:-translate-y-0.5
-              hover:shadow-primary/30
-            "
-          >
-
-            <Code2 size={17} />
-
-            Add repository
-
-          </button>
-
-        </motion.div>
+          <PageHeaderActions>
+            <Button onClick={() => navigate("/repositories")}>
+              <Code2 size={17} />
+              Add repository
+            </Button>
+          </PageHeaderActions>
+        </PageHeader>
 
 
         {/* =====================================================
             STAT CARDS
         ====================================================== */}
 
-        <div
-          className="
-            grid
-            gap-4
-            sm:grid-cols-2
-            xl:grid-cols-4
-          "
-        >
-
-          {stats.map((stat, index) => {
-
-            const Icon = stat.icon;
-
-            const isPositive =
-              stat.trend === "up";
-
-
-            return (
-
-              <motion.div
-                key={stat.title}
-
-                initial={{
-                  opacity: 0,
-                  y: 20,
-                }}
-
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
-
-                transition={{
-                  delay: index * 0.08,
-                }}
-
-                className="
-                  group
-                  rounded-2xl
-                  border
-                  border-border
-                  bg-card
-                  p-5
-                  transition
-                  hover:-translate-y-1
-                  hover:border-primary/60
-                  hover:shadow-xl
-                "
-              >
-
-                <div
-                  className="
-                    flex
-                    items-start
-                    justify-between
-                  "
-                >
-
-                  {/* Icon */}
-
-                  <div
-                    className={`
-                      flex
-                      h-11
-                      w-11
-                      items-center
-                      justify-center
-                      rounded-xl
-                      ${stat.iconClass}
-                    `}
-                  >
-
-                    <Icon size={20} />
-
-                  </div>
-
-
-                  {/* More Button */}
-
-                  <button
-                    className="
-                      rounded-lg
-                      p-1.5
-                      text-muted-foreground
-                      opacity-0
-                      transition
-                      hover:bg-muted
-                      group-hover:opacity-100
-                    "
-                  >
-
-                    <MoreHorizontal size={17} />
-
-                  </button>
-
-                </div>
-
-
-                <p
-                  className="
-                    mt-5
-                    text-sm
-                    text-muted-foreground
-                  "
-                >
-                  {stat.title}
-                </p>
-
-
-                <div
-                  className="
-                    mt-1
-                    flex
-                    items-end
-                    justify-between
-                    gap-2
-                  "
-                >
-
-                  <p
-                    className="
-                      text-3xl
-                      font-bold
-                      tracking-tight
-                    "
-                  >
-                    {stat.value}
-                  </p>
-
-
-                  <div
-                    className="
-                      flex
-                      items-center
-                      gap-1
-                      text-xs
-                      font-medium
-                      text-success
-                    "
-                  >
-
-                    {isPositive ? (
-
-                      <ArrowUpRight size={14} />
-
-                    ) : (
-
-                      <ArrowDownRight size={14} />
-
-                    )}
-
-                    {stat.change}
-
-                  </div>
-
-                </div>
-
-              </motion.div>
-
-            );
-
-          })}
-
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat, index) => (
+            <StatCard
+              key={stat.title}
+              title={stat.title}
+              value={stat.value}
+              change={stat.change}
+              trend={stat.trend}
+              icon={stat.icon}
+              iconColor={stat.iconColor}
+              delay={index * 0.08}
+            />
+          ))}
         </div>
 
 
@@ -481,406 +252,134 @@ export function DashboardPage() {
             HEALTH TREND + RECENT ACTIVITY
         ====================================================== */}
 
-        <div
-          className="
-            mt-6
-            grid
-            gap-6
-            xl:grid-cols-[1.5fr_1fr]
-          "
-        >
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
 
-
-          {/* ===================================================
-              HEALTH SCORE TREND
-          ==================================================== */}
-
-          <motion.section
-
-            initial={{
-              opacity: 0,
-              y: 20,
-            }}
-
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-
-            transition={{
-              delay: 0.35,
-            }}
-
-            className="
-              rounded-2xl
-              border
-              border-border
-              bg-card
-              p-5
-              sm:p-6
-            "
+          {/* Health Score Trend */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
           >
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle>Health Score Trend</CardTitle>
+                  <CardDescription>
+                    Average repository health over the last 7 days
+                  </CardDescription>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold">86</p>
+                  <p className="text-xs text-success">+18 points</p>
+                </div>
+              </CardHeader>
 
-            <div
-              className="
-                mb-6
-                flex
-                items-start
-                justify-between
-              "
-            >
+              <CardContent>
+                <div className="h-[280px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={healthTrend}>
+                      <defs>
+                        <linearGradient id="healthGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
 
-              <div>
-
-                <p
-                  className="
-                    text-sm
-                    font-semibold
-                  "
-                >
-                  Health Score Trend
-                </p>
-
-
-                <p
-                  className="
-                    mt-1
-                    text-xs
-                    text-muted-foreground
-                  "
-                >
-                  Average repository health over the last 7 days
-                </p>
-
-              </div>
-
-
-              <div
-                className="
-                  text-right
-                "
-              >
-
-                <p
-                  className="
-                    text-2xl
-                    font-bold
-                  "
-                >
-                  86
-                </p>
-
-
-                <p
-                  className="
-                    text-xs
-                    text-success
-                  "
-                >
-                  +18 points
-                </p>
-
-              </div>
-
-            </div>
-
-
-            {/* Chart */}
-
-            <div
-              className="
-                h-[280px]
-                w-full
-              "
-            >
-
-              <ResponsiveContainer
-                width="100%"
-                height="100%"
-              >
-
-                <AreaChart
-                  data={healthTrend}
-                >
-
-                  <defs>
-
-                    <linearGradient
-                      id="healthGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-
-                      <stop
-                        offset="0%"
-                        stopColor="hsl(var(--primary))"
-                        stopOpacity={0.35}
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="hsl(var(--border))"
+                        vertical={false}
                       />
 
-                      <stop
-                        offset="100%"
-                        stopColor="hsl(var(--primary))"
-                        stopOpacity={0}
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                       />
 
-                    </linearGradient>
+                      <YAxis
+                        domain={[0, 100]}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                      />
 
-                  </defs>
+                      <Tooltip
+                        contentStyle={{
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "12px",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
 
-
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    vertical={false}
-                  />
-
-
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{
-                      fill: "hsl(var(--muted-foreground))",
-                      fontSize: 12,
-                    }}
-                  />
-
-
-                  <YAxis
-                    domain={[0, 100]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{
-                      fill: "hsl(var(--muted-foreground))",
-                      fontSize: 12,
-                    }}
-                  />
+                      <Area
+                        type="monotone"
+                        dataKey="score"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={3}
+                        fill="url(#healthGradient)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
 
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "12px",
-                      color: "hsl(var(--foreground))",
-                    }}
-                  />
-
-
-                  <Area
-                    type="monotone"
-                    dataKey="score"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={3}
-                    fill="url(#healthGradient)"
-                  />
-
-                </AreaChart>
-
-              </ResponsiveContainer>
-
-            </div>
-
-          </motion.section>
-
-
-          {/* ===================================================
-              RECENT ACTIVITY
-          ==================================================== */}
-
-          <motion.section
-
-            initial={{
-              opacity: 0,
-              y: 20,
-            }}
-
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-
-            transition={{
-              delay: 0.45,
-            }}
-
-            className="
-              rounded-2xl
-              border
-              border-border
-              bg-card
-              p-5
-              sm:p-6
-            "
+          {/* Recent Activity */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
           >
-
-            <div
-              className="
-                mb-6
-                flex
-                items-start
-                justify-between
-              "
-            >
-
-              <div>
-
-                <p
-                  className="
-                    text-sm
-                    font-semibold
-                  "
+            <Card className="h-full">
+              <CardHeader>
+                <div>
+                  <CardTitle>Recent Activity</CardTitle>
+                  <CardDescription>Latest repository events</CardDescription>
+                </div>
+                <button
+                  onClick={() => navigate("/notifications")}
+                  className="text-xs font-medium text-primary hover:underline"
                 >
-                  Recent Activity
-                </p>
+                  View all
+                </button>
+              </CardHeader>
 
+              <CardContent>
+                <div className="space-y-5">
+                  {recentActivity.map((activity) => {
+                    const Icon = activity.icon;
 
-                <p
-                  className="
-                    mt-1
-                    text-xs
-                    text-muted-foreground
-                  "
-                >
-                  Latest repository events
-                </p>
+                    return (
+                      <div key={activity.title} className="flex gap-3">
+                        <IconBox
+                          icon={Icon}
+                          size="sm"
+                          className={activity.iconColor}
+                        />
 
-              </div>
-
-
-              <button
-                className="
-                  text-xs
-                  font-medium
-                  text-primary
-                  hover:underline
-                "
-              >
-                View all
-              </button>
-
-            </div>
-
-
-            <div
-              className="
-                space-y-5
-              "
-            >
-
-              {[
-
-                {
-                  icon: CheckCircle2,
-                  title: "Analysis completed",
-                  description:
-                    "AutomaticCodeReview passed quality analysis",
-                  time: "8 min ago",
-                  className: "text-success bg-success/10",
-                },
-
-                {
-                  icon: GitPullRequest,
-                  title: "Pull request analyzed",
-                  description:
-                    "PR #42 introduced 3 new findings",
-                  time: "32 min ago",
-                  className: "text-info bg-info/10",
-                },
-
-                {
-                  icon: ShieldAlert,
-                  title: "Security finding detected",
-                  description:
-                    "Potential issue found in API service",
-                  time: "1 hour ago",
-                  className: "text-warning bg-warning/10",
-                },
-
-              ].map((activity) => {
-
-                const Icon = activity.icon;
-
-
-                return (
-
-                  <div
-                    key={activity.title}
-                    className="
-                      flex
-                      gap-3
-                    "
-                  >
-
-                    <div
-                      className={`
-                        flex
-                        h-9
-                        w-9
-                        shrink-0
-                        items-center
-                        justify-center
-                        rounded-xl
-                        ${activity.className}
-                      `}
-                    >
-
-                      <Icon size={16} />
-
-                    </div>
-
-
-                    <div
-                      className="
-                        min-w-0
-                      "
-                    >
-
-                      <p
-                        className="
-                          text-sm
-                          font-medium
-                        "
-                      >
-                        {activity.title}
-                      </p>
-
-
-                      <p
-                        className="
-                          mt-1
-                          truncate
-                          text-xs
-                          text-muted-foreground
-                        "
-                      >
-                        {activity.description}
-                      </p>
-
-
-                      <p
-                        className="
-                          mt-1
-                          text-[11px]
-                          text-muted-foreground
-                        "
-                      >
-                        {activity.time}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                );
-
-              })}
-
-            </div>
-
-          </motion.section>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {activity.title}
+                          </p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {activity.description}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {activity.time}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
         </div>
 
@@ -889,551 +388,160 @@ export function DashboardPage() {
             REPOSITORY HEALTH
         ====================================================== */}
 
-        <motion.section
-
-          initial={{
-            opacity: 0,
-            y: 20,
-          }}
-
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-
-          transition={{
-            delay: 0.55,
-          }}
-
-          className="
-            mt-6
-            rounded-2xl
-            border
-            border-border
-            bg-card
-            p-5
-            sm:p-6
-          "
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+          className="mt-6"
         >
-
-
-          {/* =====================================================
-              REPOSITORY HEALTH HEADER
-          ===================================================== */}
-
-          <div
-            className="
-              mb-5
-              flex
-              items-center
-              justify-between
-            "
-          >
-
-            <div>
-
-              <p
-                className="
-                  text-sm
-                  font-semibold
-                "
-              >
-                Repository Health
-              </p>
-
-
-              <p
-                className="
-                  mt-1
-                  text-xs
-                  text-muted-foreground
-                "
-              >
-                Monitor your connected repositories
-              </p>
-
-            </div>
-
-
-            <button
-              className="
-                text-xs
-                font-medium
-                text-primary
-                hover:underline
-              "
-            >
-              View repositories
-            </button>
-
-          </div>
-
-
-          {/* =====================================================
-              SEARCH + FILTER BAR
-          ===================================================== */}
-
-          <div
-            className="
-              mb-6
-              flex
-              flex-col
-              gap-3
-              rounded-xl
-              border
-              border-border
-              bg-muted/20
-              p-3
-              lg:flex-row
-              lg:items-center
-            "
-          >
-
-
-            {/* SEARCH INPUT */}
-
-            <div
-              className="
-                relative
-                flex-1
-              "
-            >
-
-              <Search
-                size={17}
-                className="
-                  absolute
-                  left-3
-                  top-1/2
-                  -translate-y-1/2
-                  text-muted-foreground
-                "
-              />
-
-
-              <input
-                type="text"
-                placeholder="Search repositories..."
-                value={searchQuery}
-                onChange={(event) =>
-                  setSearchQuery(event.target.value)
-                }
-                className="
-                  h-10
-                  w-full
-                  rounded-lg
-                  border
-                  border-border
-                  bg-card
-                  pl-10
-                  pr-3
-                  text-sm
-                  outline-none
-                  transition
-                  placeholder:text-muted-foreground
-                  focus:border-primary
-                  focus:ring-2
-                  focus:ring-primary/20
-                "
-              />
-
-            </div>
-
-
-            {/* LANGUAGE FILTER */}
-
-            <select
-              value={languageFilter}
-              onChange={(event) =>
-                setLanguageFilter(event.target.value)
-              }
-              className="
-                h-10
-                rounded-lg
-                border
-                border-border
-                bg-card
-                px-3
-                text-sm
-                outline-none
-                transition
-                focus:border-primary
-                focus:ring-2
-                focus:ring-primary/20
-              "
-            >
-
-              <option value="All">
-                All Languages
-              </option>
-
-
-              <option value="TypeScript">
-                TypeScript
-              </option>
-
-
-              <option value="Python">
-                Python
-              </option>
-
-            </select>
-
-
-            {/* SCORE FILTER */}
-
-            <select
-              value={scoreFilter}
-              onChange={(event) =>
-                setScoreFilter(event.target.value)
-              }
-              className="
-                h-10
-                rounded-lg
-                border
-                border-border
-                bg-card
-                px-3
-                text-sm
-                outline-none
-                transition
-                focus:border-primary
-                focus:ring-2
-                focus:ring-primary/20
-              "
-            >
-
-              <option value="All">
-                All Scores
-              </option>
-
-
-              <option value="Excellent">
-                Excellent
-              </option>
-
-
-              <option value="Needs attention">
-                Needs attention
-              </option>
-
-            </select>
-
-
-            {/* LINK REPOSITORY BUTTON */}
-
-            <button
-              type="button"
-              className="
-                inline-flex
-                h-10
-                items-center
-                justify-center
-                gap-2
-                rounded-lg
-                bg-primary
-                px-4
-                text-sm
-                font-semibold
-                text-primary-foreground
-                transition
-                hover:-translate-y-0.5
-                hover:shadow-lg
-                hover:shadow-primary/20
-              "
-            >
-
-              <Plus size={16} />
-
-              Link Repository
-
-            </button>
-
-          </div>
-
-
-          {/* =====================================================
-              REPOSITORY CARDS
-          ===================================================== */}
-
-          <div
-            className="
-              grid
-              gap-3
-            "
-          >
-
-            {filteredRepositories.length > 0 ? (
-
-              filteredRepositories.map((repository) => (
-
-                <div
-                  key={repository.name}
-
-                  className="
-                    group
-                    flex
-                    flex-col
-                    gap-4
-                    rounded-xl
-                    border-2
-                    border-border
-                    p-4
-                    transition
-                    hover:border-primary/70
-                    hover:bg-muted/60
-                    sm:flex-row
-                    sm:items-center
-                  "
-                >
-
-
-                  {/* Repository Information */}
-
-                  <div
-                    className="
-                      flex
-                      min-w-0
-                      flex-1
-                      items-center
-                      gap-3
-                    "
-                  >
-
-                    <div
-                      className="
-                        flex
-                        h-10
-                        w-10
-                        shrink-0
-                        items-center
-                        justify-center
-                        rounded-xl
-                        bg-primary/10
-                        text-primary
-                      "
-                    >
-
-                      <Code2 size={18} />
-
-                    </div>
-
-
-                    <div
-                      className="
-                        min-w-0
-                      "
-                    >
-
-                      <p
-                        className="
-                          truncate
-                          text-sm
-                          font-semibold
-                        "
-                      >
-                        {repository.name}
-                      </p>
-
-
-                      <p
-                        className="
-                          mt-1
-                          text-xs
-                          text-muted-foreground
-                        "
-                      >
-                        {repository.language}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-
-                  {/* Repository Metrics */}
-
-                  <div
-                    className="
-                      flex
-                      items-center
-                      gap-6
-                    "
-                  >
-
-
-                    {/* Health */}
-
-                    <div>
-
-                      <p
-                        className="
-                          text-[10px]
-                          uppercase
-                          tracking-wider
-                          text-muted-foreground
-                        "
-                      >
-                        Health
-                      </p>
-
-
-                      <p
-                        className={`
-                          mt-1
-                          text-lg
-                          font-bold
-                          ${
-                            repository.score >= 85
-                              ? "text-success"
-                              : "text-warning"
-                          }
-                        `}
-                      >
-                        {repository.score}
-                      </p>
-
-                    </div>
-
-
-                    {/* Findings */}
-
-                    <div
-                      className="
-                        hidden
-                        sm:block
-                      "
-                    >
-
-                      <p
-                        className="
-                          text-[10px]
-                          uppercase
-                          tracking-wider
-                          text-muted-foreground
-                        "
-                      >
-                        Findings
-                      </p>
-
-
-                      <p
-                        className="
-                          mt-1
-                          text-sm
-                          font-semibold
-                        "
-                      >
-                        {repository.findings}
-                      </p>
-
-                    </div>
-
-
-                    {/* Technical Debt */}
-
-                    <div
-                      className="
-                        hidden
-                        md:block
-                      "
-                    >
-
-                      <p
-                        className="
-                          text-[10px]
-                          uppercase
-                          tracking-wider
-                          text-muted-foreground
-                        "
-                      >
-                        Debt
-                      </p>
-
-
-                      <p
-                        className="
-                          mt-1
-                          text-sm
-                          font-semibold
-                        "
-                      >
-                        {repository.debt}
-                      </p>
-
-                    </div>
-
-
-                    {/* Status */}
-
-                    <span
-                      className={`
-                        rounded-full
-                        px-2.5
-                        py-1
-                        text-xs
-                        font-medium
-                        ${
-                          repository.score >= 85
-                            ? "bg-success/10 text-success"
-                            : "bg-warning/10 text-warning"
-                        }
-                      `}
-                    >
-                      {repository.status}
-                    </span>
-
-                  </div>
-
-                </div>
-
-              ))
-
-            ) : (
-
-              <div
-                className="
-                  rounded-xl
-                  border
-                  border-dashed
-                  border-border
-                  p-8
-                  text-center
-                "
-              >
-
-                <p
-                  className="
-                    text-sm
-                    font-medium
-                  "
-                >
-                  No repositories found
-                </p>
-
-
-                <p
-                  className="
-                    mt-1
-                    text-xs
-                    text-muted-foreground
-                  "
-                >
-                  Try changing your search or filters.
-                </p>
-
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Repository Health</CardTitle>
+                <CardDescription>Monitor your connected repositories</CardDescription>
               </div>
+              <button
+                onClick={() => navigate("/repositories")}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                View repositories
+              </button>
+            </CardHeader>
 
-            )}
+            <CardContent>
+              {/* Search + Filters */}
+              <FilterBar
+                placeholder="Search repositories..."
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                className="mb-6"
+              >
+                <Select
+                  value={languageFilter}
+                  onChange={setLanguageFilter}
+                  options={[
+                    { label: "All Languages", value: "All" },
+                    { label: "TypeScript", value: "TypeScript" },
+                    { label: "Python", value: "Python" },
+                  ]}
+                />
+                <Select
+                  value={scoreFilter}
+                  onChange={setScoreFilter}
+                  options={[
+                    { label: "All Scores", value: "All" },
+                    { label: "Excellent", value: "Excellent" },
+                    { label: "Needs attention", value: "Needs attention" },
+                  ]}
+                />
+                <Button size="sm" onClick={() => navigate("/repositories")}>
+                  <Plus size={16} />
+                  Link Repository
+                </Button>
+              </FilterBar>
 
-          </div>
 
-        </motion.section>
+              {/* Repository Rows */}
+              <div className="grid gap-3">
+                {filteredRepositories.length > 0 ? (
+                  filteredRepositories.map((repo) => (
+                    <div
+                      key={repo.name}
+                      className="
+                        group flex flex-col gap-4 rounded-xl border-2
+                        border-border p-4 transition
+                        hover:border-primary/70 hover:bg-muted/60
+                        sm:flex-row sm:items-center
+                      "
+                    >
+                      {/* Repo Info */}
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <IconBox icon={Code2} color="primary" size="sm" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {repo.name}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {repo.language}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Metrics */}
+                      <div className="flex items-center gap-6">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Health
+                          </p>
+                          <p className={`mt-1 text-lg font-bold ${repo.score >= 85 ? "text-success" : "text-warning"}`}>
+                            {repo.score}
+                          </p>
+                        </div>
+
+                        <div className="hidden sm:block">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Findings
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">
+                            {repo.findings}
+                          </p>
+                        </div>
+
+                        <div className="hidden md:block">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Debt
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">
+                            {repo.debt}
+                          </p>
+                        </div>
+
+                        <Badge
+                          variant={repo.score >= 85 ? "success" : "warning"}
+                          size="md"
+                        >
+                          {repo.status}
+                        </Badge>
+
+                        <div className="hidden items-center gap-2 lg:flex">
+                          <button className="text-xs text-muted-foreground hover:text-primary">
+                            <Search size={14} />
+                          </button>
+                          <button
+                            onClick={() => navigate("/repositories")}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                          >
+                            View <ExternalLink size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border p-8 text-center">
+                    <p className="text-sm font-medium">
+                      No repositories found
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Try changing your search or filters.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+
+        {/* =====================================================
+            FOOTER
+        ====================================================== */}
+
+        <footer className="mt-10 py-6 text-center text-xs text-muted-foreground">
+          © 2025 CodeHealth · v1.0
+        </footer>
 
       </div>
-
     </main>
-
   );
-
 }

@@ -76,9 +76,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
   const user = {
-    name: authUser?.username || "Developer",
+    name: authUser?.username || "Nethmi Bhagya",
 
-    username: authUser?.username || "user",
+    username: authUser?.username || "nethmibhagya",
 
     role: authUser?.platformRole || "Developer",
 
