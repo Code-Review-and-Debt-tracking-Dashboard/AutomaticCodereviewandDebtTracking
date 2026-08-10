@@ -3,25 +3,32 @@ import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
 
 import { env } from '../config/env';
 import { encrypt } from '../lib/crypto';
-import { signAppJwt, signState, verifyState } from '../lib/jwt';
+import { type OAuthClient, signAccessToken, signState, verifyState } from '../lib/jwt';
 import { consumeStateNonce } from '../lib/oauthStateStore';
 import { AppError } from '../middleware/errorHandler';
 import { syncUserOrganizations } from './orgService';
+import { createSession } from './sessionService';
 
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 // read:org covers private org memberships too
 const GITHUB_OAUTH_SCOPE = 'repo,user:email,read:org';
 
+export interface PublicUser {
+  id: string;
+  username: string;
+  email: string | null;
+  avatarUrl: string | null;
+  platformRole: string;
+}
+
 export interface AuthResult {
-  token: string;
-  user: {
-    id: string;
-    username: string;
-    email: string | null;
-    avatarUrl: string | null;
-    platformRole: string;
-  };
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+  client: OAuthClient;
+  redirectTo?: string;
+  user: PublicUser;
 }
 
 // relative paths only, otherwise this is an open redirect
@@ -29,8 +36,8 @@ function sanitizeRedirect(redirect: unknown): string | undefined {
   return typeof redirect === 'string' && redirect.startsWith('/') ? redirect : undefined;
 }
 
-export function buildGithubAuthorizeUrl(redirect?: unknown): string {
-  const state = signState(sanitizeRedirect(redirect));
+export function buildGithubAuthorizeUrl(redirect?: unknown, client: OAuthClient = 'web'): string {
+  const state = signState(sanitizeRedirect(redirect), client);
 
   const url = new URL(GITHUB_AUTHORIZE_URL);
   url.searchParams.set('client_id', env.githubClientId);
@@ -171,18 +178,63 @@ export async function handleGithubCallback(
     accessToken,
   );
 
-  const token = signAppJwt({ sub: user.id, username: user.username, platformRole: user.platformRole });
+  const { refreshToken, expiresAt } = await createSession(user);
+  const appAccessToken = signAccessToken({
+    sub: user.id,
+    username: user.username,
+    platformRole: user.platformRole,
+  });
 
   return {
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      avatarUrl: user.avatarUrl,
-      platformRole: user.platformRole,
-    },
+    accessToken: appAccessToken,
+    refreshToken,
+    expiresAt,
+    client: statePayload.client,
+    redirectTo: statePayload.redirect,
+    user: toPublicUser(user),
   };
+}
+
+export function toPublicUser(user: {
+  id: string;
+  username: string;
+  email: string | null;
+  avatarUrl: string | null;
+  platformRole: string;
+}): PublicUser {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+    platformRole: user.platformRole,
+  };
+}
+
+export interface SessionTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+  user: PublicUser;
+}
+
+// Local-only sign-in for people without GitHub OAuth credentials configured.
+// Goes through the same session path as a real login so it exercises it.
+export async function devLogin(username: string): Promise<SessionTokens> {
+  const user = await prisma.user.upsert({
+    where: { username },
+    update: {},
+    create: { githubId: `dev-${username}`, username, email: `${username}@dev.local` },
+  });
+
+  const { refreshToken, expiresAt } = await createSession(user);
+  const accessToken = signAccessToken({
+    sub: user.id,
+    username: user.username,
+    platformRole: user.platformRole,
+  });
+
+  return { accessToken, refreshToken, expiresAt, user: toPublicUser(user) };
 }
 
 export interface CurrentUser {

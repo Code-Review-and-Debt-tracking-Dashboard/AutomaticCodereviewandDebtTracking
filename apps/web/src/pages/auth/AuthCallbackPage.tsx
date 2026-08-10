@@ -4,62 +4,40 @@ import { motion } from "framer-motion";
 import { AlertCircle, Loader2 } from "lucide-react";
 
 import { useAuth } from "../../contexts/AuthContext";
-import { api } from "../../lib/apiClient";
-import type { AuthUser } from "../../contexts/AuthContext";
 
 /*
  * =========================================================
- * AUTH CALLBACK PAGE (D-04b)
+ * AUTH CALLBACK PAGE
  * =========================================================
  *
- * Handles the GitHub OAuth redirect back to the web application.
- * Reads `code` and `state` from URL search parameters and calls
- * `GET /auth/github/callback` on the backend API.
- *
- * On success: logs in through AuthContext and navigates to /dashboard.
- * On failure: renders an error message with a retry option.
+ * Where the API drops the browser after a successful GitHub login. The code
+ * exchange already happened server-side and the refresh cookie is set, so all
+ * this page does is trade that cookie for an access token and move on.
  */
-
-interface CallbackResponse {
-  token: string;
-  user: AuthUser;
-}
 
 export function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { bootstrap } = useAuth();
 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const code = searchParams.get("code");
-    const state = searchParams.get("state");
-
-    if (!code || !state) {
-      setError("Missing code or state parameters from GitHub redirect.");
+    // The API redirects here with ?error= when the exchange fails.
+    const failed = searchParams.get("error");
+    if (failed) {
+      setError(`GitHub sign in failed (${failed}). Please try again.`);
       return;
     }
 
-    const processCallback = async () => {
-      try {
-        const response = await api.get<CallbackResponse>(
-          `/auth/github/callback`,
-          { code, state }
-        );
-
-        login(response.token, response.user);
+    void bootstrap().then((ok) => {
+      if (ok) {
         navigate("/dashboard", { replace: true });
-      } catch (err: any) {
-        const msg =
-          err?.response?.data?.message ||
-          "Authentication failed. Please try logging in again.";
-        setError(msg);
+      } else {
+        setError("Could not complete sign in. Please try again.");
       }
-    };
-
-    processCallback();
-  }, [searchParams, login, navigate]);
+    });
+  }, [searchParams, bootstrap, navigate]);
 
   if (error) {
     return (

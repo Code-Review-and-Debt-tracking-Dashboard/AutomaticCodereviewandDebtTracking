@@ -81,9 +81,11 @@ erDiagram
 
     Session {
         string id PK
+        string familyId "all rotations of one login"
         string tokenHash UK "hash only, never the raw token"
         datetime expiresAt
         datetime revokedAt "nullable"
+        enum revokedReason "nullable, SessionRevokeReason"
         string userId FK
         datetime createdAt
     }
@@ -418,13 +420,16 @@ model GitHubCredential {
   updatedAt DateTime @updatedAt
 }
 
-// Store only a hash of the session or refresh token.
-// Do not store the original token.
+// One refresh token. Store only its hash, never the original.
+// Rotation replaces the row and keeps familyId, so a replayed token can
+// take down every token issued from the same login.
 model Session {
-  id        String    @id @default(cuid())
-  tokenHash String    @unique
-  expiresAt DateTime
-  revokedAt DateTime?
+  id            String               @id @default(cuid())
+  familyId      String
+  tokenHash     String               @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason SessionRevokeReason?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -433,6 +438,15 @@ model Session {
 
   @@index([expiresAt])
   @@index([userId, revokedAt])
+  @@index([familyId])
+}
+
+enum SessionRevokeReason {
+  ROTATED
+  LOGOUT
+  REUSE_DETECTED
+  ADMIN_REVOKED
+  USER_INACTIVE
 }
 
 // ================================================================
@@ -984,7 +998,17 @@ This keeps trend/history queries on `HealthSnapshot` free of half-finished or fa
 
 ### 3.11 Why Sessions Store Only a Token Hash
 
-`Session.tokenHash` stores a hash of the session/refresh token, never the raw token. If the database is ever exposed, stored hashes cannot be replayed as valid sessions. `revokedAt` supports explicit logout/invalidation, and `@@index([expiresAt])` supports a cleanup job that prunes expired sessions.
+`Session.tokenHash` stores a SHA-256 hash of the refresh token, never the raw token. If the database is ever exposed, stored hashes cannot be replayed as valid sessions. `revokedAt` supports explicit logout/invalidation, and `@@index([expiresAt])` supports the cleanup that prunes expired sessions.
+
+SHA-256 rather than bcrypt: the token is 256 bits of CSPRNG output, so there is no guessable-password threat to slow down, and a plain hash keeps the lookup on the unique index.
+
+**One row per token, not per login.** Each refresh rotates: the presented row is marked `revokedAt` / `revokedReason = ROTATED` and a successor is inserted carrying the same `familyId`. `expiresAt` is copied to the successor rather than extended, so a family dies a fixed 7 days after login however active the user is.
+
+`familyId` is what makes reuse detection cheap. If an already-spent token is presented again, a copy of it exists somewhere, and one indexed `updateMany` on `familyId` revokes every live token from that login. `revokedReason` is load-bearing rather than decorative — the 10-second grace window that stops two browser tabs from falsely tripping detection has to tell `ROTATED` apart from `LOGOUT`.
+
+Deliberately **not** stored: `rotatedAt` (redundant with `revokedAt`), `lastUsedAt` (under strict rotation every row is presented exactly once), `replacedById` (walking a chain instead of one family query), and `userAgent` / `ip` (nothing consumes them yet).
+
+There is no scheduler process, so `createSession` fires `pruneExpiredSessions()` opportunistically after each login — logins are rare enough for that to be free and frequent enough to keep the table bounded.
 
 ### 3.12 Organization-Level Multi-Tenancy
 
