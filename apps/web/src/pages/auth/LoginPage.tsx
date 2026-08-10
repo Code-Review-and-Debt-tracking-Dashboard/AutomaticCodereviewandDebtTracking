@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import {
+  AlertCircle,
   ArrowRight,
   BarChart3,
   CheckCircle2,
@@ -9,15 +10,37 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { Navigate } from "react-router-dom";
+
+import { useAuth } from "../../contexts/AuthContext";
 
 const API_URL =
   import.meta.env.VITE_API_URL ??
   "http://localhost:4000";
 
+// Worth telling the user apart from an ordinary expiry — it means their
+// refresh token was replayed from somewhere else.
+const SIGN_OUT_MESSAGES: Record<string, string> = {
+  REFRESH_TOKEN_REUSED:
+    "You were signed out because your session may have been compromised. Please sign in again.",
+  REFRESH_TOKEN_EXPIRED: "Your session expired. Please sign in again.",
+  ACCOUNT_INACTIVE: "This account is no longer active.",
+};
+
 export function LoginPage() {
+  const { status, authLostReason } = useAuth();
+
   const handleGithubLogin = () => {
     window.location.href = `${API_URL}/auth/github`;
   };
+
+  if (status === "authenticated") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const notice = authLostReason
+    ? SIGN_OUT_MESSAGES[authLostReason] ?? null
+    : null;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background">
@@ -179,6 +202,14 @@ export function LoginPage() {
                   repositories.
                 </p>
               </div>
+
+              {notice && (
+                <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/5 p-3.5 text-sm text-destructive">
+                  <AlertCircle size={17} className="mt-0.5 shrink-0" />
+
+                  <span>{notice}</span>
+                </div>
+              )}
 
               <button
                 onClick={handleGithubLogin}

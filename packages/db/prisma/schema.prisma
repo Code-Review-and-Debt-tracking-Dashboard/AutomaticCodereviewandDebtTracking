@@ -40,17 +40,22 @@ model GitHubCredential {
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// One refresh token. Rotation replaces the row and keeps familyId, so a
+// stolen token that gets replayed can take down every token in its family.
 model Session {
-  id        String    @id @default(cuid())
-  tokenHash String    @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-  userId    String
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String               @id @default(cuid())
+  familyId      String
+  tokenHash     String               @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason SessionRevokeReason?
+  userId        String
+  createdAt     DateTime             @default(now())
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
   @@index([userId, revokedAt])
+  @@index([familyId])
 }
 
 model Organization {
@@ -298,6 +303,16 @@ model Device {
 enum PlatformRole {
   ADMIN
   USER
+}
+
+// ROTATED means the token was spent normally. Anything else means the session
+// is dead for good.
+enum SessionRevokeReason {
+  ROTATED
+  LOGOUT
+  REUSE_DETECTED
+  ADMIN_REVOKED
+  USER_INACTIVE
 }
 
 enum OrgType {

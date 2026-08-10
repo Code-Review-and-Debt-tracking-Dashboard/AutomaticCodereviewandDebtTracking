@@ -8,25 +8,44 @@
 
 ## 1. Authentication (GitHub OAuth)
 
+Authentication uses a **short-lived access token plus a rotating refresh token**.
+
+| Token | Form | Lifetime | Where it lives |
+|---|---|---|---|
+| Access | JWT, claims `sub` / `jti` / `username` / `platformRole` / `typ: "access"` | 15 min (`ACCESS_TOKEN_EXPIRES_IN`) | Browser memory; `Authorization: Bearer` header |
+| Refresh | Opaque 256-bit random, stored SHA-256 hashed in `Session.tokenHash` | 7 days (`REFRESH_TOKEN_TTL_DAYS`) | `ch_refresh` cookie — `HttpOnly`, `SameSite=Lax`, `Path=/auth` |
+
+`requireAuth` verifies the access token's signature only — no database read — so the hot path stays cheap. Revocation happens on the refresh token instead, which means a revoked session keeps working for at most one access-token lifetime.
+
+**Rotation and reuse detection.** Every refresh spends the presented token and issues a replacement in the same `familyId`. A token presented *after* it was already spent means a copy exists, so the entire family is revoked. A 10-second grace window exempts the common case of two browser tabs refreshing at once, which would otherwise look identical to theft.
+
+The refresh token is returned on whichever transport asked for it: a browser sends the cookie and gets a `Set-Cookie` back with nothing in the body; a non-browser client (mobile) sends `refreshToken` in the JSON body and gets the new one back the same way.
+
 ### `GET /auth/github`
 
 Redirects browser to GitHub OAuth consent screen.
 
 - **Auth:** None
-- **Query:** `?redirect=/dashboard` (optional — where to go after login)
+- **Query:** `?redirect=/dashboard` (optional — where to go after login), `?client=web|native` (default `web`)
 - **Response:** `302 Redirect` → `https://github.com/login/oauth/authorize?client_id=...&scope=repo,user:email`
 
 ### `GET /auth/github/callback`
 
-GitHub redirects here after user approves. Exchanges code for token, creates/updates user, returns JWT.
+GitHub redirects here after the user approves. Exchanges the code, creates/updates the user, opens a session.
+
+The code exchange happens entirely server-side and the browser is **redirected**, not answered with JSON — setting the refresh cookie on a top-level navigation is what keeps `SameSite=Lax` working, and it keeps every secret out of the URL and out of browser history.
 
 - **Auth:** None
 - **Query:** `?code=abc123&state=xyz`
-- **Success `200`:**
+- **Success (`client=web`):** `302 Redirect` → `WEB_APP_URL` + the state's sanitized `redirect` (default `/auth/callback`), with `Set-Cookie: ch_refresh=...`
+- **Failure (`client=web`):** `302 Redirect` → `WEB_APP_URL/login?error=CODE`
+- **Success (`client=native`):** `200` with the tokens in the body, no cookie:
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "0J8fS2...",
+  "expiresAt": "2026-08-17T10:00:00Z",
   "user": {
     "id": "clxyz...",
     "username": "rumeshc",
@@ -37,9 +56,37 @@ GitHub redirects here after user approves. Exchanges code for token, creates/upd
 }
 ```
 
-- **Errors:** `400` invalid/missing code | `502` GitHub API unreachable
+> The GitHub OAuth App's Authorization callback URL must equal `GITHUB_OAUTH_CALLBACK_URL` — i.e. the **API**, not the web app.
 
 > New GitHub accounts default to `platformRole: "USER"` (see §2 Roles & Authorization). There is no self-service admin signup. Per-repository roles (Team Lead / Developer / Viewer) are separate and are established by linking or being added to a repo.
+
+### `POST /auth/refresh`
+
+Spends the refresh token and returns a new access token.
+
+- **Auth:** None — the point is that the access token has expired. The refresh token itself is the credential.
+- **Body:** `{ "refreshToken": "..." }` — only for clients that can't use cookies. Browsers send nothing; the cookie is read instead.
+- **Success `200`:**
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "expiresAt": "2026-08-17T10:00:00Z",
+  "user": { "id": "clxyz...", "username": "rumeshc", "email": null, "avatarUrl": null, "platformRole": "USER" }
+}
+```
+
+`refreshToken` is additionally present in the body **only** when the request supplied it in the body.
+
+- **Errors** — all `401`, and all clear the refresh cookie:
+
+| Code | Means |
+|---|---|
+| `MISSING_REFRESH_TOKEN` | Neither cookie nor body carried one |
+| `INVALID_REFRESH_TOKEN` | Unknown token, or the session was ended by logout / admin / an earlier reuse |
+| `REFRESH_TOKEN_EXPIRED` | Past `expiresAt`; nothing is revoked, the family was already dead |
+| `REFRESH_TOKEN_REUSED` | Already-spent token replayed outside the grace window. **The whole family is revoked.** Clients should surface this differently from an ordinary expiry |
+| `ACCOUNT_INACTIVE` | `User.active` is false; the family is revoked |
 
 ### `GET /auth/me`
 
@@ -63,10 +110,30 @@ Returns the currently authenticated user.
 
 ### `POST /auth/logout`
 
-Invalidates the session.
+Revokes the session family the refresh token belongs to.
 
-- **Auth:** Required
-- **Success:** `204 No Content`
+- **Auth:** None — deliberately. Requiring a valid access token would stop anyone whose token had already expired from logging out.
+- **Body:** `{ "refreshToken": "..." }` for non-cookie clients.
+- **Success:** `204 No Content` — always, even for an unknown or absent token, so this can't be used to probe which tokens exist. Safe to call twice.
+
+### `DELETE /api/admin/users/:userId/sessions`
+
+Force-logout: revokes every live session for one user.
+
+- **Auth:** Required, platform `ADMIN`
+- **Success `200`:** `{ "revoked": 3 }`
+- **Errors:** `401` missing/invalid token | `403` `FORBIDDEN` not a platform admin
+
+> `requirePlatformRole` re-reads the role from the database rather than trusting the access token's `platformRole` claim, so a demoted admin loses access immediately instead of keeping it until their token expires. This is the only place `platformRole` gates access, and it does not cross a tenant boundary — see §2.
+
+### `POST /auth/dev-login` *(local only)*
+
+Signs in as any username without GitHub, going through the same session path as a real login.
+
+Registered **only** when `ENABLE_DEV_LOGIN=true` and `NODE_ENV !== "production"` — the route is not mounted otherwise, rather than being guarded inside the handler. The API logs a warning at boot when it is on.
+
+- **Body:** `{ "username": "demo_developer" }`
+- **Success `200`:** same shape as `POST /auth/refresh`, plus the refresh cookie
 
 ---
 
@@ -931,9 +998,11 @@ Authorization: Bearer <jwt-token>
 | # | Method | Path | Auth | Purpose |
 |---|---|---|---|---|
 | 1 | `GET` | `/auth/github` | None | Redirect to GitHub OAuth |
-| 2 | `GET` | `/auth/github/callback` | None | Exchange code for JWT |
+| 2 | `GET` | `/auth/github/callback` | None | Exchange code, open session, redirect back |
+| 2a | `POST` | `/auth/refresh` | Refresh token | Rotate the refresh token, issue a new access token |
 | 3 | `GET` | `/auth/me` | Bearer | Get current user |
-| 4 | `POST` | `/auth/logout` | Bearer | Invalidate session |
+| 4 | `POST` | `/auth/logout` | Refresh token | Revoke the session family |
+| 4a | `DELETE` | `/api/admin/users/:userId/sessions` | Bearer, platform ADMIN | Force-logout every session for a user |
 | 5 | `POST` | `/webhooks/github` | HMAC | Receive GitHub events |
 | 5a | `GET` | `/api/orgs` | Bearer | List the caller's organizations (tenants) |
 | 5b | `POST` | `/api/orgs/sync` | Bearer | Re-sync organizations from GitHub |
@@ -1042,8 +1111,8 @@ Bull Board web UI for real-time BullMQ job queue monitoring.
 | 5 | **No admin-promotion endpoint** | First `ADMIN` must be set directly in the DB; existing admins cannot promote others via the API | Acceptable for MVP (small, trusted team). Add `PATCH /api/users/:userId/role` (admin-only) post-MVP if needed. Lower priority now that `platformRole` no longer grants access to any tenant's data. |
 | 6 | **Org membership is only as fresh as the last sync** | A user removed from a GitHub organization keeps access until the next login or `POST /api/orgs/sync` | Accepted for MVP. The window is bounded and closable on demand; closing it fully would mean calling GitHub on every request. Revoking in our own database takes effect immediately. |
 | 7 | **One shared `GITHUB_WEBHOOK_SECRET` across all tenants** | Anyone holding that secret can forge webhook events for any linked repository, in any organization | Per-repository secrets stored alongside `Repository.webhookId`. Needs `webhookId` to actually be written first (repo linking is not implemented yet), so it is sequenced after that. |
-| 8 | **`POST /auth/logout` doesn't actually invalidate anything** | A stolen or leaked JWT (or one an admin wants to kill) stays valid until it naturally expires — no way to force a user out early | Tracked as `A-34`. Add a Redis-backed denylist (reuses A-09's Redis, no new infra) checked in `requireAuth`; wire real invalidation into logout plus an admin force-logout endpoint |
-| 9 | **OAuth `state` nonce is generated but never verified** | `signState` puts a `nonce` in the payload; `verifyState`'s return value is discarded at the call site, so nothing ever checks it — the field currently does nothing | Tracked as `A-35`. Either add a single-use Redis check keyed by nonce, or drop the field and correct the docs that describe it as replay protection |
+| 8 | **An access token stays valid for up to 15 minutes after its session is revoked** | Logout, admin force-logout and account deactivation all kill the refresh token immediately, but the access token already in the client's hands is verified by signature alone | Inherent to not touching the database on every request. The window is bounded and short. Closing it fully would mean a session lookup per request, which is the design this replaced |
+| 9 | **No rate limiting on `/auth/*`** | `POST /auth/refresh` and `POST /auth/dev-login` are unauthenticated endpoints | Guessing a 256-bit refresh token is infeasible, so this is not urgent. Add `express-rate-limit` per-IP on `/auth/*` when convenient |
 
 > Resolved since the previous revision of this document: the `Device` model gap (now in `database_design.md` §2/§3.8); the missing role/membership model (now `OrgRole` + `RepositoryRole`, §2 above); and **org-level multi-tenancy** — the brief's "multi-tenant system" is now an actual `Organization` entity with enforced isolation, closing `requirements_analysis.md` Q-1 (`database_design.md` §3.12).
 

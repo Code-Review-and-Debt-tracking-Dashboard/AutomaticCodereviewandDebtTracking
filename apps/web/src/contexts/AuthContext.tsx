@@ -9,22 +9,20 @@ import {
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../lib/apiClient";
+import { api, refreshAccessToken } from "../lib/apiClient";
+import { onAuthLost, setAccessToken } from "../lib/authTokenStore";
 
 /*
  * =========================================================
- * AUTH CONTEXT (D-04a)
+ * AUTH CONTEXT
  * =========================================================
  *
- * Holds the current user's identity and JWT token.
+ * The access token lives in memory only, so a reload starts with nothing.
+ * On mount we trade the refresh cookie for a new access token; if that fails
+ * the visitor is simply anonymous.
  *
- * On mount, if a token exists in localStorage the context
- * validates it by calling GET /auth/me.  If the token is
- * invalid the user is silently logged out.
- *
- * Login / logout helpers update both React state and
- * localStorage so the apiClient interceptor always has
- * the latest token.
+ * `status` starts as "loading" so ProtectedRoute shows a spinner rather than
+ * flashing the login page before we know.
  */
 
 export interface AuthUser {
@@ -35,12 +33,17 @@ export interface AuthUser {
   platformRole: string;
 }
 
+type AuthStatus = "loading" | "authenticated" | "anonymous";
+
 interface AuthContextValue {
   user: AuthUser | null;
-  token: string | null;
+  status: AuthStatus;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string, user: AuthUser) => void;
+  /** Set when the session ended unexpectedly, e.g. REFRESH_TOKEN_REUSED. */
+  authLostReason: string | null;
+  /** Pulls a fresh session from the refresh cookie. Used after OAuth too. */
+  bootstrap: () => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
@@ -60,62 +63,50 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Left over from the old demo-token mode; drop it so nobody debugs a ghost.
+function clearLegacyStorage(): void {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const navigate = useNavigate();
 
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem("token"),
-  );
-  const [isLoading, setIsLoading] = useState(true);
+  const [status, setStatus] = useState<AuthStatus>("loading");
+  const [authLostReason, setAuthLostReason] = useState<string | null>(null);
 
-  /*
-   * On mount: if a token already exists, verify it against
-   * GET /auth/me.  This handles page refreshes.
-   */
-  useEffect(() => {
-    const validateToken = async () => {
-      const stored = localStorage.getItem("token");
-      const demoUser: AuthUser = {
-        id: "usr-demo-001",
-        username: "demo_developer",
-        email: "demo@codehealth.dev",
-        avatarUrl: null,
-        platformRole: "ADMIN",
-      };
-
-      if (!stored || stored === "demo-token") {
-        localStorage.setItem("token", "demo-token");
-        localStorage.setItem("user", JSON.stringify(demoUser));
-        setUser(demoUser);
-        setToken("demo-token");
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const data = await api.get<AuthUser>("/auth/me");
-        setUser(data);
-        setToken(stored);
-      } catch {
-        // Fallback to demo mode if backend is offline or endpoint unavailable
-        setUser(demoUser);
-        setToken(stored);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    validateToken();
+  const bootstrap = useCallback(async (): Promise<boolean> => {
+    try {
+      // Shared single-flight, so StrictMode's double effect is still one call.
+      await refreshAccessToken();
+      const me = await api.get<AuthUser>("/auth/me");
+      setUser(me);
+      setStatus("authenticated");
+      setAuthLostReason(null);
+      return true;
+    } catch {
+      setAccessToken(null);
+      setUser(null);
+      setStatus("anonymous");
+      return false;
+    }
   }, []);
 
-  const login = useCallback(
-    (newToken: string, newUser: AuthUser) => {
-      localStorage.setItem("token", newToken);
-      localStorage.setItem("user", JSON.stringify(newUser));
-      setToken(newToken);
-      setUser(newUser);
-    },
+  useEffect(() => {
+    clearLegacyStorage();
+    void bootstrap();
+  }, [bootstrap]);
+
+  // A failed refresh mid-session lands here rather than reloading the page.
+  useEffect(
+    () =>
+      onAuthLost((reason) => {
+        setAccessToken(null);
+        setUser(null);
+        setStatus("anonymous");
+        setAuthLostReason(reason);
+      }),
     [],
   );
 
@@ -126,23 +117,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Even if the server call fails, clear local state
     }
 
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setToken(null);
+    setAccessToken(null);
     setUser(null);
+    setStatus("anonymous");
+    setAuthLostReason(null);
     navigate("/login");
   }, [navigate]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      token,
-      isAuthenticated: !!user && !!token,
-      isLoading,
-      login,
+      status,
+      isAuthenticated: status === "authenticated",
+      isLoading: status === "loading",
+      authLostReason,
+      bootstrap,
       logout,
     }),
-    [user, token, isLoading, login, logout],
+    [user, status, authLostReason, bootstrap, logout],
   );
 
   return (

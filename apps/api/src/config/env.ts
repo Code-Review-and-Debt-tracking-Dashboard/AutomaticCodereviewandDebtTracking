@@ -35,7 +35,27 @@ export const env = {
   githubWebhookUrl: required('GITHUB_WEBHOOK_URL', 'http://localhost:4000/webhooks/github'),
 
   jwtSecret: required('JWT_SECRET', 'dev_jwt_secret_key_1234567890'),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+
+  // Where the OAuth callback sends the browser once login succeeds.
+  webAppUrl: required('WEB_APP_URL', 'http://localhost:5173'),
+
+  // Origins allowed to send credentialed requests. Cannot be a wildcard —
+  // browsers reject "*" the moment credentials are enabled.
+  webAppOrigins: (process.env.WEB_APP_ORIGINS || 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
+
+  accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m',
+  refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS) || 7,
+
+  cookieSecure: (process.env.COOKIE_SECURE || String(process.env.NODE_ENV === 'production')) === 'true',
+  // 'none' is needed if the web app and API are on different sites; browsers
+  // then also demand Secure, which setRefreshCookie enforces.
+  cookieSameSite: (process.env.COOKIE_SAMESITE || 'lax') as 'lax' | 'strict' | 'none',
+
+  // Password-less login for local work. Never mounted in production.
+  enableDevLogin: process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_LOGIN === 'true',
 
   // 32-byte (64 hex chars) key for AES-256-GCM token-at-rest encryption.
   tokenEncryptionKey: required('TOKEN_ENCRYPTION_KEY', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),

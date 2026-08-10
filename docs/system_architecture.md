@@ -157,6 +157,7 @@ This also means:
   ┌──────────────────▼──────────────────────────┐
   │  ROUTES LAYER                               │
   │  • /auth/github, /auth/github/callback      │
+  │  • /auth/refresh, /auth/logout              │
   │  • /api/orgs, /api/orgs/:orgId/...          │
   │  • /api/repos, /api/repos/:id/...           │
   │  • /api/notifications                       │
@@ -227,8 +228,20 @@ rather than an extra round trip.
 
 **Membership is not carried in the token.** The JWT holds no `orgId` and no membership list.
 Had it done so, a user removed from an organization would retain access until their token
-expired — up to seven days. Checking the database per request means revocation is effective
+expired. Checking the database per request means revocation is effective
 on the next request. This is a deliberate trade of a small, indexed read for correctness.
+
+**Two tokens, one stateful.** The access token is a 15-minute JWT that `requireAuth` verifies by
+signature alone, so the guard above costs no session lookup. Long-lived state lives on a separate
+opaque refresh token, stored only as a SHA-256 hash in `Session` and rotated on every use: each
+refresh spends the presented token and issues a successor sharing a `familyId`. Presenting a token
+that was already spent means a copy of it exists, so the whole family is revoked — a stolen refresh
+token therefore survives at most until the legitimate holder next refreshes.
+
+This is what makes `POST /auth/logout` and admin force-logout real rather than advisory. The cost is
+that an access token already issued stays valid for up to its 15-minute lifetime after its session
+is revoked; closing that window would mean a database read on every request, which is the design
+this replaced. The bound is short and deliberate.
 
 **Cross-tenant responses are `404`, not `403`.** A `403` would confirm that a repository or
 organization exists, and that existence belongs to another tenant. A `403` is still used once
