@@ -15,6 +15,7 @@ const colorClasses: Record<string, string> = {
   success: "bg-success/10 text-success",
   warning: "bg-warning/10 text-warning",
   destructive: "bg-destructive/10 text-destructive",
+  danger: "bg-destructive/10 text-destructive",
   info: "bg-info/10 text-info",
   muted: "bg-muted text-muted-foreground",
 };

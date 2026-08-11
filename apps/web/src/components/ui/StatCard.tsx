@@ -14,6 +14,16 @@ import { ArrowUpRight, ArrowDownRight } from "lucide-react";
  * and Pull Requests (3) pages.
  */
 
+const colorClasses: Record<string, string> = {
+  primary: "bg-primary/10 text-primary",
+  success: "bg-success/10 text-success",
+  warning: "bg-warning/10 text-warning",
+  destructive: "bg-destructive/10 text-destructive",
+  danger: "bg-destructive/10 text-destructive", // Alias for destructive
+  info: "bg-info/10 text-info",
+  muted: "bg-muted text-muted-foreground",
+};
+
 interface StatCardProps {
   title: string;
   value: string;
@@ -21,6 +31,7 @@ interface StatCardProps {
   trend?: "up" | "down" | "neutral";
   icon: ComponentType<{ size?: number; className?: string }>;
   iconColor?: string;
+  color?: keyof typeof colorClasses;
   delay?: number;
   className?: string;
 }
@@ -31,10 +42,13 @@ export function StatCard({
   change,
   trend = "neutral",
   icon: Icon,
-  iconColor = "bg-primary/10 text-primary",
+  iconColor,
+  color,
   delay = 0,
   className = "",
 }: StatCardProps) {
+  const resolvedIconColor = iconColor || (color ? colorClasses[color] : colorClasses.primary);
+
   const trendColor =
     trend === "up"
       ? "text-success"
@@ -58,7 +72,7 @@ export function StatCard({
       <div
         className={`
           flex h-11 w-11 items-center justify-center rounded-xl
-          ${iconColor}
+          ${resolvedIconColor}
         `}
       >
         <Icon size={20} />

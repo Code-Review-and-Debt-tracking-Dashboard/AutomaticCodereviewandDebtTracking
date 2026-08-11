@@ -11,15 +11,28 @@ import { Search } from "lucide-react";
  * Notifications, Analytics, and Repositories pages.
  */
 
+import { Select } from "./Select";
+import type { SelectOptionItem } from "./Select";
+
+interface FilterBarItem {
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOptionItem[];
+}
+
 interface FilterBarProps {
   /** Search placeholder text */
   placeholder?: string;
+  /** Search placeholder text alias */
+  searchPlaceholder?: string;
   /** Current search value */
   searchValue: string;
   /** Search change handler */
   onSearchChange: (value: string) => void;
   /** Optional keyboard shortcut key hint (e.g. "/") */
   shortcutKey?: string;
+  /** Optional array of filter objects */
+  filters?: FilterBarItem[];
   /** Filter dropdowns rendered on the right */
   children?: ReactNode;
   className?: string;
@@ -27,12 +40,16 @@ interface FilterBarProps {
 
 export function FilterBar({
   placeholder = "Search...",
+  searchPlaceholder,
   searchValue,
   onSearchChange,
   shortcutKey,
+  filters,
   children,
   className = "",
 }: FilterBarProps) {
+  const actualPlaceholder = searchPlaceholder ?? placeholder;
+
   return (
     <div
       className={`
@@ -59,7 +76,7 @@ export function FilterBar({
           type="text"
           value={searchValue}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={actualPlaceholder}
           className="
             w-full bg-transparent text-sm outline-none
             placeholder:text-muted-foreground
@@ -80,6 +97,19 @@ export function FilterBar({
       </div>
 
       {/* Filter Dropdowns */}
+      {filters && filters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {filters.map((f, idx) => (
+            <Select
+              key={idx}
+              value={f.value}
+              onChange={f.onChange}
+              options={f.options}
+            />
+          ))}
+        </div>
+      )}
+
       {children && (
         <div className="flex items-center gap-2">
           {children}

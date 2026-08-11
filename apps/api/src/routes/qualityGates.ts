@@ -3,8 +3,8 @@ import { Router } from 'express';
 
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
-import { AppError } from '../middleware/errorHandler';
-import { assertValidation, parseOptionalBoolean, parseOptionalNumber } from '../middleware/validate';
+import { validateRequest } from '../middleware/zodValidate';
+import { updateQualityGateSchema } from '../schemas/qualityGateSchemas';
 
 export const qualityGatesRouter = Router();
 
@@ -40,36 +40,17 @@ qualityGatesRouter.put(
   '/api/repos/:repoId/quality-gate',
   requireAuth,
   requireRepoAccess('write'),
+  validateRequest(updateQualityGateSchema),
   async (req, res, next) => {
     try {
-      const {
-        minHealthScore,
-        maxCriticalFindings,
-        maxVulnerabilities,
-        maxDuplicationPct,
-        maxComplexityCount,
-        maxCodeSmellCount,
-        blockPR,
-      } = req.body ?? {};
-
-      const parsedMinHealthScore = parseOptionalNumber(minHealthScore, 'minHealthScore') ?? 60;
-      const parsedMaxCriticalFindings = parseOptionalNumber(maxCriticalFindings, 'maxCriticalFindings');
-      const parsedMaxVulnerabilities = parseOptionalNumber(maxVulnerabilities, 'maxVulnerabilities');
-      const parsedMaxDuplicationPct = parseOptionalNumber(maxDuplicationPct, 'maxDuplicationPct');
-      const parsedMaxComplexityCount = parseOptionalNumber(maxComplexityCount, 'maxComplexityCount');
-      const parsedMaxCodeSmellCount = parseOptionalNumber(maxCodeSmellCount, 'maxCodeSmellCount');
-      const parsedBlockPR = parseOptionalBoolean(blockPR) ?? false;
-
-      assertValidation(parsedMinHealthScore >= 0 && parsedMinHealthScore <= 100, 'minHealthScore', 'must be between 0 and 100');
-
       const data = {
-        minHealthScore: parsedMinHealthScore,
-        maxCriticalFindings: parsedMaxCriticalFindings === undefined ? null : parsedMaxCriticalFindings,
-        maxVulnerabilities: parsedMaxVulnerabilities === undefined ? null : parsedMaxVulnerabilities,
-        maxDuplicationPct: parsedMaxDuplicationPct === undefined ? null : parsedMaxDuplicationPct,
-        maxComplexityCount: parsedMaxComplexityCount === undefined ? null : parsedMaxComplexityCount,
-        maxCodeSmellCount: parsedMaxCodeSmellCount === undefined ? null : parsedMaxCodeSmellCount,
-        blockPR: parsedBlockPR,
+        minHealthScore: req.body.minHealthScore,
+        maxCriticalFindings: req.body.maxCriticalFindings === undefined ? null : req.body.maxCriticalFindings,
+        maxVulnerabilities: req.body.maxVulnerabilities === undefined ? null : req.body.maxVulnerabilities,
+        maxDuplicationPct: req.body.maxDuplicationPct === undefined ? null : req.body.maxDuplicationPct,
+        maxComplexityCount: req.body.maxComplexityCount === undefined ? null : req.body.maxComplexityCount,
+        maxCodeSmellCount: req.body.maxCodeSmellCount === undefined ? null : req.body.maxCodeSmellCount,
+        blockPR: req.body.blockPR,
       };
 
       const qualityGate = await prisma.qualityGate.upsert({

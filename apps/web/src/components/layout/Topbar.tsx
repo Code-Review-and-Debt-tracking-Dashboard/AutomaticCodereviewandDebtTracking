@@ -717,14 +717,18 @@ mt-1 text-xs text-muted-foreground
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setNotifications(
-                          notifications.map((item) => ({
-                            ...item,
-
-                            unread: false,
-                          })),
-                        );
+                      onClick={async () => {
+                        try {
+                          await api.put("/api/notifications/read-all");
+                          setNotifications(
+                            notifications.map((item) => ({
+                              ...item,
+                              unread: false,
+                            })),
+                          );
+                        } catch (err) {
+                          console.error("Failed to mark all as read", err);
+                        }
                       }}
                       className="
 text-xs font-medium text-primary 
@@ -754,10 +758,23 @@ p-4 text-xs text-muted-foreground
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className="
+                      onClick={async () => {
+                        if (!notification.unread) return;
+                        try {
+                          await api.put(`/api/notifications/${notification.id}/read`);
+                          setNotifications(
+                            notifications.map((item) =>
+                              item.id === notification.id ? { ...item, unread: false } : item
+                            )
+                          );
+                        } catch (err) {
+                          console.error("Failed to mark notification as read", err);
+                        }
+                      }}
+                      className={`
 border-b border-border/50 p-4 
-transition hover:bg-muted/50
-"
+transition hover:bg-muted/50 ${notification.unread ? "cursor-pointer" : ""}
+`}
                     >
                       <div
                         className="
@@ -803,6 +820,10 @@ mt-2 text-[11px] text-muted-foreground
 
                 <button
                   type="button"
+                  onClick={() => {
+                    setNotificationsOpen(false);
+                    navigate("/notifications");
+                  }}
                   className="
 w-full p-3 text-center text-xs 
 font-medium text-primary 

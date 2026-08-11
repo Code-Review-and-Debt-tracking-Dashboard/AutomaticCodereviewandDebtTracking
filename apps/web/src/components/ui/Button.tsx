@@ -33,7 +33,7 @@ const sizeClasses: Record<string, string> = {
   icon: "h-10 w-10 justify-center p-0",
 };
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onDrag" | "onDragStart" | "onDragEnd" | "onAnimationStart"> {
   children: ReactNode;
   variant?: keyof typeof variantClasses;
   size?: keyof typeof sizeClasses;

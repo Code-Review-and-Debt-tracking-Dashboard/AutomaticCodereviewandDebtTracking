@@ -21,6 +21,7 @@ import { RepositoryQualityGatePage } from "../pages/repositories/RepositoryQuali
 import { RepositoryMembersPage } from "../pages/repositories/RepositoryMembersPage";
 import { RepositoryFilesPage } from "../pages/repositories/RepositoryFilesPage";
 import { RepositoryAnalyzePage } from "../pages/repositories/RepositoryAnalyzePage";
+import { PRFindingDrilldownPage } from "../pages/repositories/PRFindingDrilldownPage";
 
 import { GlobalPullRequestsPage } from "../pages/global/GlobalPullRequestsPage";
 import { GlobalFindingsPage } from "../pages/global/GlobalFindingsPage";
@@ -140,6 +141,11 @@ export function AppRoutes() {
             <Route
               path="/repositories/:repoId/pull-requests"
               element={<RepositoryPullRequestsPage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/pull-requests/:prNumber/findings"
+              element={<PRFindingDrilldownPage />}
             />
 
             <Route

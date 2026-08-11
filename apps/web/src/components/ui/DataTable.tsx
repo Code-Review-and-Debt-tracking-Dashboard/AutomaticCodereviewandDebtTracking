@@ -13,8 +13,9 @@ import type { ReactNode } from "react";
 /* ---------- Table Root ---------- */
 
 interface TableProps {
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
+  onClick?: () => void;
 }
 
 export function DataTable({ children, className = "" }: TableProps) {
@@ -58,11 +59,13 @@ export function DataTableBody({ children, className = "" }: TableProps) {
 
 /* ---------- Table Row ---------- */
 
-export function DataTableRow({ children, className = "" }: TableProps) {
+export function DataTableRow({ children, className = "", onClick }: TableProps) {
   return (
     <tr
+      onClick={onClick}
       className={`
         transition-colors hover:bg-muted/30
+        ${onClick ? "cursor-pointer" : ""}
         ${className}
       `}
     >
@@ -74,18 +77,21 @@ export function DataTableRow({ children, className = "" }: TableProps) {
 /* ---------- Table Header Cell ---------- */
 
 interface CellProps {
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
   align?: "left" | "center" | "right";
+  colSpan?: number;
 }
 
 export function DataTableHeaderCell({
   children,
   className = "",
   align = "left",
+  colSpan,
 }: CellProps) {
   return (
     <th
+      colSpan={colSpan}
       className={`
         px-4 py-3
         ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"}
@@ -103,9 +109,11 @@ export function DataTableCell({
   children,
   className = "",
   align = "left",
+  colSpan,
 }: CellProps) {
   return (
     <td
+      colSpan={colSpan}
       className={`
         px-4 py-4
         ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"}

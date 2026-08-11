@@ -5,6 +5,8 @@ import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
 import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoPullRequests, getRepoTrend, linkRepository } from '../services/repoService';
+import { validateRequest } from '../middleware/zodValidate';
+import { linkRepositorySchema, addMemberSchema } from '../schemas/repoSchemas';
 
 export const reposRouter = Router();
 
@@ -20,9 +22,9 @@ reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/repos : link a repository to an org
-reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
+reposRouter.post('/api/repos', requireAuth, validateRequest(linkRepositorySchema), async (req, res, next) => {
   try {
-    const repo = await linkRepository(req.user!.id, req.body ?? {});
+    const repo = await linkRepository(req.user!.id, req.body);
     res.status(201).json(repo);
   } catch (err) {
     next(err);
@@ -110,20 +112,10 @@ reposRouter.post(
   '/api/repos/:repoId/members',
   requireAuth,
   requireRepoAccess('write'),
+  validateRequest(addMemberSchema),
   async (req, res, next) => {
     try {
-      const { username, role = 'DEVELOPER' } = req.body ?? {};
-
-      if (typeof username !== 'string' || username.trim() === '') {
-        throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
-          { field: 'username', message: 'must be a non-empty string' },
-        ]);
-      }
-      if (!isRepoRole(role)) {
-        throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
-          { field: 'role', message: 'must be one of TEAM_LEAD, DEVELOPER, VIEWER' },
-        ]);
-      }
+      const { username, role } = req.body;
 
       const member = await addMember(req.params.repoId, username, role, req.user!.id);
       res.status(201).json(member);

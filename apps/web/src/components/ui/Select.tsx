@@ -10,15 +10,12 @@ import { ChevronDown } from "lucide-react";
  * standalone for filter dropdowns.
  */
 
-interface SelectOption {
-  label: string;
-  value: string;
-}
+export type SelectOptionItem = string | { label: string; value: string };
 
 interface SelectProps {
   value: string;
   onChange: (value: string) => void;
-  options: SelectOption[];
+  options: SelectOptionItem[];
   placeholder?: string;
   className?: string;
 }
@@ -30,6 +27,10 @@ export function Select({
   placeholder,
   className = "",
 }: SelectProps) {
+  const normalizedOptions = options.map((opt) =>
+    typeof opt === "string" ? { label: opt, value: opt } : opt
+  );
+
   return (
     <div className={`relative ${className}`}>
       <select
@@ -50,7 +51,7 @@ export function Select({
             {placeholder}
           </option>
         )}
-        {options.map((opt) => (
+        {normalizedOptions.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
           </option>

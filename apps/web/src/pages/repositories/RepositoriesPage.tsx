@@ -12,7 +12,6 @@ import {
   SlidersHorizontal,
   TrendingUp,
   X,
-  ChevronDown,
   Loader2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -22,14 +21,22 @@ import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
 import { LinkRepositoryModal } from "../../components/repositories/LinkRepositoryModal";
 
+import {
+  Button,
+  Card,
+  PageHeader,
+  PageHeaderBadge,
+  PageHeaderTitle,
+  PageHeaderDescription,
+  PageHeaderActions,
+  StatCard,
+  Select,
+} from "../../components/ui";
+
 /*
  * =========================================================
  * REPOSITORIES PAGE (D-06)
  * =========================================================
- *
- * Real API wired repository list page.
- * Scoped to selected organization from OrgContext via GET /api/orgs/:orgId/repos
- * Mock repositories array removed.
  */
 
 type RepositoryStatus = "Excellent" | "Healthy" | "Needs attention";
@@ -210,69 +217,60 @@ export function RepositoriesPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-        {/* HEADER */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"
-        >
+        
+        <PageHeader>
           <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+            <PageHeaderBadge className="border-primary/20 bg-primary/10 text-primary">
               <GitBranch size={13} />
               Organization: {selectedOrg?.name || selectedOrg?.login || "Select Org"}
-            </div>
+            </PageHeaderBadge>
 
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Repositories
-            </h1>
+            <PageHeaderTitle>Repositories</PageHeaderTitle>
 
-            <p className="mt-2 text-sm text-muted-foreground">
+            <PageHeaderDescription>
               Monitor code health and technical debt for repositories in this organization.
-            </p>
+            </PageHeaderDescription>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsLinkModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 hover:shadow-primary/30"
-          >
-            <Plus size={17} />
-            Add repository
-          </button>
-        </motion.div>
+          <PageHeaderActions>
+            <Button
+              onClick={() => setIsLinkModalOpen(true)}
+              variant="primary"
+            >
+              <Plus size={17} className="mr-2" />
+              Add repository
+            </Button>
+          </PageHeaderActions>
+        </PageHeader>
 
         {/* SUMMARY CARDS */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <RepositorySummaryCard
+          <StatCard
             icon={Code2}
             title="Total repositories"
             value={String(stats.total)}
-            description="In current org"
-            iconClass="bg-primary/10 text-primary"
+            color="primary"
           />
 
-          <RepositorySummaryCard
+          <StatCard
             icon={TrendingUp}
             title="Average health"
             value={String(stats.avgHealth)}
-            description="Overall score"
-            iconClass="bg-success/10 text-success"
+            color="success"
           />
 
-          <RepositorySummaryCard
+          <StatCard
             icon={ShieldCheck}
             title="Healthy repositories"
             value={String(stats.healthyCount)}
-            description={`${stats.total > 0 ? Math.round((stats.healthyCount / stats.total) * 100) : 0}% of org repos`}
-            iconClass="bg-info/10 text-info"
+            color="info"
           />
 
-          <RepositorySummaryCard
+          <StatCard
             icon={GitFork}
             title="Total findings"
             value={String(stats.totalFindings)}
-            description="Across repositories"
-            iconClass="bg-warning/10 text-warning"
+            color="warning"
           />
         </div>
 
@@ -304,29 +302,29 @@ export function RepositoriesPage() {
               )}
             </div>
 
-            <button
-              type="button"
+            <Button
               onClick={() => setFiltersOpen((prev) => !prev)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium transition hover:bg-muted lg:hidden"
+              variant="outline"
+              className="lg:hidden"
             >
-              <Filter size={16} />
+              <Filter size={16} className="mr-2" />
               Filters
-            </button>
+            </Button>
 
             <div className="hidden items-center gap-3 lg:flex">
-              <FilterSelect
+              <Select
                 value={language}
                 onChange={setLanguage}
                 options={languages}
               />
 
-              <FilterSelect
+              <Select
                 value={scoreFilter}
                 onChange={setScoreFilter}
                 options={scoreFilters}
               />
 
-              <FilterSelect
+              <Select
                 value={sortBy}
                 onChange={(val) => setSortBy(val as SortOption)}
                 options={["health", "findings", "debt", "recent"]}
@@ -340,19 +338,19 @@ export function RepositoriesPage() {
               animate={{ opacity: 1, height: "auto" }}
               className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3 lg:hidden"
             >
-              <FilterSelect
+              <Select
                 value={language}
                 onChange={setLanguage}
                 options={languages}
               />
 
-              <FilterSelect
+              <Select
                 value={scoreFilter}
                 onChange={setScoreFilter}
                 options={scoreFilters}
               />
 
-              <FilterSelect
+              <Select
                 value={sortBy}
                 onChange={(val) => setSortBy(val as SortOption)}
                 options={["health", "findings", "debt", "recent"]}
@@ -388,13 +386,13 @@ export function RepositoriesPage() {
         ) : error ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
             <p className="text-sm font-semibold">{error}</p>
-            <button
-              type="button"
+            <Button
               onClick={fetchRepos}
-              className="mt-4 rounded-xl bg-destructive px-4 py-2 text-xs font-semibold text-destructive-foreground"
+              variant="destructive"
+              className="mt-4"
             >
               Retry
-            </button>
+            </Button>
           </div>
         ) : filteredRepositories.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-12 text-center">
@@ -427,69 +425,6 @@ export function RepositoriesPage() {
   );
 }
 
-function RepositorySummaryCard({
-  icon: Icon,
-  title,
-  value,
-  description,
-  iconClass,
-}: {
-  icon: React.ComponentType<{ size?: number }>;
-  title: string;
-  value: string;
-  description: string;
-  iconClass: string;
-}) {
-  return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      className="rounded-2xl border border-border/70 bg-card p-5 transition hover:border-primary/30 hover:shadow-xl"
-    >
-      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconClass}`}>
-        <Icon size={20} />
-      </div>
-
-      <p className="mt-5 text-sm text-muted-foreground">{title}</p>
-
-      <div className="mt-1 flex items-end justify-between gap-2">
-        <p className="text-3xl font-bold tracking-tight">{value}</p>
-        <p className="text-xs font-medium text-success">{description}</p>
-      </div>
-    </motion.div>
-  );
-}
-
-function FilterSelect({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-xl border border-border bg-background px-4 py-2.5 pr-9 text-sm outline-none transition hover:border-primary/40 focus:border-primary/50"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-
-      <ChevronDown
-        size={15}
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-      />
-    </div>
-  );
-}
-
 function RepositoryCard({
   repository,
   index,
@@ -502,103 +437,104 @@ function RepositoryCard({
   const isHealthy = repository.score >= 85;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-      whileHover={{ y: -4 }}
-      className="group rounded-2xl border border-border/70 bg-card p-5 transition hover:border-primary/30 hover:shadow-xl sm:p-6"
+    <Card
+      className="group cursor-pointer transition hover:border-primary/30 hover:shadow-xl sm:p-2"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Code2 size={21} />
+      <div className="p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Code2 size={21} />
+            </div>
+
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-semibold">{repository.name}</h3>
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {repository.fullName}
+              </p>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <h3 className="truncate text-base font-semibold">{repository.name}</h3>
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {repository.fullName}
+          <button
+            type="button"
+            className="rounded-lg p-2 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Health
+            </p>
+            <p
+              className={`mt-1 text-2xl font-bold ${
+                isHealthy ? "text-success" : "text-warning"
+              }`}
+            >
+              {repository.score}
             </p>
           </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Findings
+            </p>
+            <p className="mt-1 text-2xl font-bold">{repository.findings}</p>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Debt
+            </p>
+            <p className="mt-1 text-lg font-bold">{repository.debt}</p>
+          </div>
         </div>
 
-        <button
-          type="button"
-          className="rounded-lg p-2 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
-        >
-          <MoreHorizontal size={18} />
-        </button>
-      </div>
+        <div className="mt-6">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Health score</span>
+            <span className="text-xs font-medium text-success">
+              {repository.score >= 85 ? "Excellent" : "Needs improvement"}
+            </span>
+          </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Health
-          </p>
-          <p
-            className={`mt-1 text-2xl font-bold ${
-              isHealthy ? "text-success" : "text-warning"
-            }`}
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${repository.score}%` }}
+              transition={{ duration: 0.8, delay: index * 0.05 }}
+              className={`h-full rounded-full ${
+                isHealthy ? "bg-success" : "bg-warning"
+              }`}
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              {repository.language}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {repository.lastAnalyzed}
+            </span>
+          </div>
+
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+            variant="outline"
+            size="sm"
           >
-            {repository.score}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Findings
-          </p>
-          <p className="mt-1 text-2xl font-bold">{repository.findings}</p>
-        </div>
-
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Debt
-          </p>
-          <p className="mt-1 text-lg font-bold">{repository.debt}</p>
+            View repository
+            <ExternalLink size={14} className="ml-2" />
+          </Button>
         </div>
       </div>
-
-      <div className="mt-6">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Health score</span>
-          <span className="text-xs font-medium text-success">
-            {repository.score >= 85 ? "Excellent" : "Needs improvement"}
-          </span>
-        </div>
-
-        <div className="h-2 overflow-hidden rounded-full bg-muted">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${repository.score}%` }}
-            transition={{ duration: 0.8, delay: index * 0.05 }}
-            className={`h-full rounded-full ${
-              isHealthy ? "bg-success" : "bg-warning"
-            }`}
-          />
-        </div>
-      </div>
-
-      <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-            {repository.language}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {repository.lastAnalyzed}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={onSelect}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-semibold transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
-        >
-          View repository
-          <ExternalLink size={14} />
-        </button>
-      </div>
-    </motion.div>
+    </Card>
   );
 }

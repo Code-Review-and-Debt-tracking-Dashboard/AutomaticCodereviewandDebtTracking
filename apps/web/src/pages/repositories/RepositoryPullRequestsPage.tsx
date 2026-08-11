@@ -1,17 +1,36 @@
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
-  ChevronLeft,
   GitPullRequest,
-  GitMerge,
   MessageSquareWarning,
   ShieldAlert,
   Sparkles,
-  XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+
 import { api } from "../../lib/apiClient";
+
+import {
+  BackLink,
+  Badge,
+  Card,
+  DataTable,
+  DataTableHead,
+  DataTableBody,
+  DataTableRow,
+  DataTableHeaderCell,
+  DataTableCell,
+  FilterBar,
+  PageHeader,
+  PageHeaderBadge,
+  PageHeaderTitle,
+  PageHeaderDescription,
+  StatCard,
+} from "../../components/ui";
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 interface PullItem {
   id: number;
@@ -44,17 +63,24 @@ const fallbackPullRequests: PullItem[] = [
     branch: "perf/worker-optimization",
     score: 78,
     findings: 8,
-    debtDelta: +25,
+    debtDelta: 25,
     status: "Needs attention",
     time: "Yesterday",
   },
 ];
 
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
 export function RepositoryPullRequestsPage() {
   const { repoId } = useParams<{ repoId: string }>();
   const navigate = useNavigate();
+  
   const [prs, setPrs] = useState<PullItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!repoId) return;
@@ -80,199 +106,165 @@ export function RepositoryPullRequestsPage() {
 
   const pullRequests = prs.length > 0 ? prs : fallbackPullRequests;
 
+  const filteredPRs = pullRequests.filter((pr) => {
+    const matchesSearch =
+      pr.title.toLowerCase().includes(search.toLowerCase()) ||
+      pr.author.toLowerCase().includes(search.toLowerCase());
+    return matchesSearch;
+  });
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
+        
+        <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <button
-            onClick={() => navigate(`/repositories/${repoId}`)}
-            className="mb-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft size={16} />
-            Back to repository
-          </button>
+        <PageHeader>
+          <div>
+            <PageHeaderBadge className="border-info/20 bg-info/10 text-info">
+              <GitPullRequest size={13} />
+              Pull request intelligence
+            </PageHeaderBadge>
 
-          <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-info/20 bg-info/10 px-3 py-1.5 text-xs font-medium text-info">
-                <GitPullRequest size={13} />
-                Pull request intelligence
-              </div>
+            <PageHeaderTitle>Pull Requests</PageHeaderTitle>
 
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Pull Requests
-              </h1>
-
-              <p className="mt-2 text-sm text-muted-foreground">
-                Review code quality results from analyzed pull requests.
-              </p>
-            </div>
+            <PageHeaderDescription>
+              Review code quality results from analyzed pull requests.
+            </PageHeaderDescription>
           </div>
-        </motion.div>
+        </PageHeader>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              title: "Analyzed PRs",
-              value: "128",
-              icon: GitPullRequest,
-              className: "bg-info/10 text-info",
-            },
-            {
-              title: "Passed Quality Gate",
-              value: "94",
-              icon: CheckCircle2,
-              className: "bg-success/10 text-success",
-            },
-            {
-              title: "Needs Attention",
-              value: "22",
-              icon: MessageSquareWarning,
-              className: "bg-warning/10 text-warning",
-            },
-            {
-              title: "Average Score",
-              value: "87.4",
-              icon: Sparkles,
-              className: "bg-primary/10 text-primary",
-            },
-          ].map((stat, index) => {
-            const Icon = stat.icon;
 
-            return (
-              <motion.div
-                key={stat.title}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.08 }}
-                className="rounded-2xl border border-border/70 bg-card p-5 hover:-translate-y-1 hover:shadow-xl"
-              >
-                <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${stat.className}`}
-                >
-                  <Icon size={20} />
-                </div>
-
-                <p className="mt-5 text-sm text-muted-foreground">
-                  {stat.title}
-                </p>
-
-                <p className="mt-1 text-3xl font-bold">
-                  {stat.value}
-                </p>
-              </motion.div>
-            );
-          })}
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            title="Analyzed PRs"
+            value="128"
+            icon={GitPullRequest}
+            color="info"
+          />
+          <StatCard
+            title="Passed Quality Gate"
+            value="94"
+            icon={CheckCircle2}
+            color="success"
+          />
+          <StatCard
+            title="Needs Attention"
+            value="22"
+            icon={MessageSquareWarning}
+            color="warning"
+          />
+          <StatCard
+            title="Average Score"
+            value="87.4"
+            icon={Sparkles}
+            color="primary"
+          />
         </div>
 
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="mt-6 overflow-hidden rounded-2xl border border-border/70 bg-card"
-        >
-          <div className="border-b border-border/70 p-5 sm:p-6">
-            <p className="font-semibold">
-              Recent Pull Requests
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              Automated analysis results for recent pull requests.
-            </p>
+        <Card className="mt-6">
+          <div className="border-b border-border/70 p-5">
+            <FilterBar
+              searchPlaceholder="Search pull requests..."
+              searchValue={search}
+              onSearchChange={setSearch}
+            />
           </div>
 
-          <div className="divide-y divide-border/60">
-            {pullRequests.map((pr) => (
-              <div
-                key={pr.id}
-                className="flex flex-col gap-5 p-5 transition hover:bg-muted/30 lg:flex-row lg:items-center lg:justify-between"
-              >
-                <div className="flex min-w-0 items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-info/10 text-info">
-                    <GitPullRequest size={20} />
-                  </div>
+          <DataTable>
+            <DataTableHead>
+              <DataTableRow>
+                <DataTableHeaderCell>Pull Request</DataTableHeaderCell>
+                <DataTableHeaderCell>Author & Branch</DataTableHeaderCell>
+                <DataTableHeaderCell>Health Score</DataTableHeaderCell>
+                <DataTableHeaderCell>Findings</DataTableHeaderCell>
+                <DataTableHeaderCell>Debt Delta</DataTableHeaderCell>
+                <DataTableHeaderCell>Status</DataTableHeaderCell>
+              </DataTableRow>
+            </DataTableHead>
+            
+            <DataTableBody>
+              {filteredPRs.map((pr) => (
+                <DataTableRow 
+                  key={pr.id} 
+                  onClick={() => navigate(`/repositories/${repoId}/pull-requests/${pr.id}/findings`)}
+                  className="cursor-pointer hover:bg-muted/30"
+                >
+                  <DataTableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info/10 text-info">
+                        <GitPullRequest size={18} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          #{pr.id} {pr.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {pr.time}
+                        </p>
+                      </div>
+                    </div>
+                  </DataTableCell>
 
-                  <div className="min-w-0">
-                    <p className="font-semibold">
-                      #{pr.id} {pr.title}
-                    </p>
+                  <DataTableCell>
+                    <div className="text-sm font-medium">{pr.author}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{pr.branch}</div>
+                  </DataTableCell>
 
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {pr.author} · {pr.branch}
-                    </p>
-
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {pr.time}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-6">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Health Score
-                    </p>
-
-                    <p
-                      className={`mt-1 text-xl font-bold ${
-                        pr.score >= 85
-                          ? "text-success"
-                          : "text-warning"
+                  <DataTableCell>
+                    <div
+                      className={`text-sm font-bold ${
+                        pr.score >= 85 ? "text-success" : "text-warning"
                       }`}
                     >
                       {pr.score}
-                    </p>
-                  </div>
+                    </div>
+                  </DataTableCell>
 
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Findings
-                    </p>
+                  <DataTableCell>
+                    <div className="text-sm font-medium">{pr.findings}</div>
+                  </DataTableCell>
 
-                    <p className="mt-1 text-sm font-semibold">
-                      {pr.findings}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Debt Delta
-                    </p>
-
-                    <p
-                      className={`mt-1 text-sm font-bold ${
+                  <DataTableCell>
+                    <div
+                      className={`text-sm font-bold ${
                         pr.debtDelta <= 0 ? "text-success" : "text-destructive"
                       }`}
                     >
                       {pr.debtDelta > 0 ? `+${pr.debtDelta}m` : `${pr.debtDelta}m`}
-                    </p>
-                  </div>
+                    </div>
+                  </DataTableCell>
 
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
-                      pr.status === "Passed"
-                        ? "bg-success/10 text-success"
-                        : "bg-warning/10 text-warning"
-                    }`}
-                  >
-                    {pr.status === "Passed" ? (
-                      <CheckCircle2 size={14} />
-                    ) : (
-                      <ShieldAlert size={14} />
-                    )}
-
-                    {pr.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.section>
+                  <DataTableCell>
+                    <Badge
+                      variant="muted"
+                      className={
+                        pr.status === "Passed"
+                          ? "bg-success/10 text-success"
+                          : "bg-warning/10 text-warning"
+                      }
+                    >
+                      {pr.status === "Passed" ? (
+                        <CheckCircle2 size={13} className="mr-1.5" />
+                      ) : (
+                        <ShieldAlert size={13} className="mr-1.5" />
+                      )}
+                      {pr.status}
+                    </Badge>
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+              
+              {filteredPRs.length === 0 && (
+                <DataTableRow>
+                  <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                    No pull requests found.
+                  </DataTableCell>
+                </DataTableRow>
+              )}
+            </DataTableBody>
+          </DataTable>
+        </Card>
       </div>
     </main>
   );
