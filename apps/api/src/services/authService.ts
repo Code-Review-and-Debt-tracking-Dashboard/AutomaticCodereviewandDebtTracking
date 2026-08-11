@@ -36,8 +36,13 @@ function sanitizeRedirect(redirect: unknown): string | undefined {
   return typeof redirect === 'string' && redirect.startsWith('/') ? redirect : undefined;
 }
 
-export function buildGithubAuthorizeUrl(redirect?: unknown, client: OAuthClient = 'web'): string {
-  const state = signState(sanitizeRedirect(redirect), client);
+// Returns the nonce too, so the caller can put it in a cookie and bind the
+// login to this browser.
+export function buildGithubAuthorizeUrl(
+  redirect?: unknown,
+  client: OAuthClient = 'web',
+): { url: string; nonce: string } {
+  const { state, nonce } = signState(sanitizeRedirect(redirect), client);
 
   const url = new URL(GITHUB_AUTHORIZE_URL);
   url.searchParams.set('client_id', env.githubClientId);
@@ -45,7 +50,7 @@ export function buildGithubAuthorizeUrl(redirect?: unknown, client: OAuthClient 
   url.searchParams.set('scope', GITHUB_OAUTH_SCOPE);
   url.searchParams.set('state', state);
 
-  return url.toString();
+  return { url: url.toString(), nonce };
 }
 
 interface GithubTokenResponse {
@@ -83,6 +88,7 @@ async function exchangeCodeForToken(code: string): Promise<GithubTokenResponse> 
 export async function handleGithubCallback(
   code: string | undefined,
   state: string | undefined,
+  cookieNonce: string | undefined,
 ): Promise<AuthResult> {
   if (!code) {
     throw new AppError(400, 'INVALID_CODE', 'Missing "code" query parameter');
@@ -96,6 +102,12 @@ export async function handleGithubCallback(
     statePayload = verifyState(state);
   } catch {
     throw new AppError(400, 'INVALID_STATE', 'OAuth "state" is invalid or expired');
+  }
+
+  // Without this, any validly-signed state is accepted from any browser, so an
+  // attacker could hand a victim a login that lands in the attacker's account.
+  if (!cookieNonce || cookieNonce !== statePayload.nonce) {
+    throw new AppError(400, 'INVALID_STATE', 'OAuth "state" did not start in this browser');
   }
 
   const isFirstUse = await consumeStateNonce(statePayload.nonce);

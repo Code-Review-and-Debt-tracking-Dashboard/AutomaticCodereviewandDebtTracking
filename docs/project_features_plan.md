@@ -65,7 +65,7 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 |---|---|---|---|---|---|
 | 17 | Rumesh | `A-09` | BullMQ setup — Redis connection, queue definition | 11 | 4 |
 | **17a** | ~~Nethmi~~ **Rumesh** | `A-34` | ✅ **Done 10 Aug.** Session-backed revocation: 15-min access JWT + rotating 7-day refresh token hashed into `Session`, family-wide reuse detection, real `POST /auth/logout`, admin force-logout. Removed the `demo-token` backdoor. **Reassigned to Rumesh and rescoped — see the note below** | 17 | ~~4~~ 14 |
-| **17b** | Vidushi | `A-35` | ⚠️ **Half done.** Single-use Redis nonce shipped in `0779659` and matches the submitted activity diagram. **Still open:** `state` is not bound to the browser, so the callback accepts any validly-signed state — set the nonce in an `HttpOnly; SameSite=Lax` cookie at `/auth/github` and require it to match at the callback | 17 | 2 |
+| **17b** | Vidushi → **Rumesh** | `A-35` | ✅ **Done 11 Aug.** Single-use Redis nonce shipped in `0779659`; browser binding completed on top — `/auth/github` sets the nonce in an `HttpOnly; SameSite=Lax` cookie and the callback rejects any state whose nonce doesn't match, closing the login-CSRF where an attacker could hand a victim a login landing in the attacker's account | 17 | 2 |
 | 18 | Nethmi | `C-04b` | Extend seed with ~30 days of `HealthSnapshot` history | 4 | 3 |
 | 19 | Vidushi | `A-15` | `GET /api/repos/:id/hotspots` — worst files | 16 | 3 |
 | 20 | Rumesh | `A-10` | Enqueue analysis job from webhook handler (replace the `202` drop) | 17 | 2 |

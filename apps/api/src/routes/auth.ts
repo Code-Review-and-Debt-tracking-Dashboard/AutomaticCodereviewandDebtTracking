@@ -2,7 +2,14 @@ import cookieParser from 'cookie-parser';
 import { Router } from 'express';
 
 import { env } from '../config/env';
-import { clearRefreshCookie, REFRESH_COOKIE_NAME, setRefreshCookie } from '../lib/cookies';
+import {
+  clearRefreshCookie,
+  clearStateCookie,
+  REFRESH_COOKIE_NAME,
+  setRefreshCookie,
+  setStateCookie,
+  STATE_COOKIE_NAME,
+} from '../lib/cookies';
 import { signAccessToken } from '../lib/jwt';
 import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
@@ -23,15 +30,21 @@ const cookies = cookieParser();
 
 authRouter.get('/auth/github', (req, res) => {
   const client = req.query.client === 'native' ? 'native' : 'web';
-  res.redirect(buildGithubAuthorizeUrl(req.query.redirect, client));
+  const { url, nonce } = buildGithubAuthorizeUrl(req.query.redirect, client);
+  setStateCookie(res, nonce);
+  res.redirect(url);
 });
 
-authRouter.get('/auth/github/callback', async (req, res, next) => {
+authRouter.get('/auth/github/callback', cookies, async (req, res, next) => {
   const code = typeof req.query.code === 'string' ? req.query.code : undefined;
   const state = typeof req.query.state === 'string' ? req.query.state : undefined;
+  const cookieNonce = req.cookies?.[STATE_COOKIE_NAME] as string | undefined;
+
+  // Single use either way — a failed login has to start over.
+  clearStateCookie(res);
 
   try {
-    const result = await handleGithubCallback(code, state);
+    const result = await handleGithubCallback(code, state, cookieNonce);
 
     // The mobile app can't use cookies, so it gets the tokens directly.
     if (result.client === 'native') {

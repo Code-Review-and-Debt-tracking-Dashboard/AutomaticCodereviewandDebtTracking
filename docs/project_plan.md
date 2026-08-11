@@ -90,7 +90,7 @@
 | C-08 | Add role model: `PlatformRole` enum (+ `platformRole` on User) and per-repo `RepositoryRole`/`MemberStatus` on the `RepositoryMember` model | 2h | C-01 |
 | C-09 | Add organization tenancy: `Organization` + `OrganizationMember` models, `OrgType`/`OrgRole` enums, `Repository.orgId`. Needs a hand-written backfill inside the migration because `orgId` is `NOT NULL` on an already-populated table | 3h | C-01, C-08 |
 | A-31 | *(cross-trained from WBS-A)* REST: Application metrics endpoint (`GET /api/metrics`, admin-only) | 2h | A-04, C-03 |
-| A-35 | *(cross-trained from WBS-A, reviewed by you)* OAuth `state`. The single-use Redis nonce check shipped in `0779659`, so replay protection is real. **Remaining work:** `state` is not bound to the browser that started the flow — the callback accepts any validly-signed state, so an attacker can obtain one from `/auth/github` and run a login-CSRF. Set the nonce in an `HttpOnly; SameSite=Lax` cookie at `/auth/github` and require it to match the signed state at the callback | 2h | A-05, A-09 |
+| A-35 | ✅ **Done 11 Aug — taken back into WBS-A by the lead.** OAuth `state` now does what the docs claimed. The single-use Redis nonce shipped in `0779659` (replay protection); browser binding completed on 11 Aug — `/auth/github` writes the nonce to an `HttpOnly; SameSite=Lax` cookie and the callback rejects any state whose nonce doesn't match it. Without that second half, a validly-signed state was accepted from *any* browser, so an attacker could harvest one and have a victim complete a login into the attacker's GitHub identity | 2h | A-05, A-09 |
 
 ### WBS-D: Frontend Web Dashboard (Owner: Teammate 1)
 
