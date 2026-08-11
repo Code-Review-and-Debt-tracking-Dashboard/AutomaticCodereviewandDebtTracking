@@ -28,6 +28,7 @@ Redirects browser to GitHub OAuth consent screen.
 - **Auth:** None
 - **Query:** `?redirect=/dashboard` (optional — where to go after login), `?client=web|native` (default `web`)
 - **Response:** `302 Redirect` → `https://github.com/login/oauth/authorize?client_id=...&scope=repo,user:email`
+- **Also sets:** `ch_oauth_state` — `HttpOnly`, `SameSite=Lax`, `Path=/auth`, 10 min. Holds the same nonce that is inside the signed `state`, which is what ties the login to this browser.
 
 ### `GET /auth/github/callback`
 
@@ -55,6 +56,8 @@ The code exchange happens entirely server-side and the browser is **redirected**
   }
 }
 ```
+
+The `state` is checked three ways before the code is exchanged: the signature must verify, the nonce must match the `ch_oauth_state` cookie (so the login has to finish in the browser that started it), and the nonce must be unused in Redis (so a callback URL can't be replayed). The cookie is cleared on every callback, success or failure — a failed login starts over.
 
 > The GitHub OAuth App's Authorization callback URL must equal `GITHUB_OAUTH_CALLBACK_URL` — i.e. the **API**, not the web app.
 

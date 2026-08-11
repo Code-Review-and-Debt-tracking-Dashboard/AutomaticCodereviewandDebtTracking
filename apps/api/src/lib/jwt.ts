@@ -52,14 +52,13 @@ export interface OAuthStatePayload {
 
 const STATE_EXPIRES_IN = '10m';
 
-export function signState(redirect: string | undefined, client: OAuthClient): string {
-  const payload: OAuthStatePayload & { typ: TokenType } = {
-    redirect,
-    client,
-    nonce: randomUUID(),
-    typ: 'state',
-  };
-  return jwt.sign(payload, env.jwtSecret, { expiresIn: STATE_EXPIRES_IN });
+export function signState(
+  redirect: string | undefined,
+  client: OAuthClient,
+): { state: string; nonce: string } {
+  const nonce = randomUUID();
+  const payload: OAuthStatePayload & { typ: TokenType } = { redirect, client, nonce, typ: 'state' };
+  return { state: jwt.sign(payload, env.jwtSecret, { expiresIn: STATE_EXPIRES_IN }), nonce };
 }
 
 export function verifyState(state: string): OAuthStatePayload {
