@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import {
+  AlertCircle,
   ArrowRight,
   BarChart3,
   CheckCircle2,
@@ -9,6 +10,9 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { Navigate } from "react-router-dom";
+
+import { useAuth } from "../../contexts/AuthContext";
 
 import { Card, IconBox } from "../../components/ui";
 
@@ -19,40 +23,21 @@ const API_URL =
 
 /* =========================================================
    FEATURES
-========================================================= */
-
-const features = [
-  {
-    icon: BarChart3,
-    title: "Health score",
-    text: "Track code quality over time.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Security insights",
-    text: "Detect risks earlier.",
-  },
-  {
-    icon: GitPullRequest,
-    title: "PR analysis",
-    text: "Review every change automatically.",
-  },
-  {
-    icon: CheckCircle2,
-    title: "Quality gates",
-    text: "Protect your standards.",
-  },
-];
-
-
-/* =========================================================
-   COMPONENT
-========================================================= */
 
 export function LoginPage() {
+  const { status, authLostReason } = useAuth();
+
   const handleGithubLogin = () => {
     window.location.href = `${API_URL}/auth/github`;
   };
+
+  if (status === "authenticated") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const notice = authLostReason
+    ? SIGN_OUT_MESSAGES[authLostReason] ?? null
+    : null;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background">

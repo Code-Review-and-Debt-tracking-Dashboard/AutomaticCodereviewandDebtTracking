@@ -91,6 +91,20 @@ reposRouter.get(
   },
 );
 
+reposRouter.get(
+  '/api/repos/:repoId/hotspots',
+  requireAuth,
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const hotspots = await getRepoHotspots(req.params.repoId, req.query);
+      res.status(200).json(hotspots);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 // GET /api/repos/:repoId/pulls : list pull requests with health & debt delta
 reposRouter.get(
   '/api/repos/:repoId/pulls',
@@ -105,6 +119,26 @@ reposRouter.get(
     }
   },
 );
+
+// GET /api/repos/:repoId/pulls/:prNumber : single PR detail with full analysis history
+reposRouter.get(
+  '/api/repos/:repoId/pulls/:prNumber',
+  requireAuth,
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const prNumber = Number(req.params.prNumber);
+      if (!Number.isInteger(prNumber)) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'prNumber must be an integer');
+      }
+      const pr = await getRepoPullRequestDetail(req.params.repoId, prNumber);
+      res.status(200).json(pr);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 
 // POST /api/repos/:repoId/members : owner, an active TEAM_LEAD, or a platform
 // admin can grant another existing platform user access to the repo.

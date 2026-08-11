@@ -64,8 +64,8 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
 | 17 | Rumesh | `A-09` | BullMQ setup — Redis connection, queue definition | 11 | 4 |
-| **17a** | Nethmi | `A-34` | **Session/token revocation — Redis-backed denylist checked in `requireAuth`, real invalidation on `POST /auth/logout`, admin force-logout endpoint (reviewed by Rumesh)** | 17 | 4 |
-| **17b** | Vidushi | `A-35` | **OAuth `state` nonce — wire to a single-use Redis check, or drop it and correct the docs that describe it as replay protection (reviewed by Rumesh)** | 17 | 2 |
+| **17a** | ~~Nethmi~~ **Rumesh** | `A-34` | ✅ **Done 10 Aug.** Session-backed revocation: 15-min access JWT + rotating 7-day refresh token hashed into `Session`, family-wide reuse detection, real `POST /auth/logout`, admin force-logout. Removed the `demo-token` backdoor. **Reassigned to Rumesh and rescoped — see the note below** | 17 | ~~4~~ 14 |
+| **17b** | Vidushi → **Rumesh** | `A-35` | ✅ **Done 11 Aug.** Single-use Redis nonce shipped in `0779659`; browser binding completed on top — `/auth/github` sets the nonce in an `HttpOnly; SameSite=Lax` cookie and the callback rejects any state whose nonce doesn't match, closing the login-CSRF where an attacker could hand a victim a login landing in the attacker's account | 17 | 2 |
 | 18 | Nethmi | `C-04b` | Extend seed with ~30 days of `HealthSnapshot` history | 4 | 3 |
 | 19 | Vidushi | `A-15` | `GET /api/repos/:id/hotspots` — worst files | 16 | 3 |
 | 20 | Rumesh | `A-10` | Enqueue analysis job from webhook handler (replace the `202` drop) | 17 | 2 |
@@ -81,6 +81,9 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 
 > **Step 26 is demo infrastructure.** It lets you trigger analysis on command instead of praying GitHub delivers a webhook in front of an evaluator.
 > **Step 18 is why the trend chart won't demo as a single dot.**
+> **Step 17a was reassigned from Nethmi to Rumesh and grew from 4h to ~14h.** Two reasons. First, the mechanism changed: the row said "Redis denylist", but the submitted architecture document specifies `Session.tokenHash` with `validateSession()` / `revokeSession()` and states that session tokens are stored hashed — none of which was true of the code. Building the denylist would have satisfied the row while leaving three submitted claims false, so the design moved to the `Session` table the SAD already describes. Second, it stopped being a backend-only task: the OAuth callback now redirects instead of returning JSON, so `apiClient.ts`, `AuthContext.tsx`, `AuthCallbackPage.tsx` and `LoginPage.tsx` all changed. **That is Nethmi's app — the web half needs her review before merge**, which inverts the row's original "reviewed by Rumesh".
+> **The `demo-token` backdoor is gone, which changes how you run the app locally.** Until now every anonymous visitor was silently signed in as a platform ADMIN, so the dashboard "worked" with no login at all. It now redirects to `/login` like a real app. Set `ENABLE_DEV_LOGIN=true` and use `POST /auth/dev-login` if your GitHub OAuth credentials aren't configured.
+> **Step 28 is unblocked and better specified than when it was written.** The API now issues tokens on two transports; mobile sends `?client=native` to `/auth/github` and gets JSON with a `refreshToken` instead of a cookie, so there is nothing left to design — it's SecureStore plumbing plus a deep link.
 
 **⛔ GATE — Friday 8 Aug, full dress rehearsal:** log in → link a repo → open repo detail → trend chart draws a real curve. Run it three times. Freeze Saturday.
 
@@ -238,8 +241,8 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 
 | Person | Steps | Hours | Weeks 6–14 avg |
 |---|---|---|---|
-| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, 20, 23, 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~121h | ~13.5h/wk |
-| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84, **17a** | ~83h | ~9.2h/wk |
+| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, 20, 23, 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~135h | ~15.0h/wk |
+| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84 | ~79h | ~8.8h/wk |
 | **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 48, 50, 51, 54, 57, 60, 65, 67, 71, 74, 79, 82, 85, 87, 88, **17b** | ~85h | ~9.4h/wk |
 
 Lighter than the original plan because documentation sits on a separate track. Treat the difference as buffer for exam weeks and integration bugs — both consistently cost more than anyone budgets.
