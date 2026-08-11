@@ -1,12 +1,15 @@
+import { AnalysisTrigger } from '@codehealth/db';
 import express, { Router } from 'express';
 
 import { AppError } from '../middleware/errorHandler';
 import { verifyWebhookSignature } from '../middleware/verifyWebhookSignature';
+import { enqueueAnalysisJob } from '../services/queueService';
 import {
   findLinkedRepository,
   parsePullRequestEvent,
   SUPPORTED_PR_ACTIONS,
   type SupportedPrAction,
+  upsertPullRequest,
 } from '../services/webhookService';
 
 export const webhookRouter = Router();
@@ -38,10 +41,25 @@ webhookRouter.post(
         return;
       }
 
-      await findLinkedRepository(event.githubRepoId);
+      const repository = await findLinkedRepository(event.githubRepoId);
+      const pullRequest = await upsertPullRequest(repository.id, event);
 
-      // TODO: enqueue the analysis job and return the job id
-      res.status(202).json({ message: 'Received' });
+      if (event.action === 'closed') {
+        res.status(200).json({ message: 'Pull request closed' });
+        return;
+      }
+
+      const { analysisId, jobId } = await enqueueAnalysisJob({
+        repoId: repository.id,
+        branch: event.headBranch,
+        commitSha: event.headSha,
+        cloneUrl: event.cloneUrl,
+        trigger: AnalysisTrigger.WEBHOOK,
+        pullRequestId: pullRequest.id,
+        prNumber: event.prNumber,
+      });
+
+      res.status(202).json({ message: 'Job queued', analysisId, jobId });
     } catch (err) {
       next(err);
     }
