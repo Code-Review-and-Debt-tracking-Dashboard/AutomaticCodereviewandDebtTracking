@@ -59,4 +59,9 @@ export const env = {
 
   // 32-byte (64 hex chars) key for AES-256-GCM token-at-rest encryption.
   tokenEncryptionKey: required('TOKEN_ENCRYPTION_KEY', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+
+  // Basic auth on /admin (Bull Board). Not OAuth — has to work when login is
+  // what's broken.
+  adminBasicAuthUser: required('ADMIN_BASIC_AUTH_USER', 'admin'),
+  adminBasicAuthPassword: required('ADMIN_BASIC_AUTH_PASSWORD', 'admin'),
 };
