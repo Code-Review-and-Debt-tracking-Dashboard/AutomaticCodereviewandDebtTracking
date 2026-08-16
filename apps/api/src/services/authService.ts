@@ -15,6 +15,7 @@ const GITHUB_OAUTH_SCOPE = 'repo,user:email,read:org';
 
 export interface AuthResult {
   token: string;
+  redirect?: string;
   user: {
     id: string;
     username: string;
@@ -24,9 +25,16 @@ export interface AuthResult {
   };
 }
 
-// relative paths only, otherwise this is an open redirect
+
+const MOBILE_SCHEME = 'codehealth://'; // matches "scheme" in apps/mobile/app.json
+
+// relative paths or the mobile app's own scheme only, otherwise this is an open redirect
 function sanitizeRedirect(redirect: unknown): string | undefined {
-  return typeof redirect === 'string' && redirect.startsWith('/') ? redirect : undefined;
+  if (typeof redirect !== 'string') return undefined;
+  if (redirect.startsWith('/') || redirect.startsWith(MOBILE_SCHEME)) {
+    return redirect;
+  }
+  return undefined;
 }
 
 export function buildGithubAuthorizeUrl(redirect?: unknown): string {
@@ -95,6 +103,8 @@ export async function handleGithubCallback(
   if (!isFirstUse) {
     throw new AppError(400, 'INVALID_STATE', 'OAuth "state" has already been used');
   }
+
+  const redirect = statePayload.redirect;
 
   const tokenResponse = await exchangeCodeForToken(code);
   if (tokenResponse.error || !tokenResponse.access_token) {
@@ -175,6 +185,7 @@ export async function handleGithubCallback(
 
   return {
     token,
+    redirect,
     user: {
       id: user.id,
       username: user.username,

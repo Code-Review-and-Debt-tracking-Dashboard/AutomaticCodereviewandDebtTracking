@@ -16,7 +16,14 @@ authRouter.get('/auth/github/callback', async (req, res, next) => {
     const state = typeof req.query.state === 'string' ? req.query.state : undefined;
 
     const result = await handleGithubCallback(code, state);
-    res.status(200).json(result);
+
+    if (!result.redirect) {
+      res.status(200).send('Login successful. You can close this window.');
+      return;
+    }
+
+    const url = `${result.redirect}?token=${encodeURIComponent(result.token)}`;
+    res.redirect(url);
   } catch (err) {
     next(err);
   }
