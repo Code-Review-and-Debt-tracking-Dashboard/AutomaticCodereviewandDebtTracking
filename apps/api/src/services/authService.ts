@@ -31,9 +31,13 @@ export interface AuthResult {
   user: PublicUser;
 }
 
-// relative paths only, otherwise this is an open redirect
+// relative paths (web) or the app's own deep-link scheme (native) only,
+// otherwise this is an open redirect.
 function sanitizeRedirect(redirect: unknown): string | undefined {
-  return typeof redirect === 'string' && redirect.startsWith('/') ? redirect : undefined;
+  if (typeof redirect !== 'string') return undefined;
+  if (redirect.startsWith('/')) return redirect;
+  if (redirect.startsWith('codehealth://') || redirect.startsWith('exp://')) return redirect;
+  return undefined;
 }
 
 // Returns the nonce too, so the caller can put it in a cookie and bind the
