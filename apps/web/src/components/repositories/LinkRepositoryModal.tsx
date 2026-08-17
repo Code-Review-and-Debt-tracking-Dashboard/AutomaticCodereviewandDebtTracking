@@ -73,16 +73,10 @@ export function LinkRepositoryModal({
     setLinkingId(repo.githubRepoId);
     setError(null);
     try {
+      // Everything else comes from GitHub, and the org is derived from the
+      // repo's owner, so sending more than the id would just be ignored.
       await api.post("/api/repos", {
-        githubRepoId: repo.githubRepoId,
-        name: repo.name,
-        fullName: repo.fullName,
-        htmlUrl: repo.htmlUrl,
-        cloneUrl: repo.cloneUrl,
-        defaultBranch: repo.defaultBranch,
-        language: repo.language,
-        private: repo.private,
-        orgId: selectedOrg?.id,
+        githubRepoId: Number(repo.githubRepoId),
       });
 
       onRepoLinked();
