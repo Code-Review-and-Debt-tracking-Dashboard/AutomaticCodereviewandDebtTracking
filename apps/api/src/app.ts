@@ -10,6 +10,7 @@ import { authRouter, devLoginRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
 import { notificationsRouter } from './routes/notifications';
 import { orgsRouter } from './routes/orgs';
+import { queuesRouter } from './routes/queues';
 import { reposRouter } from './routes/repos';
 import { qualityGatesRouter } from './routes/qualityGates';
 import { snapshotsRouter } from './routes/snapshots';
@@ -36,6 +37,7 @@ export function createApp(): Express {
   app.use(healthRouter);
   app.use(notificationsRouter);
   app.use(orgsRouter);
+  app.use(queuesRouter);
   app.use(reposRouter);
   app.use(qualityGatesRouter);
   app.use(snapshotsRouter);

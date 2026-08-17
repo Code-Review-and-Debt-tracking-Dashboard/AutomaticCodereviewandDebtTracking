@@ -4,6 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
+import { triggerManualAnalysis } from '../services/queueService';
 import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend, linkRepository } from '../services/repoService';
 
 export const reposRouter = Router();
@@ -137,6 +138,27 @@ reposRouter.get(
   },
 );
 
+
+// POST /api/repos/:repoId/analyze : queue an analysis of the default branch
+// without waiting for a webhook. Returns the analysis job id — there is no
+// snapshot until the job finishes.
+reposRouter.post(
+  '/api/repos/:repoId/analyze',
+  requireAuth,
+  requireRepoAccess('write'),
+  async (req, res, next) => {
+    try {
+      const { analysisId, jobId } = await triggerManualAnalysis(
+        req.params.repoId,
+        req.user!.id,
+        req.org!.role,
+      );
+      res.status(202).json({ message: 'Analysis queued', analysisId, jobId });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // POST /api/repos/:repoId/members : owner, an active TEAM_LEAD, or a platform
 // admin can grant another existing platform user access to the repo.

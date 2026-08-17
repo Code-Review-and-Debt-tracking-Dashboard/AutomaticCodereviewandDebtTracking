@@ -1,4 +1,4 @@
-import { prisma } from '@codehealth/db';
+import { prisma, PRStatus } from '@codehealth/db';
 
 import { AppError } from '../middleware/errorHandler';
 
@@ -13,6 +13,8 @@ interface GithubPullRequestPayload {
   pull_request: {
     number: number;
     title: string;
+    html_url: string;
+    merged: boolean;
     user: { login: string };
     head: { ref: string; sha: string };
     base: { ref: string };
@@ -28,6 +30,8 @@ export interface ParsedPullRequestEvent {
   action: string;
   prNumber: number;
   title: string;
+  htmlUrl: string;
+  merged: boolean;
   authorLogin: string;
   headBranch: string;
   baseBranch: string;
@@ -50,6 +54,8 @@ function isGithubPullRequestPayload(value: unknown): value is GithubPullRequestP
     pr !== null &&
     typeof pr.number === 'number' &&
     typeof pr.title === 'string' &&
+    typeof pr.html_url === 'string' &&
+    typeof pr.merged === 'boolean' &&
     typeof pr.user?.login === 'string' &&
     typeof pr.head?.ref === 'string' &&
     typeof pr.head?.sha === 'string' &&
@@ -79,6 +85,8 @@ export function parsePullRequestEvent(rawBody: Buffer): ParsedPullRequestEvent {
     action: payload.action,
     prNumber: payload.pull_request.number,
     title: payload.pull_request.title,
+    htmlUrl: payload.pull_request.html_url,
+    merged: payload.pull_request.merged,
     authorLogin: payload.pull_request.user.login,
     headBranch: payload.pull_request.head.ref,
     baseBranch: payload.pull_request.base.ref,
@@ -98,4 +106,27 @@ export async function findLinkedRepository(githubRepoId: string) {
   }
 
   return repository;
+}
+
+// synchronize fires on every push to the PR branch, so this upserts rather
+// than just creating
+export async function upsertPullRequest(repoId: string, event: ParsedPullRequestEvent) {
+  const status =
+    event.action !== 'closed' ? PRStatus.OPEN : event.merged ? PRStatus.MERGED : PRStatus.CLOSED;
+
+  const fields = {
+    title: event.title,
+    authorLogin: event.authorLogin,
+    htmlUrl: event.htmlUrl,
+    headBranch: event.headBranch,
+    baseBranch: event.baseBranch,
+    headSha: event.headSha,
+    status,
+  };
+
+  return prisma.pullRequest.upsert({
+    where: { repoId_prNumber: { repoId, prNumber: event.prNumber } },
+    create: { repoId, prNumber: event.prNumber, ...fields },
+    update: fields,
+  });
 }
