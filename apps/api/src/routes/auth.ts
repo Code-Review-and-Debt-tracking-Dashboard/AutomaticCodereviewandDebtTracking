@@ -46,14 +46,21 @@ authRouter.get('/auth/github/callback', cookies, async (req, res, next) => {
   try {
     const result = await handleGithubCallback(code, state, cookieNonce);
 
-    // The mobile app can't use cookies, so it gets the tokens directly.
+    // The mobile app can't use cookies, so tokens ride the redirect back to
+    // the app's own deep link as query params — WebBrowser.openAuthSessionAsync
+    // only resolves once it sees that redirect happen.
     if (result.client === 'native') {
-      res.status(200).json({
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        expiresAt: result.expiresAt,
-        user: result.user,
-      });
+      if (!result.redirectTo) {
+        res.status(400).json({
+          error: { code: 'INVALID_REDIRECT', message: 'Missing native redirect target' },
+        });
+        return;
+      }
+      const url = new URL(result.redirectTo);
+      url.searchParams.set('accessToken', result.accessToken);
+      url.searchParams.set('refreshToken', result.refreshToken);
+      url.searchParams.set('expiresAt', result.expiresAt.toISOString());
+      res.redirect(url.toString());
       return;
     }
 
