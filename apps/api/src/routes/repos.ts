@@ -5,7 +5,8 @@ import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
 import { triggerManualAnalysis } from '../services/queueService';
-import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend, linkRepository } from '../services/repoService';
+import { linkRepository, listAvailableRepos, unlinkRepository } from '../services/repoLinkService';
+import { getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend } from '../services/repoService';
 
 export const reposRouter = Router();
 
@@ -13,22 +14,47 @@ export const reposRouter = Router();
 reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
   try {
     const orgId = typeof req.query.orgId === 'string' ? req.query.orgId : undefined;
-    const data = await getAvailableRepos(req.user!.id, orgId);
+    const data = await listAvailableRepos(req.user!.id, orgId);
     res.status(200).json({ data });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/repos : link a repository to an org
+// POST /api/repos : link a repository to an org and register its webhook.
+// Everything about the repo comes from GitHub, so the body is just the id.
 reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   try {
-    const repo = await linkRepository(req.user!.id, req.body ?? {});
+    const githubRepoId = Number(req.body?.githubRepoId);
+
+    if (!Number.isInteger(githubRepoId) || githubRepoId <= 0) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
+        { field: 'githubRepoId', message: 'must be a positive integer' },
+      ]);
+    }
+
+    const repo = await linkRepository(req.user!.id, githubRepoId);
     res.status(201).json(repo);
   } catch (err) {
     next(err);
   }
 });
+
+// DELETE /api/repos/:repoId : unlink and remove the GitHub webhook. Soft
+// delete, so snapshots and PR history survive a relink.
+reposRouter.delete(
+  '/api/repos/:repoId',
+  requireAuth,
+  requireRepoAccess('write'),
+  async (req, res, next) => {
+    try {
+      await unlinkRepository(req.params.repoId, req.user!.id, req.org!.role);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // GET /api/repos/:repoId : fetch single repository details
 reposRouter.get(
