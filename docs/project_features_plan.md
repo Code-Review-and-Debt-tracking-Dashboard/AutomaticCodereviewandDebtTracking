@@ -77,9 +77,9 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | 26 | Rumesh | `A-18` | `POST /api/repos/:id/analyze` — manual trigger | 23 | 2 |
 | 27 | Nethmi | `D-10` | Trend chart wired to `/trend`, range selector live | 10, 18, 24 | 4 |
 | 28 | Vidushi | `E-03` | Mobile auth — token exchange, persist in SecureStore | 25 | 5 |
-| 29 | Rumesh | — | Integration pass: full path via `ngrok` + real test repo | 26 | 6 |
 
 > **Step 26 is demo infrastructure.** It lets you trigger analysis on command instead of praying GitHub delivers a webhook in front of an evaluator.
+> **Step 29 moved to Week 8 (now 32a).** The row waited on step 26, but its real prerequisite is a queue consumer — `apps/worker/` is still empty, so a webhook delivered over `ngrok` enqueues a job nothing picks up. It also leaves `AnalysisJob` rows `PENDING`, and the manual trigger returns `429` while any `PENDING` job exists for the repo, so the gate's "run it three times" would fail on the second run. It now sits directly behind `B-01`.
 > **Step 18 is why the trend chart won't demo as a single dot.**
 > **Step 17a was reassigned from Nethmi to Rumesh and grew from 4h to ~14h.** Two reasons. First, the mechanism changed: the row said "Redis denylist", but the submitted architecture document specifies `Session.tokenHash` with `validateSession()` / `revokeSession()` and states that session tokens are stored hashed — none of which was true of the code. Building the denylist would have satisfied the row while leaving three submitted claims false, so the design moved to the `Session` table the SAD already describes. Second, it stopped being a backend-only task: the OAuth callback now redirects instead of returning JSON, so `apiClient.ts`, `AuthContext.tsx`, `AuthCallbackPage.tsx` and `LoginPage.tsx` all changed. **That is Nethmi's app — the web half needs her review before merge**, which inverts the row's original "reviewed by Rumesh".
 > **The `demo-token` backdoor is gone, which changes how you run the app locally.** Until now every anonymous visitor was silently signed in as a platform ADMIN, so the dashboard "worked" with no login at all. It now redirects to `/login` like a real app. Set `ENABLE_DEV_LOGIN=true` and use `POST /auth/dev-login` if your GitHub OAuth credentials aren't configured.
@@ -94,13 +94,16 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
-| 30 | All | — | Demo rehearsal, fallback script, bug triage (Mon 10 Aug) | 29 | 4 |
+| 30 | All | — | Demo rehearsal, fallback script, bug triage (Mon 10 Aug) | 28 | 4 |
 | 31 | All | — | **PROGRESS REVIEW 1** (10–14 Aug) | 30 | — |
 | 32 | Rumesh | `B-01` | Worker scaffold — BullMQ consumer, job processor registration | 31 | 4 |
+| **32a** | Rumesh | — | **Moved from Week 7 (was step 29).** Integration pass: full path via `ngrok` + real test repo | 32 | 6 |
 | 33 | Nethmi | `D-13` | PR scan history table + debt delta indicator | 31 | 4 |
 | 34 | Vidushi | `E-04` | API client module for mobile | 31 | 3 |
 
 > **Mid Evaluation opens 15 Aug.** Capacity drops to ~10h/person for Weeks 9–10. Already priced in below.
+> **Step 32a puts Rumesh at 10h this week** instead of 4h, still under his ~15h/wk average. The hours moved from Week 7, they aren't new. Run it as soon as 32 merges — risk `R-03` in `project_plan.md` wants real webhooks tested by Week 8, and this is the last position that still honours that.
+> **Step 32a stops at the queue draining, not at a real score.** A consumer that flips `AnalysisJob` to `COMPLETED` is enough to prove the tunnel, the HMAC check, the payload shape and GitHub's redelivery behaviour. Verifying that the pipeline produces a real `HealthSnapshot` is already a separate row — step 86 (`B-27`, Week 14).
 
 ---
 
@@ -241,7 +244,7 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 
 | Person | Steps | Hours | Weeks 6–14 avg |
 |---|---|---|---|
-| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, 20, 23, 26, 29, 32, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~135h | ~15.0h/wk |
+| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, 20, 23, 26, 32, **32a**, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~135h | ~15.0h/wk |
 | **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84 | ~79h | ~8.8h/wk |
 | **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 48, 50, 51, 54, 57, 60, 65, 67, 71, 74, 79, 82, 85, 87, 88, **17b** | ~85h | ~9.4h/wk |
 
