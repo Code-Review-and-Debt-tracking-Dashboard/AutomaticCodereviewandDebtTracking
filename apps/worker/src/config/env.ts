@@ -23,4 +23,12 @@ export const env = {
 
   // How many jobs run at once in this process.
   concurrency: Number(process.env.WORKER_CONCURRENCY) || 2,
+
+  // Same key the API encrypted the GitHub tokens with — a different value here
+  // means every decrypt fails.
+  tokenEncryptionKey: required('TOKEN_ENCRYPTION_KEY', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+
+  // Upper bound on a single clone. Big repos take a while, but a clone that
+  // hangs shouldn't hold a worker slot until the whole job times out.
+  cloneTimeoutMs: Number(process.env.CLONE_TIMEOUT_MS) || 120_000,
 };
