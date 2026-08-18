@@ -19,6 +19,10 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -221,7 +225,14 @@ export function RepositoryOverviewPage() {
   const { repoId } = useParams<{ repoId: string }>();
   const [repoDetail, setRepoDetail] = useState<RepoDetail | null>(null);
   const [trendPoints, setTrendPoints] = useState<{ date: string; score: number }[]>([]);
-  const [debtData, setDebtData] = useState<{ totalDebtMinutes: number; debtDelta: number } | null>(null);
+  const [debtData, setDebtData] = useState<{
+    totalDebtMinutes: number;
+    debtDelta: number;
+    breakdown: Record<
+      "vulnerability" | "complexity" | "duplication" | "code_smell" | "maintainability",
+      { count: number; debtMinutes: number }
+    >;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -233,7 +244,14 @@ export function RepositoryOverviewPage() {
         const [repoRes, trendRes, debtRes] = await Promise.allSettled([
           api.get<RepoDetail>(`/api/repos/${repoId}`),
           api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
-          api.get<{ totalDebtMinutes: number; debtDelta: number }>(`/api/repos/${repoId}/debt`),
+          api.get<{
+            totalDebtMinutes: number;
+            debtDelta: number;
+            breakdown: Record<
+              "vulnerability" | "complexity" | "duplication" | "code_smell" | "maintainability",
+              { count: number; debtMinutes: number }
+            >;
+          }>(`/api/repos/${repoId}/debt`),
         ]);
 
         if (repoRes.status === "fulfilled") {
@@ -278,6 +296,16 @@ export function RepositoryOverviewPage() {
   };
 
   const chartTrend = trendPoints.length > 0 ? trendPoints : healthTrend;
+
+  const debtBreakdown = debtData?.breakdown;
+  const debtChartData = [
+    { key: "vulnerability", label: "Vulnerability", value: debtBreakdown?.vulnerability.debtMinutes ?? 0, color: "hsl(var(--destructive))" },
+    { key: "complexity", label: "Complexity", value: debtBreakdown?.complexity.debtMinutes ?? 0, color: "hsl(var(--info))" },
+    { key: "duplication", label: "Duplication", value: debtBreakdown?.duplication.debtMinutes ?? 0, color: "hsl(var(--warning))" },
+    { key: "code_smell", label: "Code Smell", value: debtBreakdown?.code_smell.debtMinutes ?? 0, color: "#a78bfa" },
+    { key: "maintainability", label: "Maintainability", value: debtBreakdown?.maintainability.debtMinutes ?? 0, color: "hsl(var(--success))" },
+  ];
+  const hasDebtBreakdown = debtChartData.some((d) => d.value > 0);
 
   return (
     <main className="min-h-screen bg-background">
@@ -622,6 +650,101 @@ export function RepositoryOverviewPage() {
               );
             })}
           </div>
+        </motion.section>
+
+        {/* ================================================================
+            DEBT BREAKDOWN
+        ================================================================= */}
+
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          className="mt-6 rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
+        >
+          <div className="mb-6">
+            <p className="text-sm font-semibold">
+              Debt Breakdown
+            </p>
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              Estimated remediation effort by category
+            </p>
+          </div>
+
+          {hasDebtBreakdown ? (
+            <div className="grid gap-6 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-center">
+              <div className="relative h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={debtChartData}
+                      dataKey="value"
+                      nameKey="label"
+                      innerRadius={70}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      strokeWidth={0}
+                    >
+                      {debtChartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.color} />
+                      ))}
+                    </Pie>
+
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        `${Math.floor(value / 60)}h ${Math.round(value % 60)}m`,
+                        name,
+                      ]}
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "12px",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-xl font-bold">
+                    {repository.technicalDebt}
+                  </p>
+
+                  <p className="text-xs text-muted-foreground">
+                    Total debt
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {debtChartData.map((entry) => (
+                  <div
+                    key={entry.key}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 p-3"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: entry.color }}
+                      />
+
+                      <span className="text-sm font-medium">
+                        {entry.label}
+                      </span>
+                    </div>
+
+                    <span className="text-xs text-muted-foreground">
+                      {Math.floor(entry.value / 60)}h {Math.round(entry.value % 60)}m
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              No debt data available yet. Run an analysis to see the breakdown.
+            </p>
+          )}
         </motion.section>
 
         {/* ================================================================
