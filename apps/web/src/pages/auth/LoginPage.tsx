@@ -21,8 +21,7 @@ const API_URL =
   "http://localhost:4000";
 
 
-/* =========================================================
-   FEATURES
+
 
 export function LoginPage() {
   const { status, authLostReason } = useAuth();
