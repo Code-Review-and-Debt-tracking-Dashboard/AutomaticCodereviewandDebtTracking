@@ -4,12 +4,12 @@ import type { Job } from 'bullmq';
 
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
+import { detectLanguages } from '../stages/detect';
 
 /**
- * Consumes one analysis job. Clones the repo into a temp directory and moves
- * the AnalysisJob row through its lifecycle — the detect, analyze, normalize,
- * score, gate, comment and persist stages are added on top of this in later
- * tasks.
+ * Consumes one analysis job. Clones the repo, works out what's in it, and moves
+ * the AnalysisJob row through its lifecycle — the analyze, normalize, score,
+ * gate, comment and persist stages are added on top of this in later tasks.
  *
  * Nothing is caught here on purpose: throwing is how BullMQ is told to retry,
  * and the worker's 'failed' listener is what marks the row FAILED. The temp
@@ -36,7 +36,14 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       data: { commitSha: cloned.commitSha, progress: 10 },
     });
 
-    // analysis stages go here, over cloned.repoPath
+    await detectLanguages(cloned.repoPath);
+
+    await prisma.analysisJob.update({
+      where: { id: analysisId },
+      data: { progress: 15 },
+    });
+
+    // remaining analysis stages go here, over cloned.repoPath
 
     await prisma.analysisJob.update({
       where: { id: analysisId },
