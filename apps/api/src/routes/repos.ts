@@ -14,7 +14,7 @@ export const reposRouter = Router();
 reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
   try {
     const orgId = typeof req.query.orgId === 'string' ? req.query.orgId : undefined;
-    const data = await getAvailableRepos(req.user!.id, orgId);
+    const data = await listAvailableRepos(req.user!.id, orgId);
     res.status(200).json({ data });
   } catch (err) {
     next(err);
@@ -30,6 +30,22 @@ reposRouter.post('/api/repos', requireAuth, validateRequest(linkRepositorySchema
     next(err);
   }
 });
+
+// DELETE /api/repos/:repoId : unlink and remove the GitHub webhook. Soft
+// delete, so snapshots and PR history survive a relink.
+reposRouter.delete(
+  '/api/repos/:repoId',
+  requireAuth,
+  requireRepoAccess('write'),
+  async (req, res, next) => {
+    try {
+      await unlinkRepository(req.params.repoId, req.user!.id, req.org!.role);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // GET /api/repos/:repoId : fetch single repository details
 reposRouter.get(
@@ -139,6 +155,27 @@ reposRouter.get(
   },
 );
 
+
+// POST /api/repos/:repoId/analyze : queue an analysis of the default branch
+// without waiting for a webhook. Returns the analysis job id — there is no
+// snapshot until the job finishes.
+reposRouter.post(
+  '/api/repos/:repoId/analyze',
+  requireAuth,
+  requireRepoAccess('write'),
+  async (req, res, next) => {
+    try {
+      const { analysisId, jobId } = await triggerManualAnalysis(
+        req.params.repoId,
+        req.user!.id,
+        req.org!.role,
+      );
+      res.status(202).json({ message: 'Analysis queued', analysisId, jobId });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // POST /api/repos/:repoId/members : owner, an active TEAM_LEAD, or a platform
 // admin can grant another existing platform user access to the repo.

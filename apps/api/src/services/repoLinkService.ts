@@ -46,6 +46,49 @@ async function fetchRepo(octokit: Octokit, githubRepoId: number): Promise<Github
   }
 }
 
+// Repos the picker can offer: admin on GitHub (needed to register the hook)
+// and owned by an org the caller belongs to here. Already-linked ones are
+// flagged rather than dropped, so the picker can show them as linked.
+export async function listAvailableRepos(userId: string, orgId?: string) {
+  const octokit = await githubClientFor(userId);
+
+  const memberships = await prisma.organizationMember.findMany({
+    where: { userId, status: 'ACTIVE', ...(orgId ? { orgId } : {}) },
+    select: { organization: { select: { githubOrgId: true } } },
+  });
+  const ownerIds = new Set(memberships.map((m) => m.organization.githubOrgId));
+
+  let repos;
+  try {
+    repos = await octokit.paginate(octokit.rest.repos.listForAuthenticatedUser, {
+      per_page: 100,
+      affiliation: 'owner,organization_member',
+    });
+  } catch {
+    throw new AppError(502, 'GITHUB_UNAVAILABLE', 'Could not list your GitHub repositories');
+  }
+
+  const linked = await prisma.repository.findMany({
+    where: { isActive: true },
+    select: { githubRepoId: true },
+  });
+  const linkedIds = new Set(linked.map((r) => r.githubRepoId));
+
+  return repos
+    .filter((repo) => repo.permissions?.admin === true && ownerIds.has(String(repo.owner.id)))
+    .map((repo) => ({
+      githubRepoId: String(repo.id),
+      name: repo.name,
+      fullName: repo.full_name,
+      htmlUrl: repo.html_url,
+      cloneUrl: repo.clone_url ?? `${repo.html_url}.git`,
+      defaultBranch: repo.default_branch ?? 'main',
+      language: repo.language ?? null,
+      private: repo.private,
+      isAlreadyLinked: linkedIds.has(String(repo.id)),
+    }));
+}
+
 export async function linkRepository(userId: string, githubRepoId: number) {
   const octokit = await githubClientFor(userId);
   const repo = await fetchRepo(octokit, githubRepoId);

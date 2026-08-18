@@ -19,6 +19,10 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -131,7 +135,14 @@ export function RepositoryOverviewPage() {
   const { repoId } = useParams<{ repoId: string }>();
   const [repoDetail, setRepoDetail] = useState<RepoDetail | null>(null);
   const [trendPoints, setTrendPoints] = useState<{ date: string; score: number }[]>([]);
-  const [debtData, setDebtData] = useState<{ totalDebtMinutes: number; debtDelta: number } | null>(null);
+  const [debtData, setDebtData] = useState<{
+    totalDebtMinutes: number;
+    debtDelta: number;
+    breakdown: Record<
+      "vulnerability" | "complexity" | "duplication" | "code_smell" | "maintainability",
+      { count: number; debtMinutes: number }
+    >;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -144,7 +155,14 @@ export function RepositoryOverviewPage() {
         const [repoRes, trendRes, debtRes] = await Promise.allSettled([
           api.get<RepoDetail>(`/api/repos/${repoId}`),
           api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
-          api.get<{ totalDebtMinutes: number; debtDelta: number }>(`/api/repos/${repoId}/debt`),
+          api.get<{
+            totalDebtMinutes: number;
+            debtDelta: number;
+            breakdown: Record<
+              "vulnerability" | "complexity" | "duplication" | "code_smell" | "maintainability",
+              { count: number; debtMinutes: number }
+            >;
+          }>(`/api/repos/${repoId}/debt`),
         ]);
 
         if (repoRes.status === "fulfilled") {

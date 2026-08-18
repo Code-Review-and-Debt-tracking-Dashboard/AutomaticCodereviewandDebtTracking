@@ -7,12 +7,17 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
-const TOKEN_KEY = 'token';
+import {
+  api,
+  API_BASE_URL,
+  getStoredRefreshToken,
+  refreshAccessToken,
+  setStoredRefreshToken,
+} from '../lib/apiClient';
+import { onAuthLost, setAccessToken } from '../lib/authTokenStore';
 
 export interface AuthUser {
   id: string;
@@ -24,7 +29,6 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => Promise<void>;
@@ -47,31 +51,26 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore a persisted session on app start by validating the stored
-  // token against the API rather than trusting it blindly.
+  // Restore a persisted session on app start by refreshing rather than
+  // trusting a stored access token — access tokens are short-lived (15 min),
+  // so a token surviving a cold start is almost always already expired.
   useEffect(() => {
     const restore = async () => {
-      const stored = await SecureStore.getItemAsync(TOKEN_KEY);
+      const stored = await getStoredRefreshToken();
       if (!stored) {
         setIsLoading(false);
         return;
       }
 
       try {
-        const response = await fetch(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${stored}` },
-        });
-        if (!response.ok) {
-          throw new Error('invalid token');
-        }
-        const me: AuthUser = await response.json();
+        await refreshAccessToken();
+        const me = await api.get<AuthUser>('/auth/me');
         setUser(me);
-        setToken(stored);
       } catch {
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
+        setAccessToken(null);
+        await setStoredRefreshToken(null);
       } finally {
         setIsLoading(false);
       }
@@ -80,9 +79,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     restore();
   }, []);
 
+  // A failed refresh mid-session (triggered by any api.* call, not just this
+  // file) lands here instead of the caller having to handle it individually.
+  useEffect(
+    () =>
+      onAuthLost(() => {
+        setUser(null);
+      }),
+    [],
+  );
+
   const login = useCallback(async () => {
     const redirectUrl = Linking.createURL('auth');
-    const authUrl = `${API_URL}/auth/github?redirect=${encodeURIComponent(redirectUrl)}`;
+    const authUrl = `${API_BASE_URL}/auth/github?client=native&redirect=${encodeURIComponent(redirectUrl)}`;
 
     const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
     if (result.type !== 'success') {
@@ -90,51 +99,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     const { queryParams } = Linking.parse(result.url);
-    const newToken = queryParams?.token;
-    if (typeof newToken !== 'string') {
+    const accessToken = queryParams?.accessToken;
+    const refreshToken = queryParams?.refreshToken;
+    if (typeof accessToken !== 'string' || typeof refreshToken !== 'string') {
       return;
     }
 
-    const response = await fetch(`${API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${newToken}` },
-    });
-    if (!response.ok) {
-      return;
-    }
-    const me: AuthUser = await response.json();
+    setAccessToken(accessToken);
+    await setStoredRefreshToken(refreshToken);
 
-    await SecureStore.setItemAsync(TOKEN_KEY, newToken);
-    setToken(newToken);
-    setUser(me);
+    try {
+      const me = await api.get<AuthUser>('/auth/me');
+      setUser(me);
+    } catch {
+      setAccessToken(null);
+      await setStoredRefreshToken(null);
+    }
   }, []);
 
   const logout = useCallback(async () => {
-    if (token) {
-      try {
-        await fetch(`${API_URL}/auth/logout`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch {
-        // Even if the server call fails, clear local state
+    const stored = await getStoredRefreshToken();
+    try {
+      if (stored) {
+        await api.post('/auth/logout', { refreshToken: stored });
       }
+    } catch {
+      // Even if the server call fails, clear local state
     }
 
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    setToken(null);
+    setAccessToken(null);
+    await setStoredRefreshToken(null);
     setUser(null);
-  }, [token]);
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      token,
-      isAuthenticated: !!user && !!token,
+      isAuthenticated: !!user,
       isLoading,
       login,
       logout,
     }),
-    [user, token, isLoading, login, logout],
+    [user, isLoading, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
