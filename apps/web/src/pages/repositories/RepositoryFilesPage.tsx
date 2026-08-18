@@ -1,5 +1,21 @@
-import { ChevronLeft, FileCode, FolderOpen, Search } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { FolderOpen, Search } from "lucide-react";
+import { useParams } from "react-router-dom";
+
+import {
+  BackLink,
+  Card,
+  CardTitle,
+  CardContent,
+  IconBox,
+  PageHeader,
+  PageHeaderTitle,
+  PageHeaderDescription,
+} from "../../components/ui";
+
+
+/* =========================================================
+   DATA
+========================================================= */
 
 const files = [
   "src/api/users.ts",
@@ -8,55 +24,62 @@ const files = [
   "src/utils/format.ts",
 ];
 
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
 export function RepositoryFilesPage() {
   const { repoId } = useParams();
-  const navigate = useNavigate();
 
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
 
-        <button
-          onClick={() => navigate(`/repositories/${repoId}`)}
-          className="mb-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft size={16} />
-          Back to repository
-        </button>
+        <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
 
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Files
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            A compact file browser for the latest analysis snapshot.
-          </p>
-        </div>
+        {/* Header */}
+        <PageHeader>
+          <div>
+            <PageHeaderTitle>Files</PageHeaderTitle>
+            <PageHeaderDescription>
+              A compact file browser for the latest analysis snapshot.
+            </PageHeaderDescription>
+          </div>
+        </PageHeader>
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-          <section className="rounded-2xl border border-border/70 bg-card p-6">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <FolderOpen size={16} className="text-primary" />
-              Snapshot files
+
+          {/* Snapshot Files Card */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2">
+              <IconBox icon={FolderOpen} color="primary" size="sm" />
+              <CardTitle>Snapshot files</CardTitle>
             </div>
-            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+
+            <CardContent className="mt-4 space-y-2 p-0">
               {files.map((file) => (
-                <div key={file} className="rounded-xl border border-border/70 bg-background px-3 py-2">
+                <div key={file} className="rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground">
                   {file}
                 </div>
               ))}
-            </div>
-          </section>
+            </CardContent>
+          </Card>
 
-          <section className="rounded-2xl border border-border/70 bg-card p-6">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Search size={16} className="text-primary" />
-              File preview
+          {/* File Preview Card */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2">
+              <IconBox icon={Search} color="primary" size="sm" />
+              <CardTitle>File preview</CardTitle>
             </div>
-            <div className="mt-4 rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
-              Select a file to inspect line-level findings for repository {repoId}.
-            </div>
-          </section>
+
+            <CardContent className="mt-4 p-0">
+              <div className="rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
+                Select a file to inspect line-level findings for repository {repoId}.
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
       </div>
     </main>

@@ -352,3 +352,130 @@ export async function getRepoPullRequestDetail(repoId: string, prNumber: number)
     snapshots,
   };
 }
+
+export async function getAvailableRepos(userId: string, orgId?: string) {
+    // Return mock available repos or user org repos for linking
+    const existing = await prisma.repository.findMany({
+        select: { githubRepoId: true },
+    });
+    const linkedIds = new Set(existing.map((r) => r.githubRepoId));
+
+    const sampleRepos = [
+        {
+            githubRepoId: "github-repo-3001",
+            name: "e-commerce-backend",
+            fullName: "acme/e-commerce-backend",
+            htmlUrl: "https://github.com/acme/e-commerce-backend",
+            cloneUrl: "https://github.com/acme/e-commerce-backend.git",
+            defaultBranch: "main",
+            language: "TypeScript",
+            private: true,
+        },
+        {
+            githubRepoId: "github-repo-3002",
+            name: "analytics-pipeline",
+            fullName: "acme/analytics-pipeline",
+            htmlUrl: "https://github.com/acme/analytics-pipeline",
+            cloneUrl: "https://github.com/acme/analytics-pipeline.git",
+            defaultBranch: "main",
+            language: "Python",
+            private: false,
+        },
+        {
+            githubRepoId: "github-repo-3003",
+            name: "mobile-app-client",
+            fullName: "acme/mobile-app-client",
+            htmlUrl: "https://github.com/acme/mobile-app-client",
+            cloneUrl: "https://github.com/acme/mobile-app-client.git",
+            defaultBranch: "main",
+            language: "TypeScript",
+            private: true,
+        },
+    ];
+
+    return sampleRepos.map((r) => ({
+        ...r,
+        isAlreadyLinked: linkedIds.has(r.githubRepoId),
+    }));
+}
+
+export interface LinkRepoInput {
+    githubRepoId: string;
+    name: string;
+    fullName: string;
+    htmlUrl: string;
+    cloneUrl?: string;
+    defaultBranch?: string;
+    language?: string | null;
+    private?: boolean;
+    orgId: string;
+}
+
+export async function linkRepository(userId: string, input: LinkRepoInput) {
+    if (!input.githubRepoId || !input.name || !input.fullName || !input.orgId) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Missing required fields for linking repository');
+    }
+
+    const repo = await prisma.repository.upsert({
+        where: { githubRepoId: input.githubRepoId },
+        update: {
+            name: input.name,
+            fullName: input.fullName,
+            htmlUrl: input.htmlUrl,
+            cloneUrl: input.cloneUrl,
+            defaultBranch: input.defaultBranch || 'main',
+            language: input.language || null,
+            private: input.private ?? false,
+            isActive: true,
+            orgId: input.orgId,
+            ownerId: userId,
+        },
+        create: {
+            githubRepoId: input.githubRepoId,
+            name: input.name,
+            fullName: input.fullName,
+            htmlUrl: input.htmlUrl,
+            cloneUrl: input.cloneUrl,
+            defaultBranch: input.defaultBranch || 'main',
+            language: input.language || null,
+            private: input.private ?? false,
+            isActive: true,
+            orgId: input.orgId,
+            ownerId: userId,
+        },
+    });
+
+    return repo;
+}
+
+/** Alias kept for backwards-compat with older route files. */
+export const listAvailableRepos = getAvailableRepos;
+
+/** Soft-delete (deactivate) a linked repository. */
+export async function unlinkRepository(repoId: string, userId: string, role?: string): Promise<void> {
+    const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+    if (!repo) {
+        throw new AppError(404, 'NOT_FOUND', 'Repository not found');
+    }
+    await prisma.repository.update({
+        where: { id: repoId },
+        data: { isActive: false },
+    });
+}
+
+/** Enqueue a manual on-demand analysis job for a repository. */
+export async function triggerManualAnalysis(repoId: string, userId: string, role?: string) {
+    const repo = await getActiveRepo(repoId);
+
+    const job = await prisma.analysisJob.create({
+        data: {
+            repoId,
+            status: 'PENDING',
+            trigger: 'MANUAL',
+            branch: repo.defaultBranch,
+            commitSha: 'manual',
+        },
+    });
+
+    return { jobId: job.id, status: job.status, analysisId: job.id };
+}

@@ -1,14 +1,32 @@
-import { motion } from "framer-motion";
 import {
   CheckCircle2,
-  ChevronLeft,
   Save,
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import { api } from "../../lib/apiClient";
+
+import {
+  BackLink,
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  IconBox,
+  PageHeader,
+  PageHeaderBadge,
+  PageHeaderTitle,
+  PageHeaderDescription,
+} from "../../components/ui";
+
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 interface QualityGate {
   repoId: string;
@@ -21,9 +39,13 @@ interface QualityGate {
   blockPR: boolean;
 }
 
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
 export function RepositoryQualityGatePage() {
   const { repoId } = useParams();
-  const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -90,50 +112,35 @@ export function RepositoryQualityGatePage() {
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
 
-        <button
-          onClick={() => navigate(`/repositories/${repoId}`)}
-          className="mb-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft size={16} />
-          Back to repository
-        </button>
+        <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-3 py-1.5 text-xs font-medium text-success">
-            <ShieldCheck size={13} />
-            Automated quality control
+        {/* Header */}
+        <PageHeader>
+          <div>
+            <PageHeaderBadge className="border-success/20 bg-success/10 text-success">
+              <ShieldCheck size={13} />
+              Automated quality control
+            </PageHeaderBadge>
+
+            <PageHeaderTitle>Quality Gate</PageHeaderTitle>
+
+            <PageHeaderDescription>
+              Define the conditions that code must satisfy before it can be
+              merged.
+            </PageHeaderDescription>
           </div>
-
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Quality Gate
-          </h1>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            Define the conditions that code must satisfy before it can be
-            merged.
-          </p>
-        </motion.div>
+        </PageHeader>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
 
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
-          >
-            <div className="flex items-center justify-between border-b border-border/70 pb-5">
+          {/* Rules Card */}
+          <Card>
+            <CardHeader className="border-b border-border/70">
               <div>
-                <p className="font-semibold">
-                  Quality Gate Rules
-                </p>
-
-                <p className="mt-1 text-xs text-muted-foreground">
+                <CardTitle>Quality Gate Rules</CardTitle>
+                <CardDescription>
                   Configure repository quality requirements.
-                </p>
+                </CardDescription>
               </div>
 
               <button
@@ -148,160 +155,156 @@ export function RepositoryQualityGatePage() {
                   }`}
                 />
               </button>
-            </div>
+            </CardHeader>
 
-            <div className="space-y-6 pt-6">
+            <CardContent>
+              <div className="space-y-6 pt-1">
 
-              {error && (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                  {error}
+                {error && (
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+
+                {isLoading ? (
+                  <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Loading quality gate…
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="text-sm font-medium">
+                    Minimum Health Score
+                  </label>
+
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Pull requests below this score will fail the quality gate.
+                  </p>
+
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={displayGate.minHealthScore}
+                    onChange={(event) =>
+                      updateGate("minHealthScore", Number(event.target.value))
+                    }
+                    className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                  />
                 </div>
-              )}
 
-              {isLoading ? (
-                <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                  Loading quality gate…
+                <div>
+                  <label className="text-sm font-medium">
+                    Maximum Critical Findings
+                  </label>
+
+                  <input
+                    type="number"
+                    min={0}
+                    value={displayGate.maxCriticalFindings ?? ""}
+                    onChange={(event) =>
+                      updateGate(
+                        "maxCriticalFindings",
+                        event.target.value === "" ? null : Number(event.target.value),
+                      )
+                    }
+                    className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                  />
                 </div>
-              ) : null}
 
-              <div>
-                <label className="text-sm font-medium">
-                  Minimum Health Score
-                </label>
+                <div>
+                  <label className="text-sm font-medium">
+                    Maximum Vulnerabilities
+                  </label>
 
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Pull requests below this score will fail the quality gate.
-                </p>
+                  <input
+                    type="number"
+                    min={0}
+                    value={displayGate.maxVulnerabilities ?? ""}
+                    onChange={(event) =>
+                      updateGate(
+                        "maxVulnerabilities",
+                        event.target.value === "" ? null : Number(event.target.value),
+                      )
+                    }
+                    className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                  />
+                </div>
 
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={displayGate.minHealthScore}
-                  onChange={(event) =>
-                    updateGate("minHealthScore", Number(event.target.value))
-                  }
-                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
-                />
+                <div>
+                  <label className="text-sm font-medium">
+                    Maximum Duplication %
+                  </label>
+
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={displayGate.maxDuplicationPct ?? ""}
+                    onChange={(event) =>
+                      updateGate(
+                        "maxDuplicationPct",
+                        event.target.value === "" ? null : Number(event.target.value),
+                      )
+                    }
+                    className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">
+                    Maximum Complexity Count
+                  </label>
+
+                  <input
+                    type="number"
+                    min={0}
+                    value={displayGate.maxComplexityCount ?? ""}
+                    onChange={(event) =>
+                      updateGate(
+                        "maxComplexityCount",
+                        event.target.value === "" ? null : Number(event.target.value),
+                      )
+                    }
+                    className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">
+                    Maximum Code Smell Count
+                  </label>
+
+                  <input
+                    type="number"
+                    min={0}
+                    value={displayGate.maxCodeSmellCount ?? ""}
+                    onChange={(event) =>
+                      updateGate(
+                        "maxCodeSmellCount",
+                        event.target.value === "" ? null : Number(event.target.value),
+                      )
+                    }
+                    className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving || isLoading}
+                  size="lg"
+                >
+                  <Save size={17} />
+                  {isSaving ? "Saving…" : "Save Quality Gate"}
+                </Button>
               </div>
+            </CardContent>
+          </Card>
 
-              <div>
-                <label className="text-sm font-medium">
-                  Maximum Critical Findings
-                </label>
 
-                <input
-                  type="number"
-                  min={0}
-                  value={displayGate.maxCriticalFindings ?? ""}
-                  onChange={(event) =>
-                    updateGate(
-                      "maxCriticalFindings",
-                      event.target.value === "" ? null : Number(event.target.value),
-                    )
-                  }
-                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">
-                  Maximum Vulnerabilities
-                </label>
-
-                <input
-                  type="number"
-                  min={0}
-                  value={displayGate.maxVulnerabilities ?? ""}
-                  onChange={(event) =>
-                    updateGate(
-                      "maxVulnerabilities",
-                      event.target.value === "" ? null : Number(event.target.value),
-                    )
-                  }
-                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">
-                  Maximum Duplication %
-                </label>
-
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={displayGate.maxDuplicationPct ?? ""}
-                  onChange={(event) =>
-                    updateGate(
-                      "maxDuplicationPct",
-                      event.target.value === "" ? null : Number(event.target.value),
-                    )
-                  }
-                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">
-                  Maximum Complexity Count
-                </label>
-
-                <input
-                  type="number"
-                  min={0}
-                  value={displayGate.maxComplexityCount ?? ""}
-                  onChange={(event) =>
-                    updateGate(
-                      "maxComplexityCount",
-                      event.target.value === "" ? null : Number(event.target.value),
-                    )
-                  }
-                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">
-                  Maximum Code Smell Count
-                </label>
-
-                <input
-                  type="number"
-                  min={0}
-                  value={displayGate.maxCodeSmellCount ?? ""}
-                  onChange={(event) =>
-                    updateGate(
-                      "maxCodeSmellCount",
-                      event.target.value === "" ? null : Number(event.target.value),
-                    )
-                  }
-                  className="mt-3 h-11 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none focus:border-primary"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving || isLoading}
-                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 disabled:opacity-60"
-              >
-                <Save size={17} />
-                {isSaving ? "Saving…" : "Save Quality Gate"}
-              </button>
-            </div>
-          </motion.section>
-
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success">
-              <CheckCircle2 size={24} />
-            </div>
+          {/* Current Status Card */}
+          <Card className="p-5 sm:p-6">
+            <IconBox icon={CheckCircle2} color="success" size="lg" />
 
             <p className="mt-5 text-lg font-semibold">
               Current Status
@@ -344,7 +347,8 @@ export function RepositoryQualityGatePage() {
                 </span>
               </div>
             </div>
-          </motion.section>
+          </Card>
+
         </div>
       </div>
     </main>

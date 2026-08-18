@@ -4,9 +4,9 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { triggerManualAnalysis } from '../services/queueService';
-import { linkRepository, listAvailableRepos, unlinkRepository } from '../services/repoLinkService';
-import { getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend } from '../services/repoService';
+import { listAvailableRepos, getRepoDebt, getRepoDetail, getRepoPullRequests, getRepoTrend, linkRepository, unlinkRepository, getRepoHotspots, getRepoPullRequestDetail, triggerManualAnalysis } from '../services/repoService';
+import { validateRequest } from '../middleware/zodValidate';
+import { linkRepositorySchema, addMemberSchema } from '../schemas/repoSchemas';
 
 export const reposRouter = Router();
 
@@ -21,19 +21,10 @@ reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
   }
 });
 
-// POST /api/repos : link a repository to an org and register its webhook.
-// Everything about the repo comes from GitHub, so the body is just the id.
-reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
+// POST /api/repos : link a repository to an org
+reposRouter.post('/api/repos', requireAuth, validateRequest(linkRepositorySchema), async (req, res, next) => {
   try {
-    const githubRepoId = Number(req.body?.githubRepoId);
-
-    if (!Number.isInteger(githubRepoId) || githubRepoId <= 0) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
-        { field: 'githubRepoId', message: 'must be a positive integer' },
-      ]);
-    }
-
-    const repo = await linkRepository(req.user!.id, githubRepoId);
+    const repo = await linkRepository(req.user!.id, req.body);
     res.status(201).json(repo);
   } catch (err) {
     next(err);
@@ -192,20 +183,10 @@ reposRouter.post(
   '/api/repos/:repoId/members',
   requireAuth,
   requireRepoAccess('write'),
+  validateRequest(addMemberSchema),
   async (req, res, next) => {
     try {
-      const { username, role = 'DEVELOPER' } = req.body ?? {};
-
-      if (typeof username !== 'string' || username.trim() === '') {
-        throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
-          { field: 'username', message: 'must be a non-empty string' },
-        ]);
-      }
-      if (!isRepoRole(role)) {
-        throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
-          { field: 'role', message: 'must be one of TEAM_LEAD, DEVELOPER, VIEWER' },
-        ]);
-      }
+      const { username, role } = req.body;
 
       const member = await addMember(req.params.repoId, username, role, req.user!.id);
       res.status(201).json(member);

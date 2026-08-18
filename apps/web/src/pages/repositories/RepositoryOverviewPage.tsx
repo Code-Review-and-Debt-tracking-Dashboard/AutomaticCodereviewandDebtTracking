@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -33,6 +33,17 @@ import { useParams } from "react-router-dom";
 import { api } from "../../lib/apiClient";
 import { Loader2 } from "lucide-react";
 
+import {
+  Button,
+  Card,
+  PageHeader,
+  PageHeaderBadge,
+  PageHeaderTitle,
+  PageHeaderDescription,
+  PageHeaderActions,
+  StatCard,
+} from "../../components/ui";
+
 interface RepoDetail {
   id: string;
   name: string;
@@ -46,71 +57,6 @@ interface RepoDetail {
   debtMinutes?: number;
 }
 
-function RepositoryOverviewPageData() {
-  const { repoId } = useParams<{ repoId: string }>();
-  const [repo, setRepo] = useState<RepoDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!repoId) return;
-
-    const fetchDetail = async () => {
-      setIsLoading(true);
-      try {
-        const res = await api.get<RepoDetail>(`/api/repos/${repoId}`);
-        setRepo(res);
-      } catch (err: any) {
-        setError(err?.response?.data?.message || "Failed to load repository detail.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDetail();
-  }, [repoId]);
-
-  const repository = {
-    id: repo?.id || repoId || "repo-001",
-    name: repo?.name || "Repository",
-    fullName: repo?.fullName || "org/repo",
-    owner: repo?.fullName ? repo.fullName.split("/")[0] : "org",
-    language: repo?.language || "TypeScript",
-    defaultBranch: repo?.defaultBranch || "main",
-    githubUrl: repo?.htmlUrl || "#",
-    isPrivate: repo?.private ?? false,
-    healthScore: repo?.healthScore ?? 86,
-    totalFindings: repo?.openFindings ?? 24,
-    technicalDebt: repo?.debtMinutes ? `${Math.floor(repo.debtMinutes / 60)}h ${repo.debtMinutes % 60}m` : "4h 20m",
-  };
-
-  return null;
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| MOCK HEALTH TREND
-|--------------------------------------------------------------------------
-| BACKEND IMPLEMENTATION LATER
-|
-| GET /api/repos/:repoId/health-trend?period=30d
-|
-| This data will eventually come from:
-|
-| AnalysisSnapshot[]
-|
-| Database concept:
-|
-| Repository
-|     ↓
-| Analysis
-|     ↓
-| AnalysisSnapshot
-|
-|--------------------------------------------------------------------------
-*/
-
 const healthTrend = [
   { date: "Jun 01", score: 68 },
   { date: "Jun 05", score: 71 },
@@ -120,26 +66,6 @@ const healthTrend = [
   { date: "Jun 25", score: 82 },
   { date: "Jun 30", score: 86 },
 ];
-
-/*
-|--------------------------------------------------------------------------
-| MOCK METRIC DATA
-|--------------------------------------------------------------------------
-| BACKEND IMPLEMENTATION LATER
-|
-| These values are calculated by the Worker service.
-|
-| Example:
-|
-| ESLint       → Code Smells
-| Radon        → Complexity
-| jscpd        → Duplication
-| Bandit       → Security
-| Pylint       → Maintainability
-|
-| GET /api/repos/:repoId/analyses/latest
-|--------------------------------------------------------------------------
-*/
 
 const metrics = [
   {
@@ -180,23 +106,6 @@ const metrics = [
   },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| MOCK RECENT ACTIVITY
-|--------------------------------------------------------------------------
-| BACKEND IMPLEMENTATION LATER
-|
-| GET /api/repos/:repoId/activity
-|
-| Could later be generated from:
-|
-| - Analysis
-| - PullRequest
-| - Finding
-| - Notification
-|--------------------------------------------------------------------------
-*/
-
 const recentActivity = [
   {
     title: "Analysis completed",
@@ -234,6 +143,7 @@ export function RepositoryOverviewPage() {
     >;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [_error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!repoId) return;
@@ -268,8 +178,8 @@ export function RepositoryOverviewPage() {
         if (debtRes.status === "fulfilled") {
           setDebtData(debtRes.value);
         }
-      } catch {
-        // Fallback
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Failed to load repository data.");
       } finally {
         setIsLoading(false);
       }
@@ -297,161 +207,111 @@ export function RepositoryOverviewPage() {
 
   const chartTrend = trendPoints.length > 0 ? trendPoints : healthTrend;
 
-  const debtBreakdown = debtData?.breakdown;
-  const debtChartData = [
-    { key: "vulnerability", label: "Vulnerability", value: debtBreakdown?.vulnerability.debtMinutes ?? 0, color: "hsl(var(--destructive))" },
-    { key: "complexity", label: "Complexity", value: debtBreakdown?.complexity.debtMinutes ?? 0, color: "hsl(var(--info))" },
-    { key: "duplication", label: "Duplication", value: debtBreakdown?.duplication.debtMinutes ?? 0, color: "hsl(var(--warning))" },
-    { key: "code_smell", label: "Code Smell", value: debtBreakdown?.code_smell.debtMinutes ?? 0, color: "#a78bfa" },
-    { key: "maintainability", label: "Maintainability", value: debtBreakdown?.maintainability.debtMinutes ?? 0, color: "hsl(var(--success))" },
-  ];
-  const hasDebtBreakdown = debtChartData.some((d) => d.value > 0);
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 size={32} className="animate-spin text-primary" />
+        <p className="text-sm">Loading repository overview…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-        {/* ================================================================
-            HEADER
-        ================================================================= */}
-
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          {/* Breadcrumb */}
-          <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Repositories</span>
-            <span>/</span>
-            <span className="text-foreground">
-              {repository.name}
-            </span>
-          </div>
-
-          <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
-                <Sparkles size={13} />
-                Repository intelligence
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  {repository.name}
-                </h1>
-
-                <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-                  Healthy
-                </span>
-              </div>
-
-              <p className="mt-2 text-sm text-muted-foreground">
-                {repository.fullName}
-              </p>
-
-              <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Code2 size={14} />
-                  {repository.language}
-                </span>
-
-                <span className="flex items-center gap-1.5">
-                  <GitBranch size={14} />
-                  {repository.defaultBranch}
-                </span>
-
-                <span className="flex items-center gap-1.5">
-                  <Clock3 size={14} />
-                  Last analyzed 8 minutes ago
-                </span>
-              </div>
+        
+        <PageHeader>
+          <div>
+            <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Repositories</span>
+              <span>/</span>
+              <span className="text-foreground">{repository.name}</span>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              {/* BACKEND LATER:
-                  Trigger POST /api/repos/:repoId/analyze
-              */}
-              <button className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-primary/40 hover:bg-muted">
-                <TrendingUp size={17} />
-                Run analysis
-              </button>
+            <PageHeaderBadge className="border-primary/20 bg-primary/10 text-primary">
+              <Sparkles size={13} />
+              Repository intelligence
+            </PageHeaderBadge>
 
-              <a
-                href={repository.githubUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5"
-              >
-                <ExternalLink size={17} />
-                GitHub
-              </a>
+            <div className="flex flex-wrap items-center gap-3">
+              <PageHeaderTitle>{repository.name}</PageHeaderTitle>
+              <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+                Healthy
+              </span>
+            </div>
+
+            <PageHeaderDescription>
+              {repository.fullName}
+            </PageHeaderDescription>
+
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Code2 size={14} />
+                {repository.language}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <GitBranch size={14} />
+                {repository.defaultBranch}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Clock3 size={14} />
+                Last analyzed 8 minutes ago
+              </span>
             </div>
           </div>
-        </motion.div>
 
-        {/* ================================================================
-            TOP SUMMARY CARDS
-        ================================================================= */}
+          <PageHeaderActions>
+            <Button variant="outline">
+              <TrendingUp size={17} className="mr-2" />
+              Run analysis
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => window.open(repository.githubUrl, "_blank", "noreferrer")}
+            >
+              <ExternalLink size={17} className="mr-2" />
+              GitHub
+            </Button>
+          </PageHeaderActions>
+        </PageHeader>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
             title="Health Score"
             value={`${repository.healthScore}`}
-            description="Overall repository quality"
             icon={CheckCircle2}
-            iconClass="bg-success/10 text-success"
-            change="+18 points"
-            changeType="positive"
+            color="success"
           />
 
-          <SummaryCard
+          <StatCard
             title="Open Findings"
             value={`${repository.totalFindings}`}
-            description="Issues requiring attention"
             icon={ShieldAlert}
-            iconClass="bg-warning/10 text-warning"
-            change="-8 this week"
-            changeType="positive"
+            color="warning"
           />
 
-          <SummaryCard
+          <StatCard
             title="Technical Debt"
             value={repository.technicalDebt}
-            description="Estimated remediation effort"
             icon={Wrench}
-            iconClass="bg-primary/10 text-primary"
-            change="-6h this week"
-            changeType="positive"
+            color="primary"
           />
 
-          <SummaryCard
+          <StatCard
             title="Pull Requests"
             value="42"
-            description="Analyzed pull requests"
             icon={GitPullRequest}
-            iconClass="bg-info/10 text-info"
-            change="+5 this week"
-            changeType="positive"
+            color="info"
           />
         </div>
 
-        {/* ================================================================
-            HEALTH CHART + RECENT ACTIVITY
-        ================================================================= */}
-
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
-          >
+          <Card className="p-5 sm:p-6">
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <p className="text-sm font-semibold">
                   Health Score Trend
                 </p>
-
                 <p className="mt-1 text-xs text-muted-foreground">
                   Repository health over the last 30 days
                 </p>
@@ -461,7 +321,6 @@ export function RepositoryOverviewPage() {
                 <p className="text-2xl font-bold">
                   {repository.healthScore}
                 </p>
-
                 <p className="flex items-center justify-end gap-1 text-xs text-success">
                   <ArrowUpRight size={14} />
                   +18 points
@@ -485,7 +344,6 @@ export function RepositoryOverviewPage() {
                         stopColor="hsl(var(--primary))"
                         stopOpacity={0.35}
                       />
-
                       <stop
                         offset="100%"
                         stopColor="hsl(var(--primary))"
@@ -538,21 +396,13 @@ export function RepositoryOverviewPage() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </motion.section>
+          </Card>
 
-          {/* RECENT ACTIVITY */}
-
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
-          >
+          <Card className="p-5 sm:p-6">
             <div className="mb-6">
               <p className="text-sm font-semibold">
                 Recent Activity
               </p>
-
               <p className="mt-1 text-xs text-muted-foreground">
                 Latest repository events
               </p>
@@ -561,7 +411,6 @@ export function RepositoryOverviewPage() {
             <div className="space-y-5">
               {recentActivity.map((activity) => {
                 const Icon = activity.icon;
-
                 return (
                   <div
                     key={activity.title}
@@ -572,16 +421,13 @@ export function RepositoryOverviewPage() {
                     >
                       <Icon size={16} />
                     </div>
-
                     <div className="min-w-0">
                       <p className="text-sm font-medium">
                         {activity.title}
                       </p>
-
                       <p className="mt-1 text-xs text-muted-foreground">
                         {activity.description}
                       </p>
-
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {activity.time}
                       </p>
@@ -590,24 +436,14 @@ export function RepositoryOverviewPage() {
                 );
               })}
             </div>
-          </motion.section>
+          </Card>
         </div>
 
-        {/* ================================================================
-            QUALITY METRICS
-        ================================================================= */}
-
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-6 rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
-        >
+        <Card className="mt-6 p-5 sm:p-6">
           <div className="mb-6">
             <p className="text-sm font-semibold">
               Quality Metrics
             </p>
-
             <p className="mt-1 text-xs text-muted-foreground">
               Latest static analysis results
             </p>
@@ -616,7 +452,6 @@ export function RepositoryOverviewPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {metrics.map((metric) => {
               const Icon = metric.icon;
-
               return (
                 <div
                   key={metric.title}
@@ -628,21 +463,17 @@ export function RepositoryOverviewPage() {
                     >
                       <Icon size={18} />
                     </div>
-
                     <span className="flex items-center gap-1 text-xs font-medium text-success">
                       <ArrowDownRight size={13} />
                       {metric.change}
                     </span>
                   </div>
-
                   <p className="mt-4 text-sm font-semibold">
                     {metric.title}
                   </p>
-
                   <p className="mt-1 text-2xl font-bold">
                     {metric.value}
                   </p>
-
                   <p className="mt-1 text-xs text-muted-foreground">
                     {metric.description}
                   </p>
@@ -650,124 +481,18 @@ export function RepositoryOverviewPage() {
               );
             })}
           </div>
-        </motion.section>
+        </Card>
 
-        {/* ================================================================
-            DEBT BREAKDOWN
-        ================================================================= */}
-
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="mt-6 rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
-        >
-          <div className="mb-6">
-            <p className="text-sm font-semibold">
-              Debt Breakdown
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              Estimated remediation effort by category
-            </p>
-          </div>
-
-          {hasDebtBreakdown ? (
-            <div className="grid gap-6 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-center">
-              <div className="relative h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={debtChartData}
-                      dataKey="value"
-                      nameKey="label"
-                      innerRadius={70}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      strokeWidth={0}
-                    >
-                      {debtChartData.map((entry) => (
-                        <Cell key={entry.key} fill={entry.color} />
-                      ))}
-                    </Pie>
-
-                    <Tooltip
-                      formatter={(value: number, name: string) => [
-                        `${Math.floor(value / 60)}h ${Math.round(value % 60)}m`,
-                        name,
-                      ]}
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "12px",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xl font-bold">
-                    {repository.technicalDebt}
-                  </p>
-
-                  <p className="text-xs text-muted-foreground">
-                    Total debt
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {debtChartData.map((entry) => (
-                  <div
-                    key={entry.key}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 p-3"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: entry.color }}
-                      />
-
-                      <span className="text-sm font-medium">
-                        {entry.label}
-                      </span>
-                    </div>
-
-                    <span className="text-xs text-muted-foreground">
-                      {Math.floor(entry.value / 60)}h {Math.round(entry.value % 60)}m
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              No debt data available yet. Run an analysis to see the breakdown.
-            </p>
-          )}
-        </motion.section>
-
-        {/* ================================================================
-            ANALYSIS INFORMATION
-        ================================================================= */}
-
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mt-6 rounded-2xl border border-border/70 bg-card p-5 sm:p-6"
-        >
+        <Card className="mt-6 p-5 sm:p-6">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
               <p className="text-sm font-semibold">
                 Latest Analysis
               </p>
-
               <p className="mt-1 text-xs text-muted-foreground">
                 Analysis completed successfully 8 minutes ago
               </p>
             </div>
-
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Calendar size={14} />
               June 30, 2026
@@ -775,120 +500,21 @@ export function RepositoryOverviewPage() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <AnalysisInfo
-              label="Files analyzed"
-              value="248"
-            />
-
-            <AnalysisInfo
-              label="Lines of code"
-              value="42,891"
-            />
-
-            <AnalysisInfo
-              label="Analysis duration"
-              value="2m 34s"
-            />
+            <AnalysisInfo label="Files analyzed" value="248" />
+            <AnalysisInfo label="Lines of code" value="42,891" />
+            <AnalysisInfo label="Analysis duration" value="2m 34s" />
           </div>
-        </motion.section>
+        </Card>
       </div>
     </main>
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| REUSABLE SUMMARY CARD
-|--------------------------------------------------------------------------
-*/
-
-interface SummaryCardProps {
-  title: string;
-  value: string;
-  description: string;
-  icon: React.ComponentType<{ size?: number }>;
-  iconClass: string;
-  change: string;
-  changeType: "positive" | "negative";
-}
-
-function SummaryCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  iconClass,
-  change,
-  changeType,
-}: SummaryCardProps) {
-  return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      className="rounded-2xl border border-border/70 bg-card p-5 transition hover:border-primary/30 hover:shadow-xl"
-    >
-      <div className="flex items-start justify-between">
-        <div
-          className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconClass}`}
-        >
-          <Icon size={20} />
-        </div>
-
-        {changeType === "positive" ? (
-          <ArrowUpRight
-            size={17}
-            className="text-success"
-          />
-        ) : (
-          <ArrowDownRight
-            size={17}
-            className="text-danger"
-          />
-        )}
-      </div>
-
-      <p className="mt-5 text-sm text-muted-foreground">
-        {title}
-      </p>
-
-      <p className="mt-1 text-3xl font-bold tracking-tight">
-        {value}
-      </p>
-
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          {description}
-        </p>
-
-        <span className="text-xs font-medium text-success">
-          {change}
-        </span>
-      </div>
-    </motion.div>
-  );
-}
-
-/*
-|--------------------------------------------------------------------------
-| ANALYSIS INFO
-|--------------------------------------------------------------------------
-*/
-
-function AnalysisInfo({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function AnalysisInfo({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 p-4">
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-
-      <p className="mt-1 text-lg font-bold">
-        {value}
-      </p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-bold">{value}</p>
     </div>
   );
 }

@@ -1,13 +1,31 @@
-import { motion } from "framer-motion";
 import {
-  ChevronLeft,
   Crown,
   MoreHorizontal,
   ShieldCheck,
   UserPlus,
   Users,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+
+import {
+  BackLink,
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  PageHeader,
+  PageHeaderBadge,
+  PageHeaderTitle,
+  PageHeaderDescription,
+  PageHeaderActions,
+} from "../../components/ui";
+
+
+/* =========================================================
+   MEMBER DATA
+========================================================= */
 
 const members = [
   {
@@ -33,63 +51,55 @@ const members = [
   },
 ];
 
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
 export function RepositoryMembersPage() {
   const { repoId } = useParams();
-  const navigate = useNavigate();
 
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
 
-        <button
-          onClick={() => navigate(`/repositories/${repoId}`)}
-          className="mb-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft size={16} />
-          Back to repository
-        </button>
+        <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"
-        >
+        {/* Header */}
+        <PageHeader>
           <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+            <PageHeaderBadge>
               <Users size={13} />
               Repository access
-            </div>
+            </PageHeaderBadge>
 
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Members
-            </h1>
+            <PageHeaderTitle>Members</PageHeaderTitle>
 
-            <p className="mt-2 text-sm text-muted-foreground">
+            <PageHeaderDescription>
               Manage the people who can access and collaborate on this
               repository.
-            </p>
+            </PageHeaderDescription>
           </div>
 
-          <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20">
-            <UserPlus size={17} />
-            Add member
-          </button>
-        </motion.div>
+          <PageHeaderActions>
+            <Button>
+              <UserPlus size={17} />
+              Add member
+            </Button>
+          </PageHeaderActions>
+        </PageHeader>
 
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="overflow-hidden rounded-2xl border border-border/70 bg-card"
-        >
-          <div className="border-b border-border/70 p-5 sm:p-6">
-            <p className="font-semibold">
-              Repository Members
-            </p>
 
-            <p className="mt-1 text-xs text-muted-foreground">
-              {members.length} people currently have access.
-            </p>
-          </div>
+        {/* Member List Card */}
+        <Card>
+          <CardHeader className="border-b border-border/70">
+            <div>
+              <CardTitle>Repository Members</CardTitle>
+              <CardDescription>
+                {members.length} people currently have access.
+              </CardDescription>
+            </div>
+          </CardHeader>
 
           <div className="divide-y divide-border/60">
             {members.map((member) => (
@@ -118,24 +128,24 @@ export function RepositoryMembersPage() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium">
+                  <Badge variant="muted" size="lg">
                     {member.role === "Owner" ? (
                       <Crown size={13} className="text-warning" />
                     ) : (
                       <ShieldCheck size={13} className="text-primary" />
                     )}
-
                     {member.role}
-                  </span>
+                  </Badge>
 
-                  <button className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                  <Button variant="ghost" size="icon">
                     <MoreHorizontal size={18} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
-        </motion.section>
+        </Card>
+
       </div>
     </main>
   );

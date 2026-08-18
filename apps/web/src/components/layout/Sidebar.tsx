@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import {
-  Activity,
   BarChart3,
   Bell,
   Bot,
@@ -12,9 +11,9 @@ import {
   Settings,
   ShieldCheck,
   Users,
-  X,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { Badge } from "../ui/Badge";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -263,9 +262,9 @@ function NavigationSection({
 
                   {!collapsed &&
                     item.label === "Notifications" && (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                      <Badge variant="default" size="sm" className="ml-auto">
                         3
-                      </span>
+                      </Badge>
                     )}
                 </>
               )}
