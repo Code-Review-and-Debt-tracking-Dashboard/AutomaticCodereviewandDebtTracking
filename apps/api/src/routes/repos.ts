@@ -4,7 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { getAvailableRepos, getRepoDebt, getRepoDetail, getRepoPullRequests, getRepoTrend, linkRepository } from '../services/repoService';
+import { listAvailableRepos, getRepoDebt, getRepoDetail, getRepoPullRequests, getRepoTrend, linkRepository, unlinkRepository, getRepoHotspots, getRepoPullRequestDetail, triggerManualAnalysis } from '../services/repoService';
 import { validateRequest } from '../middleware/zodValidate';
 import { linkRepositorySchema, addMemberSchema } from '../schemas/repoSchemas';
 
