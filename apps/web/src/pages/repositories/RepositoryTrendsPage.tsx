@@ -1,12 +1,9 @@
-import { motion } from "framer-motion";
+
 import {
   Activity,
-  ArrowDownRight,
-  ArrowUpRight,
   BarChart3,
   CalendarDays,
   CheckCircle2,
-  Code2,
   GitPullRequest,
   ShieldAlert,
   TrendingDown,
@@ -26,7 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/apiClient";
-import { Loader2 } from "lucide-react";
+
 
 import {
   BackLink,
@@ -125,7 +122,7 @@ export function RepositoryTrendsPage() {
   const [days, setDays] = useState<number>(30);
   const [points, setPoints] = useState<{ date: string; score: number }[]>([]);
   const [latestScore, setLatestScore] = useState<number>(88);
-  const [isLoading, setIsLoading] = useState(true);
+  const [_isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!repoId) return;

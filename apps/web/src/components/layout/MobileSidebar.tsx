@@ -1,6 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Activity,
   BarChart3,
   Bell,
   Bot,

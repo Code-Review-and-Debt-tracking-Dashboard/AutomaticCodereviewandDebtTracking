@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import {
-  Activity,
   BarChart3,
   Bell,
   Bot,
@@ -12,7 +11,6 @@ import {
   Settings,
   ShieldCheck,
   Users,
-  X,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Badge } from "../ui/Badge";

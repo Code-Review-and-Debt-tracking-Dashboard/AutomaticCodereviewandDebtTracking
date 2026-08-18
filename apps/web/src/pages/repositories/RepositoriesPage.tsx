@@ -161,7 +161,7 @@ export function RepositoriesPage() {
 
   useEffect(() => {
     fetchRepos();
-  }, [selectedOrg?.id]);
+  }, [selectedOrg?.id, fetchRepos]);
 
   const filteredRepositories = useMemo(() => {
     let result = [...repositories];

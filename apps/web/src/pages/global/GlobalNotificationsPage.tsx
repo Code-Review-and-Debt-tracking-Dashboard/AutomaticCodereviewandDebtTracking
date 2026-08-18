@@ -12,7 +12,6 @@ import {
 import { api } from "../../lib/apiClient";
 
 import {
-  Badge,
   Button,
   Card,
   EmptyState,

@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -42,7 +42,6 @@ import {
   PageHeaderDescription,
   PageHeaderActions,
   StatCard,
-  IconBox,
 } from "../../components/ui";
 
 interface RepoDetail {
@@ -144,7 +143,7 @@ export function RepositoryOverviewPage() {
     >;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!repoId) return;

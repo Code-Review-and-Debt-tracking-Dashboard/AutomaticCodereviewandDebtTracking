@@ -55,7 +55,7 @@ const pullRequests = [
 ========================================================= */
 
 export function GlobalPullRequestsPage() {
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
 
   return (
     <main className="min-h-screen bg-background">

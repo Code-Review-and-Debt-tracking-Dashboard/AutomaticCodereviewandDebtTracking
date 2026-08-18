@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   Code2,
   GitPullRequest,
-  Loader2,
   LockKeyhole,
   ShieldAlert,
   Wrench,
@@ -105,7 +104,7 @@ export function PRFindingDrilldownPage() {
   const { repoId, prNumber } = useParams();
 
   const [realFindings, setRealFindings] = useState<FindingItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [_isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("All");
   const [category, setCategory] = useState("All");

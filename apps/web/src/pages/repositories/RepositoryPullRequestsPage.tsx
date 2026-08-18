@@ -79,7 +79,7 @@ export function RepositoryPullRequestsPage() {
   const navigate = useNavigate();
   
   const [prs, setPrs] = useState<PullItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [_isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {

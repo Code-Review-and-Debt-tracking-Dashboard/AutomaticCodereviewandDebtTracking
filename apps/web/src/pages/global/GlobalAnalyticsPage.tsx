@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowUpDown,
-  BarChart3,
   CheckCircle2,
   ChevronRight,
   Code2,
@@ -16,7 +15,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -288,7 +286,7 @@ export function GlobalAnalyticsPage() {
                 <CardTitle>Language Breakdown & Health</CardTitle>
                 <CardDescription>Average health score by primary language</CardDescription>
               </div>
-            </CardHeader>
+            </CardHeader> 
 
             <CardContent>
               <div className="h-[300px] w-full">
@@ -385,7 +383,7 @@ export function GlobalAnalyticsPage() {
                 <DataTableHeaderCell align="center">Trend</DataTableHeaderCell>
                 <DataTableHeaderCell align="center">Gate Pass Rate</DataTableHeaderCell>
                 <DataTableHeaderCell align="center">Status</DataTableHeaderCell>
-                <DataTableHeaderCell align="right" className="w-10" />
+                <DataTableHeaderCell align="right" className="w-10" children={""} />
               </DataTableHead>
 
               <DataTableBody>
