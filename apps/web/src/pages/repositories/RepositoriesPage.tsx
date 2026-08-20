@@ -14,7 +14,7 @@ import {
   X,
   Loader2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useOrg } from "../../contexts/OrgContext";
@@ -104,7 +104,7 @@ export function RepositoriesPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
-  const fetchRepos = async () => {
+  const fetchRepos = useCallback(async () => {
     if (!selectedOrg) {
       setRepositories([]);
       setIsLoading(false);
@@ -157,11 +157,11 @@ export function RepositoriesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedOrg]);
 
   useEffect(() => {
     fetchRepos();
-  }, [selectedOrg?.id, fetchRepos]);
+  }, [fetchRepos]);
 
   const filteredRepositories = useMemo(() => {
     let result = [...repositories];

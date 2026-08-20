@@ -29,7 +29,8 @@ import {
   YAxis,
 } from "recharts";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { HotspotTable, type HotspotFile } from "../../components/hotspots/HotspotTable";
 import { api } from "../../lib/apiClient";
 import { Loader2 } from "lucide-react";
 
@@ -132,6 +133,7 @@ const recentActivity = [
 
 export function RepositoryOverviewPage() {
   const { repoId } = useParams<{ repoId: string }>();
+  const navigate = useNavigate();
   const [repoDetail, setRepoDetail] = useState<RepoDetail | null>(null);
   const [trendPoints, setTrendPoints] = useState<{ date: string; score: number }[]>([]);
   const [debtData, setDebtData] = useState<{
@@ -142,6 +144,7 @@ export function RepositoryOverviewPage() {
       { count: number; debtMinutes: number }
     >;
   } | null>(null);
+  const [hotspots, setHotspots] = useState<HotspotFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
 
@@ -151,7 +154,7 @@ export function RepositoryOverviewPage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [repoRes, trendRes, debtRes] = await Promise.allSettled([
+        const [repoRes, trendRes, debtRes, hotspotsRes] = await Promise.allSettled([
           api.get<RepoDetail>(`/api/repos/${repoId}`),
           api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
           api.get<{
@@ -162,6 +165,7 @@ export function RepositoryOverviewPage() {
               { count: number; debtMinutes: number }
             >;
           }>(`/api/repos/${repoId}/debt`),
+          api.get<{ snapshotId: string; files: HotspotFile[] }>(`/api/repos/${repoId}/hotspots`),
         ]);
 
         if (repoRes.status === "fulfilled") {
@@ -177,6 +181,9 @@ export function RepositoryOverviewPage() {
         }
         if (debtRes.status === "fulfilled") {
           setDebtData(debtRes.value);
+        }
+        if (hotspotsRes.status === "fulfilled") {
+          setHotspots(hotspotsRes.value.files);
         }
       } catch (err: any) {
         setError(err?.response?.data?.message || "Failed to load repository data.");
@@ -206,6 +213,16 @@ export function RepositoryOverviewPage() {
   };
 
   const chartTrend = trendPoints.length > 0 ? trendPoints : healthTrend;
+
+  const debtBreakdown = debtData?.breakdown;
+  const debtChartData = [
+    { key: "vulnerability", label: "Vulnerability", value: debtBreakdown?.vulnerability.debtMinutes ?? 0, color: "hsl(var(--destructive))" },
+    { key: "complexity", label: "Complexity", value: debtBreakdown?.complexity.debtMinutes ?? 0, color: "hsl(var(--info))" },
+    { key: "duplication", label: "Duplication", value: debtBreakdown?.duplication.debtMinutes ?? 0, color: "hsl(var(--warning))" },
+    { key: "code_smell", label: "Code Smell", value: debtBreakdown?.code_smell.debtMinutes ?? 0, color: "#a78bfa" },
+    { key: "maintainability", label: "Maintainability", value: debtBreakdown?.maintainability.debtMinutes ?? 0, color: "hsl(var(--success))" },
+  ];
+  const hasDebtBreakdown = debtChartData.some((d) => d.value > 0);
 
   if (isLoading) {
     return (
@@ -481,6 +498,109 @@ export function RepositoryOverviewPage() {
               );
             })}
           </div>
+        </Card>
+
+        <Card className="mt-6 p-5 sm:p-6">
+          <div className="mb-6">
+            <p className="text-sm font-semibold">
+              Debt Breakdown
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Estimated remediation effort by category
+            </p>
+          </div>
+
+          {hasDebtBreakdown ? (
+            <div className="grid gap-6 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-center">
+              <div className="relative h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={debtChartData}
+                      dataKey="value"
+                      nameKey="label"
+                      innerRadius={70}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      strokeWidth={0}
+                    >
+                      {debtChartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.color} />
+                      ))}
+                    </Pie>
+
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        `${Math.floor(value / 60)}h ${Math.round(value % 60)}m`,
+                        name,
+                      ]}
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "12px",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-xl font-bold">
+                    {repository.technicalDebt}
+                  </p>
+
+                  <p className="text-xs text-muted-foreground">
+                    Total debt
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {debtChartData.map((entry) => (
+                  <div
+                    key={entry.key}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 p-3"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: entry.color }}
+                      />
+
+                      <span className="text-sm font-medium">
+                        {entry.label}
+                      </span>
+                    </div>
+
+                    <span className="text-xs text-muted-foreground">
+                      {Math.floor(entry.value / 60)}h {Math.round(entry.value % 60)}m
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              No debt data available yet. Run an analysis to see the breakdown.
+            </p>
+          )}
+        </Card>
+
+        <Card className="mt-6 p-5 sm:p-6">
+          <div className="mb-6">
+            <p className="text-sm font-semibold">
+              Hotspots
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Files with the most findings in the latest analysis
+            </p>
+          </div>
+
+          <HotspotTable
+            files={hotspots}
+            onRowClick={(file) =>
+              navigate(`/repositories/${repoId}/findings?file=${encodeURIComponent(file)}`)
+            }
+          />
         </Card>
 
         <Card className="mt-6 p-5 sm:p-6">
