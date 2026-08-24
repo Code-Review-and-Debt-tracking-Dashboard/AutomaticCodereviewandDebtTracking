@@ -68,7 +68,7 @@ export async function syncUserOrganizations(
     })),
   ];
 
-  return prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx) => {
     const summaries: OrgSummary[] = [];
 
     for (const org of wanted) {
@@ -125,7 +125,7 @@ export async function resyncOrganizations(userId: string): Promise<OrgSummary[]>
     throw new AppError(401, 'UNAUTHORIZED', 'No GitHub credential on file; sign in again');
   }
 
-  return syncUserOrganizations(
+  return await syncUserOrganizations(
     userId,
     {
       githubId: user.githubId,

@@ -30,7 +30,7 @@ const refreshClient: AxiosInstance = axios.create({
 const REFRESH_TOKEN_KEY = 'ch_refresh_token';
 
 export async function getStoredRefreshToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
 }
 
 export async function setStoredRefreshToken(token: string | null): Promise<void> {
