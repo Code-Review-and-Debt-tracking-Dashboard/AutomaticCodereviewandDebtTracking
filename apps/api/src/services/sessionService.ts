@@ -88,7 +88,7 @@ export async function rotateSession(presentedToken: string): Promise<IssuedSessi
 
   if (session.revokedAt) {
     if (isWithinGrace(session)) {
-      return issueInFamily(session.familyId, session.user, session.expiresAt);
+      return await issueInFamily(session.familyId, session.user, session.expiresAt);
     }
 
     if (session.revokedReason === 'ROTATED') {
@@ -121,7 +121,7 @@ export async function rotateSession(presentedToken: string): Promise<IssuedSessi
     data: { revokedAt: new Date(), revokedReason: 'ROTATED' },
   });
 
-  return issueInFamily(session.familyId, session.user, session.expiresAt);
+  return await issueInFamily(session.familyId, session.user, session.expiresAt);
 }
 
 export async function revokeSessionByToken(presentedToken: string): Promise<void> {

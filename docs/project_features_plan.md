@@ -8,6 +8,13 @@
 > org-level multi-tenancy is a hard requirement (`requirements_analysis.md` Q-1). Existing step
 > numbers were **not** renumbered, so every other reference in this document still resolves.
 >
+> **Revised:** 29 August 2026 — Weeks 11–15 re-issued after the mid-evaluation. Steps `95`–`108`
+> appended for the work specified in `analysis_access_and_reporting_design.md` §7; mobile push
+> notifications cut; four existing steps moved between people to absorb Week 10 spillover. Following
+> the 31 Jul precedent, **nothing was renumbered** — new steps append, cut steps are listed rather
+> than deleted, so every existing reference still resolves. Weeks 6–10 are untouched historical
+> record.
+>
 > **Team:** Rumesh (lead) · Nethmi · Vidushi
 
 ---
@@ -131,86 +138,137 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
-| 43 | Rumesh | `B-04` | ESLint analyzer wrapper — invoke CLI, parse JSON | 41 | 4 |
+| 43 | Rumesh | `B-04` | ESLint analyzer wrapper — invoke CLI, parse JSON · **→ carried to W11** | 41 | — |
 | 44 | Nethmi | `D-16` | Notification bell + dropdown in topbar | 39, 42 | 4 |
 | 45 | Vidushi | `A-22` | Mobile summary + code-smells endpoints | 40 | 3 |
-| 46 | Rumesh | `B-05` | PyLint analyzer wrapper | 43 | 3 |
+| 46 | Rumesh | `B-05` | PyLint analyzer wrapper · **→ carried to W11** | 43 | — |
 | 47 | Nethmi | `A-25` | zod validation middleware across all endpoints | 44 | 4 |
-| 48 | Vidushi | `A-23` | Device registration endpoints (push tokens) | 45 | 2 |
-| 49 | Rumesh | `D-15` | Quality gate configuration page — sliders, toggles, save | 36, 46 | 5 |
-| 50 | Vidushi | `A-26` | Rate limiting middleware | 48 | 2 |
-| 51 | Vidushi | `A-31` | `GET /api/metrics` — admin-only | 50 | 2 |
+| 48 | Vidushi | `A-23` | Device registration endpoints (push tokens) · **→ cut** | 45 | — |
+| 49 | Rumesh | `D-15` | Quality gate configuration page — sliders, toggles, save · **→ carried to W11, now Vidushi** | 36 | — |
+| 50 | Vidushi | `A-26` | Rate limiting middleware · **→ carried to W11** | — | — |
+| 51 | Vidushi | `A-31` | `GET /api/metrics` — admin-only · **→ carried to W11** | 50 | — |
 
-> **Step 49 is Rumesh's web task.** He builds the page that configures the gate because he writes the evaluator (step 70) — one owner means the two can't drift apart.
+> **Step 49 was Rumesh's web task**, on the reasoning that whoever writes the gate evaluator should also build the page that configures it. The 29 Aug replan moved it to Vidushi for capacity — see Week 11.
+>
+> ⚠️ **This week did not close.** As of 29 Aug, steps **43**, **46**, **49**, **50** and **51** were unmerged — roughly 12h of Rumesh's and 4h of Vidushi's work. They are carried into Week 11 rather than restarted, and step 48 was cut outright. Everything else in Weeks 6–10 stands as recorded.
+
 
 ---
 
 ## WEEK 11 · 31 Aug – 6 Sep · *(full capacity resumes)*
-**Goal: all analyzers done, findings normalised, first mobile screens appear.**
+**Goal: Week 10 spillover cleared, all analyzers done and normalised, data plane contract started.**
 
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
-| 52 | Rumesh | `A-24` | Push notification dispatch service (Expo Push API) — **do this Monday** | 48, 49 | 4 |
-| 53 | Nethmi | `B-08` | jscpd analyzer wrapper (duplication detection) | 47 | 3 |
+| 43 | Rumesh | `B-04` | ESLint analyzer wrapper — invoke CLI, parse JSON · *carried from Week 10* | 41 | 4 |
+| 95 | Rumesh | `B-29` | `eslint-plugin-sonarjs` added to the worker's ESLint config | 43 | 1 |
+| 46 | Rumesh | `B-05` | PyLint analyzer wrapper · *carried from Week 10* | 43 | 3 |
+| 55 | Nethmi | `B-06` | Bandit analyzer wrapper (Python security) · *reassigned* | 47 | 3 |
+| 58 | Nethmi | `B-07` | Radon analyzer wrapper (complexity + maintainability index) · *reassigned* | 55 | 3 |
+| 49 | Vidushi | `D-15` | Quality gate configuration page — sliders, toggles, save · *carried, reassigned* | 36 | 5 |
+| 50 | Vidushi | `A-26` | Rate limiting middleware · *carried from Week 10* | — | 2 |
+| 51 | Vidushi | `A-31` | `GET /api/metrics` — admin-only · *carried from Week 10* | 50 | 2 |
 | 54 | Vidushi | `C-07` | Migration pass for schema changes surfaced in development | 51 | 2 |
-| 55 | Rumesh | `B-06` | Bandit analyzer wrapper (Python security) | 52 | 3 |
+| 96 | Rumesh | `B-28` | Contract DTOs in `packages/shared` — job descriptor, results payload | — | 2 |
+| 103 | Vidushi | `C-10` | Data plane agent record + migration — token hash, org, last-seen | 54 | 2 |
+| 102 | Nethmi | `A-40` | Subscribe webhook registration to `push` events | — | 1 |
+| 107 | Vidushi | `A-39` | Orphaned-webhook fix in `unlinkRepository` | — | 2 |
 | 56 | Nethmi | `E-05` | Mobile home screen — repo list with sparklines | 34, 45, 53 | 5 |
-| 57 | Vidushi | `E-08` | Push notification setup — Expo Notifications, device registration | 28, 52, 54 | 5 |
-| 58 | Rumesh | `B-07` | Radon analyzer wrapper (complexity + maintainability index) | 55 | 3 |
-| 59 | Nethmi | `D-17` | Loading, empty and error states across all web pages | 56 | 4 |
-| 60 | Vidushi | `E-09` | Push handling — foreground / background, tap-to-navigate | 57 | 4 |
 | 61 | Rumesh | `B-12` | Output normaliser — every tool → unified `Finding` shape | 43, 46, 53, 55, 58 | 5 |
 
-> **Step 52 runs Monday.** Steps 57 and 60 are blocked behind it and there is no slack in the week.
-> **Step 61 is the widest bottleneck in the project** — six analyzers feed into it, and steps 72 and 83 both wait on it. If an analyzer is late, cut it rather than delay step 61.
-> **Step 56 is Nethmi's first React Native screen** — a direct re-expression of the web repo list she already built.
+**Load: Rumesh 15h · Nethmi 12h · Vidushi 15h**
+
+> **Steps 43, 46, 49, 50 and 51 are Week 10 spillover.** They are carried, not restarted. Week 11 is
+> the week the schedule reabsorbs them, which is why three steps changed owner.
+> **Steps 55 and 58 moved to Nethmi.** She wrote the jscpd wrapper (step 53) so the shape is familiar,
+> and running them in parallel with Rumesh's B-04/B-05 is what makes five analyzers inside one week
+> possible at all.
+> **Step 49 moved to Vidushi.** The original single-owner rationale — the person who writes the gate
+> evaluator also builds its page — is deliberately given up here for capacity. Vidushi builds the page
+> against `QualityGate`'s field list; **Rumesh still owns the evaluator (step 70)**, so the two must be
+> checked against each other at review rather than by shared authorship.
+> **Step 61 remains the widest bottleneck in the project.** Five analyzers feed it; steps 97 and 106
+> wait behind it. If an analyzer is late, cut it rather than delay step 61.
+> **Steps 96, 102, 103 and 107 are new.** 96 and 103 are the foundations everything in Week 12 builds
+> on; 102 and 107 are small independent fixes parked here because they block nothing.
 
 ---
 
 ## WEEK 12 · 7 Sep – 13 Sep — **FEATURE FREEZE ENDS THIS WEEK**
-**Goal: scoring engine complete.**
+**Goal: scoring engine complete, control plane contract endpoints live, PR comment reports metrics.**
 
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
 | 62 | Rumesh | `B-13` | Health Score computation — pure, testable function — **ship by Wed** | 61 | 4 |
 | 63 | Rumesh | `B-14` | Debt Score — sum remediation minutes from cost table | 62 | 3 |
-| 64 | Nethmi | `E-07` | Mobile notification screen — list, mark read, swipe | 39, 56 | 4 |
+| 99 | Nethmi | `A-36` | Agent authentication + results-ingest endpoint | 96, 103 | 5 |
 | 65 | Vidushi | `B-25` | Unit tests for the scoring function | 62 | 3 |
 | 66 | Rumesh | `B-15` | Finding matcher — `NEW` / `EXISTING` / `RESOLVED` vs baseline | 63 | 4 |
+| 104 | Vidushi | `C-11` | `PullRequest.botCommentId` migration | 54 | 1 |
 | 67 | Vidushi | `B-18` | PR comment markdown builder — score + debt summary + delta | 63, 65 | 3 |
-| 68 | Nethmi | `D-18` | Responsive layout adjustments, 1024px–1920px | 59, 64 | 3 |
+| 100 | Nethmi | `A-37` | Job-lease endpoint — lease / complete / fail, fixed visibility timeout | 99 | 5 |
+| 105 | Vidushi | `B-31` | PR comment metrics table — per-metric value / threshold / status | 67, 104 | 3 |
 | 69 | Rumesh | `B-16` | Debt delta — current debt minus baseline | 66 | 2 |
 | 70 | Rumesh | `B-17` | Quality gate evaluator | 69 | 2 |
-| 71 | Vidushi | `E-10` | Mobile UI polish — loading states, pull-to-refresh, empty states | 60, 67 | 4 |
+| 101 | Nethmi | `D-21` | Bulk enable UI — multi-select picker, progress, per-repo result summary | 98 | 3 |
+| 106 | Vidushi | `B-30` | TODO / FIXME / HACK scan analyzer (self-admitted debt) | 61 | 2 |
 
-> **Steps 62 and 63 must be merged by Wednesday.** Steps 65 and 67 sit directly behind them and Week 12 is the last feature week.
-> **Step 65 is deliberate:** whoever writes the scoring function should not write its tests, and writing the cases is the fastest way to actually learn `scoring_algorithm.md`. Expect an evaluator to ask any member about this function.
+**Load: Rumesh 15h · Nethmi 13h · Vidushi 12h**
 
-**⛔ GATE — Sunday 13 Sep: FEATURE FREEZE.** Anything not working now gets cut per `project_plan.md` §4, not pushed forward. First cut candidates: Cppcheck `B-11`, Checkstyle `B-09`, PMD `B-10`, push notifications.
+> **Steps 62 and 63 must be merged by Wednesday.** Steps 65 and 67 sit directly behind them.
+> **Step 65 is deliberate:** whoever writes the scoring function should not write its tests, and
+> writing the cases is the fastest way to actually learn `scoring_algorithm.md`. Expect an evaluator
+> to ask any member about this function.
+> **Steps 99 and 100 are the control plane half of the data plane contract.** Step 97 in Week 13
+> cannot start until 100 is merged, so these two are the week's real deadline, not the scoring chain.
+> **Step 105 extends step 67 rather than replacing it** — 67 renders the body, 105 adds the metrics
+> table that reports which threshold each metric breached.
+> **Steps 59, 64, 68 and 71 moved to Weeks 13–14.** All four are polish (loading states, responsive
+> layout, mobile screens) and were the only things in this week that could move.
+
+**⛔ GATE — Sunday 13 Sep: FEATURE FREEZE.** Anything not working now gets cut per `project_plan.md`
+§4, not pushed forward. Note that the Week 13 pipeline steps (97, 75, 76, 77, 98) are *completion of
+already-started work*, not new features, and are inside the freeze by design. Genuine cut candidates
+at this gate, in order: **step 106** (TODO scan), **step 108** (self-hosted deployment docs), and the
+reconciliation job already deferred in `analysis_access_and_reporting_design.md` §4.4.
 
 ---
 
 ## WEEK 13 · 14 Sep – 20 Sep
-**Goal: the loop closes — results reach GitHub and the dashboard.**
+**Goal: the loop closes — results reach GitHub and the dashboard, across the plane boundary.**
 
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
-| 72 | Rumesh | `B-21` | Result persistence — immutable `HealthSnapshot` + findings, transition job status | 61, 69 | 4 |
+| 97 | Rumesh | `B-21` | Result persistence as an authenticated API client — replaces direct Prisma writes | 61, 69, 96, 100 | 6 |
 | 73 | Nethmi | `D-19` | Frontend unit and component tests | 68 | 5 |
 | 74 | Vidushi | `A-27` | API integration tests across all endpoints — **must include the cross-tenant matrix** (second org's token → 404 on every repo-scoped route) | 47, 71 | 6 |
-| 75 | Rumesh | `B-19` | GitHub PR comment poster (Octokit, updates existing comment) | 67, 72 | 4 |
-| 76 | Rumesh | `B-20` | GitHub commit status poster — pass / fail | 70, 75 | 2 |
-| 77 | Rumesh | `B-22` | Notification creation — gate fail, score drop, critical vulnerability | 52, 76 | 3 |
+| 75 | Rumesh | `B-19` | GitHub PR comment poster (Octokit, updates existing comment) | 67, 97, 105 | 4 |
+| 98 | Rumesh | `A-38` | Bulk repository enable — endpoint + queued registration job | 96 | 5 |
+| 76 | Vidushi | `B-20` | GitHub commit status poster — pass / fail · *reassigned* | 70, 75 | 2 |
+| 77 | Rumesh | `B-22` | Notification creation — gate fail, score drop, critical vulnerability | 76 | 3 |
+| 59 | Nethmi | `D-17` | Loading, empty and error states across all web pages | 56 | 4 |
+| 64 | Nethmi | `E-07` | Mobile notification screen — list, mark read, swipe | 39, 56 | 4 |
+| 71 | Vidushi | `E-10` | Mobile UI polish — loading states, pull-to-refresh, empty states | 67 | 4 |
 | 78 | Nethmi | — | **Cross-test the mobile app and the API** — not her own code | 73 | 4 |
 | 79 | Vidushi | — | **Cross-test the web dashboard** — not her own code | 74 | 4 |
 
-> **Steps 78 and 79 are mandatory and nobody tests their own platform.** Finding someone else's bug is the fastest route into their code, and every bug you find is one the evaluator doesn't.
-> **Step 74's tenant matrix is not optional.** The two-tenant seed fixture from step 5a exists precisely so these tests are cheap to write. A missing authorisation guard is the one bug class that ships silently and looks like a working feature — `A-33` had to fix exactly that on `/trend`, where the route's own comment claimed a check the middleware chain did not have.
+**Load: Rumesh 18h · Nethmi 17h · Vidushi 16h**
+
+> **Step 97 replaces the original step 72.** Persistence is written once, against the contract, rather
+> than as Prisma writes that would have to be unpicked later. This is the single item whose cost rises
+> if it slips — everything else deferred can be added later at roughly the same price.
+> **Step 76 moved to Vidushi** purely to keep Rumesh's week under 20h; it is small and self-contained.
+> **Steps 78 and 79 are mandatory and nobody tests their own platform.** Finding someone else's bug is
+> the fastest route into their code, and every bug you find is one the evaluator doesn't.
+> **Step 74's tenant matrix is not optional.** The two-tenant seed fixture from step 5a exists
+> precisely so these tests are cheap to write. A missing authorisation guard is the one bug class that
+> ships silently and looks like a working feature — `A-33` had to fix exactly that on `/trend`, where
+> the route's own comment claimed a check the middleware chain did not have.
 
 ---
 
 ## WEEK 14 · 21 Sep – 27 Sep
-**Goal: packaged, deployed, running on real infrastructure.**
+**Goal: packaged, deployed, running on real infrastructure — in both deployment topologies.**
 
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
@@ -218,12 +276,19 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | 81 | Nethmi | — | Fix bugs raised by step 79, final web polish | 79 | 6 |
 | 82 | Vidushi | — | Fix bugs raised by step 78, final mobile polish | 78 | 5 |
 | 83 | Rumesh | `B-26` | Unit tests for the normalisers | 80 | 4 |
+| 68 | Nethmi | `D-18` | Responsive layout adjustments, 1024px–1920px | 59 | 3 |
+| 108 | Vidushi | `B-32` | Self-hosted data plane — compose file + deployment docs | 80, 97, 100 | 3 |
 | 84 | Nethmi | — | Deploy the web dashboard to cloud hosting | 81 | 4 |
 | 85 | Vidushi | — | Build and distribute the mobile app via Expo EAS | 82 | 4 |
 | 86 | Rumesh | `B-27` | End-to-end integration test of the analysis pipeline | 83 | 5 |
-| 87 | Vidushi | — | Physical device testing — push does not work on simulators (`R-09`) | 85 | 3 |
-| 88 | Rumesh + Vidushi | — | Deploy API, worker, Postgres and Redis to cloud | 86, 87 | 6 |
+| 88 | Rumesh + Vidushi | — | Deploy API, worker, Postgres and Redis to cloud | 86 | 6 |
 | 89 | All | — | Cross-platform integration test on the deployed stack | 84, 88 | 5 |
+
+**Load: Rumesh ~19h · Nethmi ~15h · Vidushi ~17h** *(88 split two ways, 89 three ways)*
+
+> **Step 108 is what makes the hybrid model demonstrable.** Running the same worker image twice — once
+> beside the API, once as a "customer" deployment talking over HTTPS — is the demo that answers the
+> private-repo objection. It depends on 80, so it cannot start earlier.
 
 ---
 
@@ -240,17 +305,57 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 
 ---
 
+## Cut at the 29 Aug replan
+
+Removed to make room for the mid-evaluation work. Per `project_plan.md` §4 these are Cut List rank 3,
+marked **Safe** — in-app notifications still ship on both web (`D-16`, step 44) and mobile (`E-07`,
+step 64); only device push is gone.
+
+| # | WBS | Task | Was | Hrs |
+|---|---|---|---|---|
+| 48 | `A-23` | Device registration endpoints (push tokens) | Vidushi | 2 |
+| 52 | `A-24` | Push notification dispatch service (Expo Push API) | Rumesh | 4 |
+| 57 | `E-08` | Push notification setup — Expo Notifications | Vidushi | 5 |
+| 60 | `E-09` | Push handling — foreground / background, tap-to-navigate | Vidushi | 4 |
+| 87 | — | Physical device testing (`R-09`) | Vidushi | 3 |
+
+Frees **18h** — Rumesh 4h, Vidushi 14h — and removes an entire critical link from Week 11, which was
+the week carrying the Week 10 spillover.
+
+> The `Device` model (`C-06`) stays in the schema, unused. Leaving it is cheaper than a migration and
+> it documents the intent if push is ever restored.
+> **Step 77 no longer waits on step 52.** It now waits on 76. In-app notification rows are still
+> created; only the push dispatch that would have consumed them is gone.
+
+---
+
 ## Chain summary — who runs where
 
 | Person | Steps | Hours | Weeks 6–14 avg |
 |---|---|---|---|
-| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, 20, 23, 26, 32, **32a**, 35, 38, 41, 43, 46, 49, 52, 55, 58, 61, 62, 63, 66, 69, 70, 72, 75, 76, 77, 80, 83, 86, 88 | ~135h | ~15.0h/wk |
-| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 56, 59, 64, 68, 73, 78, 81, 84 | ~79h | ~8.8h/wk |
-| **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 48, 50, 51, 54, 57, 60, 65, 67, 71, 74, 79, 82, 85, 87, 88, **17b** | ~85h | ~9.4h/wk |
+| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, 20, 23, 26, 32, **32a**, 35, 38, 41, 43, 46, 61, 62, 63, 66, 69, 70, 75, 77, 80, 83, 86, 88, **95**, **96**, **97**, **98** | ~125h | ~13.3h/wk |
+| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 55, 56, 58, 59, 64, 68, 73, 78, 81, 84, **99**, **100**, **101**, **102** | ~119h | ~12.7h/wk |
+| **Vidushi** | 4, 7, 10, 13, 15, 16, **17b**, 19, 22, 25, 28, 34, 37, 40, 45, 49, 50, 51, 54, 65, 67, 71, 74, 76, 79, 82, 85, 88, **103**, **104**, **105**, **106**, **107**, **108** | ~112h | ~11.9h/wk |
 
-Lighter than the original plan because documentation sits on a separate track. Treat the difference as buffer for exam weeks and integration bugs — both consistently cost more than anyone budgets.
+New steps from the 29 Aug replan are in bold. They total **14h Rumesh · 14h Nethmi · 13h Vidushi** —
+the new work is split evenly by design, which was the explicit requirement for this replan.
 
-> **The 31 Jul revision costs 12h in total** — 9h on Rumesh (steps 5a, 5b) and 3h on Nethmi (step 12a), all inside Week 6. It lands in the week with the most existing slack and before `A-11` writes the first real `Repository` rows, which is the cheapest point in the schedule it could have landed. `C-09` is schema work nominally in Vidushi's WBS-C section, but `packages/db` schema is shared ownership and Vidushi is already carrying the two late mobile steps (15, 16), so the lead took it.
+Hours are summed from the week tables above and include the shared steps (30, 31, 88–94), which are
+not listed in the Steps column. Carried steps are counted once, in the week they are actually done.
+
+> **The totals moved a long way.** Before this replan the split was ~135h / ~79h / ~85h — the lead
+> carrying more than the other two combined. Cutting push, moving `B-06`, `B-07`, `D-15` and `B-20`,
+> and splitting the new work three ways brings it to roughly 125 / 119 / 112. That is close enough to
+> even that no one person is now the schedule's single point of failure.
+
+Lighter than the original plan because documentation sits on a separate track. Treat the difference as
+buffer for exam weeks and integration bugs — both consistently cost more than anyone budgets.
+
+> **The 31 Jul revision costs 12h in total** — 9h on Rumesh (steps 5a, 5b) and 3h on Nethmi (step 12a),
+> all inside Week 6.
+> **The 29 Aug replan is net −18h of cuts and +41h of new work.** It moves four existing steps between
+> people (55, 58 and 49 off Rumesh; 76 off Rumesh) to keep Week 11 inside capacity after absorbing the
+> Week 10 spillover — without which Rumesh's Week 11 would have been ~27h.
 
 ---
 
@@ -261,11 +366,15 @@ If any one of these slips, the chain behind it stalls. Watch these more than any
 | Link | Step | Why |
 |---|---|---|
 | 1 | **3** — `D-05` API client | Nine pages sit behind it. Week 6, Monday. |
-| 2 | **5b** — `A-33` tenant enforcement | Now sits directly in front of `A-11`. Every repo-scoped endpoint written after it inherits the tenant guard for free; anything written before it has to be revisited. |
+| 2 | **5b** — `A-33` tenant enforcement | Every repo-scoped endpoint written after it inherits the tenant guard for free; anything written before it has to be revisited. |
 | 3 | **8** — `A-11` repo CRUD | First real endpoint. Step 12 and the Review 1 demo depend on it. |
-| 4 | **52** — `A-24` push dispatch | Steps 57 and 60 block on it with no slack in Week 11. |
-| 5 | **61** — `B-12` normaliser | Six analyzers in, persistence and tests out. Widest bottleneck in the project. |
-| 6 | **62/63** — `B-13`/`B-14` scoring | Last feature week. Steps 65 and 67 sit right behind. |
+| 4 | **96** — contract DTOs | Steps 97, 99 and 108 all depend on it. Two hours of work that three larger steps sit behind — do it in the first days of Week 11. |
+| 5 | **61** — `B-12` normaliser | Five analyzers in, persistence and tests out. Widest bottleneck in the project. |
+| 6 | **100** — job-lease endpoint | Step 97 blocks on it, and 97 is the last chance to write persistence once instead of twice. Last feature week. |
+
+> Link 4 was `A-24` push dispatch before the 29 Aug replan. Cutting push removed that link entirely.
+> Steps **62/63** (scoring) remain tight — 65 and 67 sit directly behind them — but they are no longer
+> the week's binding constraint; steps 99 and 100 are.
 
 ---
 
@@ -276,4 +385,3 @@ If any one of these slips, the chain behind it stalls. Watch these more than any
 3. **One log row per merged step.** In your `learning-log-*.md`: what it does, why that approach, the question you'd be asked.
 4. **24-hour blocker rule.** Blocked longer than a day and it becomes the lead's problem. Silent blockage is how three-person teams fail.
 5. **Gates are hard.** Weeks 6, 7 and 12. Miss one and re-plan that Sunday rather than hoping the next week absorbs it.
-6. **Cut, don't slip.** After step 71, apply the cut list in `project_plan.md` §4 instead of extending the schedule.

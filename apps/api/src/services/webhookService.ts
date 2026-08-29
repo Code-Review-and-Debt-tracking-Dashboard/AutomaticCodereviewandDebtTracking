@@ -124,7 +124,7 @@ export async function upsertPullRequest(repoId: string, event: ParsedPullRequest
     status,
   };
 
-  return prisma.pullRequest.upsert({
+  return await prisma.pullRequest.upsert({
     where: { repoId_prNumber: { repoId, prNumber: event.prNumber } },
     create: { repoId, prNumber: event.prNumber, ...fields },
     update: fields,

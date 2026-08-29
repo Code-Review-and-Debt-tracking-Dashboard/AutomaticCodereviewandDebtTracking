@@ -96,7 +96,7 @@ export async function triggerManualAnalysis(repoId: string, userId: string, orgR
     );
   }
 
-  return enqueueAnalysisJob({
+  return await enqueueAnalysisJob({
     repoId,
     branch: repository.defaultBranch,
     commitSha: 'HEAD',
