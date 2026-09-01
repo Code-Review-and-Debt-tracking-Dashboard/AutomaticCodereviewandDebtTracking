@@ -1,0 +1,7 @@
+# Python tools the worker shells out to. Not installed by npm — until the worker
+# image exists these have to be on the host:
+#   python3 -m pip install -r apps/worker/requirements.txt
+#
+# Pinned exactly: a version bump changes which messages fire, and that would move
+# the health score of code that never changed.
+pylint==4.0.8
