@@ -3,6 +3,7 @@
 // the repo's own eslint config never gets a say.
 import js from '@eslint/js';
 import security from 'eslint-plugin-security';
+import sonarjs from 'eslint-plugin-sonarjs';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
@@ -21,6 +22,15 @@ export default [
     rules: {
       ...security.configs.recommended.rules,
     },
+  },
+
+  // Cognitive complexity, duplicated branches, dead-code patterns — bug and
+  // smell rules eslint:recommended doesn't have. Its own equivalents of our
+  // complexity/duplication rules ship turned off in this preset, so it's
+  // additive rather than a second opinion on the same threshold.
+  {
+    ...sonarjs.configs.recommended,
+    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
   },
 
   // Listing the ts/jsx extensions here is also what pulls those files into the
