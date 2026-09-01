@@ -2,6 +2,7 @@ import { AnalysisStatus, prisma } from '@codehealth/db';
 import type { AnalysisJobData } from '@codehealth/shared';
 import type { Job } from 'bullmq';
 
+import { runEslint } from '../analyzers/eslint';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { detectLanguages } from '../stages/detect';
@@ -36,12 +37,25 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       data: { commitSha: cloned.commitSha, progress: 10 },
     });
 
-    await detectLanguages(cloned.repoPath);
+    const detected = await detectLanguages(cloned.repoPath);
 
     await prisma.analysisJob.update({
       where: { id: analysisId },
       data: { progress: 15 },
     });
+
+    if (detected.analyzers.includes('eslint')) {
+      const eslint = await runEslint(cloned.repoPath);
+      logger.info(
+        {
+          analysisId,
+          files: eslint.results.length,
+          errors: eslint.errorCount,
+          warnings: eslint.warningCount,
+        },
+        'ESLint finished',
+      );
+    }
 
     // remaining analysis stages go here, over cloned.repoPath
 
