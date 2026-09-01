@@ -228,6 +228,7 @@ The API deliberately keeps routes thin. Route files handle HTTP concerns — par
 
 - Node.js 20+ and npm 10+
 - Docker and Docker Compose
+- Python 3.10+ and pip — the worker shells out to PyLint (`python3 -m pip install -r apps/worker/requirements.txt`)
 - A GitHub account (for creating an OAuth App)
 
 ### 1. Clone and install
