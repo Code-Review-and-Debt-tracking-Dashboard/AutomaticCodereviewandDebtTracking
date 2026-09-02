@@ -8,6 +8,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { adminRouter } from './routes/admin';
 import { authRouter, devLoginRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
+import { mobileRouter } from './routes/mobile';
 import { notificationsRouter } from './routes/notifications';
 import { orgsRouter } from './routes/orgs';
 import { queuesRouter } from './routes/queues';
@@ -41,7 +42,7 @@ export function createApp(): Express {
   app.use(reposRouter);
   app.use(qualityGatesRouter);
   app.use(snapshotsRouter);
-
+  app.use(mobileRouter);
   app.use(notFoundHandler);
   app.use(errorHandler);
 

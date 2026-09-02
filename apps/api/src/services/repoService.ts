@@ -2,7 +2,7 @@ import { prisma} from '@codehealth/db';
 
 import { AppError} from '../middleware/errorHandler';
 
-async function getActiveRepo(repoId: string){
+export async function getActiveRepo(repoId: string){
     const repo = await prisma.repository.findUnique({where: {id: repoId}});
     if (!repo || !repo.isActive){
         throw new AppError(404, 'NOT_FOUND', 'Repository not found');
