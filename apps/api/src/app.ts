@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { env } from './config/env';
 import { logger } from './lib/logger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { globalRateLimiter } from './middleware/rateLimit';
 import { adminRouter } from './routes/admin';
 import { authRouter, devLoginRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
@@ -23,6 +24,8 @@ export function createApp(): Express {
   app.use(helmet());
   // Explicit origins, not a wildcard: the refresh cookie needs credentials.
   app.use(cors({ origin: env.webAppOrigins, credentials: true }));
+
+  app.use(globalRateLimiter);
 
   // must come before express.json() — signature check needs the raw body
   app.use(webhookRouter);

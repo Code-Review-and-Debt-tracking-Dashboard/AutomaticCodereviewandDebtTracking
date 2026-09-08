@@ -2,6 +2,7 @@ import { AnalysisTrigger } from '@codehealth/db';
 import express, { Router } from 'express';
 
 import { AppError } from '../middleware/errorHandler';
+import { webhookRateLimiter } from '../middleware/rateLimit';
 import { verifyWebhookSignature } from '../middleware/verifyWebhookSignature';
 import { enqueueAnalysisJob } from '../services/queueService';
 import {
@@ -18,6 +19,7 @@ export const webhookRouter = Router();
 // the exact bytes GitHub signed
 webhookRouter.post(
   '/webhooks/github',
+  webhookRateLimiter,
   express.raw({ type: 'application/json' }),
   verifyWebhookSignature,
   async (req, res, next) => {

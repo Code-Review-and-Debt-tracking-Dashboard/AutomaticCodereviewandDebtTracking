@@ -12,6 +12,7 @@ import {
 } from '../lib/cookies';
 import { signAccessToken } from '../lib/jwt';
 import { AppError } from '../middleware/errorHandler';
+import { authRateLimiter } from '../middleware/rateLimit';
 import { requireAuth } from '../middleware/requireAuth';
 import {
   buildGithubAuthorizeUrl,
@@ -23,6 +24,9 @@ import {
 import { revokeSessionByToken, rotateSession } from '../services/sessionService';
 
 export const authRouter = Router();
+// scoped to '/auth' — authRouter is itself mounted at the app root, so an
+// unscoped .use() here would rate-limit every route in the app, not just this one
+authRouter.use('/auth', authRateLimiter);
 
 // Only /auth/refresh and /auth/logout read cookies, and the cookie is scoped
 // to /auth, so this stays off the rest of the app.
@@ -142,6 +146,7 @@ authRouter.get('/auth/me', requireAuth, async (req, res, next) => {
 
 // Registered from app.ts only when enabled, so it can't exist in production.
 export const devLoginRouter = Router();
+devLoginRouter.use('/auth', authRateLimiter);
 
 devLoginRouter.post('/auth/dev-login', async (req, res, next) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
