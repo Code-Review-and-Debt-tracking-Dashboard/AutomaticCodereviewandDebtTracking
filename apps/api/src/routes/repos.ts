@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { AppError } from '../middleware/errorHandler';
+import { analyzeRateLimiter } from '../middleware/rateLimit';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
@@ -162,6 +163,7 @@ reposRouter.get(
 reposRouter.post(
   '/api/repos/:repoId/analyze',
   requireAuth,
+  analyzeRateLimiter,
   requireRepoAccess('write'),
   async (req, res, next) => {
     try {
