@@ -8,6 +8,13 @@
 > org-level multi-tenancy is a hard requirement (`requirements_analysis.md` Q-1). Existing step
 > numbers were **not** renumbered, so every other reference in this document still resolves.
 >
+> **Revised:** 9 September 2026 — consistency audit. Step `53` (`B-08`) was referenced by three rows
+> but had no row of its own; it is restored below. `E-06` was never scheduled at all and is appended
+> as step `109`. Three `Waits for` entries pointed at steps scheduled *later* than the step needing
+> them (`101`→`98`, `73`→`68`, `74`→`71`) and are corrected. Step `17b`'s owner and the chain-summary
+> hour totals are brought back in line with the week tables. Same convention as before: **nothing
+> renumbered**, new work appends.
+>
 > **Revised:** 29 August 2026 — Weeks 11–15 re-issued after the mid-evaluation. Steps `95`–`108`
 > appended for the work specified in `analysis_access_and_reporting_design.md` §7; mobile push
 > notifications cut; four existing steps moved between people to absorb Week 10 spillover. Following
@@ -21,7 +28,7 @@
  
 ## How to read this
 
-One continuous chain, **step 1 to step 94, top to bottom**.
+One continuous chain, **step 1 to step 109, top to bottom**.
 
 - **Within one person's steps, the order is strict** — do not start your next step until the previous one is merged to `develop`.
 - **Across people, steps run in parallel.** Step 8 and step 9 sit next to each other because they happen at the same time, not because one waits for the other.
@@ -163,6 +170,7 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | 43 | Rumesh | `B-04` | ESLint analyzer wrapper — invoke CLI, parse JSON · *carried from Week 10* | 41 | 4 |
 | 95 | Rumesh | `B-29` | `eslint-plugin-sonarjs` added to the worker's ESLint config | 43 | 1 |
 | 46 | Rumesh | `B-05` | PyLint analyzer wrapper · *carried from Week 10* | 43 | 3 |
+| **53** | Nethmi | `B-08` | ✅ **Done 11 Aug** (`98ba506`). jscpd analyzer wrapper — duplication detection. **Row restored 9 Sep — see the note below** | 38, 47 | 3 |
 | 55 | Nethmi | `B-06` | Bandit analyzer wrapper (Python security) · *reassigned* | 47 | 3 |
 | 58 | Nethmi | `B-07` | Radon analyzer wrapper (complexity + maintainability index) · *reassigned* | 55 | 3 |
 | 49 | Vidushi | `D-15` | Quality gate configuration page — sliders, toggles, save · *carried, reassigned* | 36 | 5 |
@@ -176,8 +184,13 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | 56 | Nethmi | `E-05` | Mobile home screen — repo list with sparklines | 34, 45, 53 | 5 |
 | 61 | Rumesh | `B-12` | Output normaliser — every tool → unified `Finding` shape | 43, 46, 53, 55, 58 | 5 |
 
-**Load: Rumesh 15h · Nethmi 12h · Vidushi 15h**
+**Load: Rumesh 15h · Nethmi 15h · Vidushi 15h**
 
+> **Step 53 was missing from this document until 9 Sep.** The work itself was never missing — the
+> wrapper shipped on 11 Aug and the normaliser consumes it. What was missing was the row: steps 56
+> and 61 both listed `53` under **Waits for**, and Nethmi's chain summary listed it, but no week
+> table ever defined it. It was dropped when Week 11 was re-issued on 29 Aug, and because the load
+> figures are summed from the tables, its 3h went missing from Nethmi's total at the same time.
 > **Steps 43, 46, 49, 50 and 51 are Week 10 spillover.** They are carried, not restarted. Week 11 is
 > the week the schedule reabsorbs them, which is why three steps changed owner.
 > **Steps 55 and 58 moved to Nethmi.** She wrote the jscpd wrapper (step 53) so the shape is familiar,
@@ -210,10 +223,12 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 | 105 | Vidushi | `B-31` | PR comment metrics table — per-metric value / threshold / status | 67, 104 | 3 |
 | 69 | Rumesh | `B-16` | Debt delta — current debt minus baseline | 66 | 2 |
 | 70 | Rumesh | `B-17` | Quality gate evaluator | 69 | 2 |
-| 101 | Nethmi | `D-21` | Bulk enable UI — multi-select picker, progress, per-repo result summary | 98 | 3 |
+| **98** | Rumesh | `A-38` | Bulk repository enable — endpoint + queued registration job · **moved up from Week 13** | 96 | 5 |
+| 101 | Nethmi | `D-21` | Bulk enable UI — multi-select picker, progress, per-repo result summary | **98** | 3 |
 | 106 | Vidushi | `B-30` | TODO / FIXME / HACK scan analyzer (self-admitted debt) | 61 | 2 |
+| **109** | Vidushi | `E-06` | **Mobile repo summary screen — gauge, trend, category bars, top issues** | 56 | 6 |
 
-**Load: Rumesh 15h · Nethmi 13h · Vidushi 12h**
+**Load: Rumesh 20h · Nethmi 13h · Vidushi 18h**
 
 > **Steps 62 and 63 must be merged by Wednesday.** Steps 65 and 67 sit directly behind them.
 > **Step 65 is deliberate:** whoever writes the scoring function should not write its tests, and
@@ -225,9 +240,21 @@ One continuous chain, **step 1 to step 94, top to bottom**.
 > table that reports which threshold each metric breached.
 > **Steps 59, 64, 68 and 71 moved to Weeks 13–14.** All four are polish (loading states, responsive
 > layout, mobile screens) and were the only things in this week that could move.
+> **Step 98 moved up from Week 13 (9 Sep fix).** Step 101 has always listed `98` as its blocker, but
+> 98 was scheduled a week *behind* it — the UI was due before the endpoint it calls. Both are
+> features, so both have to be inside the freeze anyway; moving 98 up fixes the order and the gate at
+> once. It costs Rumesh 5h here and gives 5h back in Week 13, where he was the heaviest.
+> **Step 109 (`E-06`) is not new scope — it was never scheduled.** The mobile repo summary screen sits
+> in the WBS with `E-05` + `A-22` as its dependencies, both long since merged, but no week table ever
+> picked it up and it is not on the cut list either. Without it the mobile home screen is a dead end:
+> the repo list has nothing to open. It lands in Week 12 because it is a feature and the Sunday gate
+> is the last date a feature may land.
+> **This puts Rumesh at 20h and Vidushi at 18h — the heaviest week either has.** That is the price of
+> two ordering errors found late. If Vidushi needs relief, **step 106 is the designated drop** (it is
+> already the first-ranked cut candidate at the gate below), which brings her back to 16h.
 
 **⛔ GATE — Sunday 13 Sep: FEATURE FREEZE.** Anything not working now gets cut per `project_plan.md`
-§4, not pushed forward. Note that the Week 13 pipeline steps (97, 75, 76, 77, 98) are *completion of
+§4, not pushed forward. Note that the Week 13 pipeline steps (97, 75, 76, 77) are *completion of
 already-started work*, not new features, and are inside the freeze by design. Genuine cut candidates
 at this gate, in order: **step 106** (TODO scan), **step 108** (self-hosted deployment docs), and the
 reconciliation job already deferred in `analysis_access_and_reporting_design.md` §4.4.
@@ -240,19 +267,18 @@ reconciliation job already deferred in `analysis_access_and_reporting_design.md`
 | # | Name | WBS | Task | Waits for | Hrs |
 |---|---|---|---|---|---|
 | 97 | Rumesh | `B-21` | Result persistence as an authenticated API client — replaces direct Prisma writes | 61, 69, 96, 100 | 6 |
-| 73 | Nethmi | `D-19` | Frontend unit and component tests | 68 | 5 |
-| 74 | Vidushi | `A-27` | API integration tests across all endpoints — **must include the cross-tenant matrix** (second org's token → 404 on every repo-scoped route) | 47, 71 | 6 |
+| 59 | Nethmi | `D-17` | Loading, empty and error states across all web pages · **moved ahead of 73** | 56 | 4 |
+| 74 | Vidushi | `A-27` | API integration tests across all endpoints — **must include the cross-tenant matrix** (second org's token → 404 on every repo-scoped route) | **47** | 6 |
 | 75 | Rumesh | `B-19` | GitHub PR comment poster (Octokit, updates existing comment) | 67, 97, 105 | 4 |
-| 98 | Rumesh | `A-38` | Bulk repository enable — endpoint + queued registration job | 96 | 5 |
+| 73 | Nethmi | `D-19` | Frontend unit and component tests | **59** | 5 |
 | 76 | Vidushi | `B-20` | GitHub commit status poster — pass / fail · *reassigned* | 70, 75 | 2 |
 | 77 | Rumesh | `B-22` | Notification creation — gate fail, score drop, critical vulnerability | 76 | 3 |
-| 59 | Nethmi | `D-17` | Loading, empty and error states across all web pages | 56 | 4 |
 | 64 | Nethmi | `E-07` | Mobile notification screen — list, mark read, swipe | 39, 56 | 4 |
-| 71 | Vidushi | `E-10` | Mobile UI polish — loading states, pull-to-refresh, empty states | 67 | 4 |
+| 71 | Vidushi | `E-10` | Mobile UI polish — loading states, pull-to-refresh, empty states | 67, 109 | 4 |
 | 78 | Nethmi | — | **Cross-test the mobile app and the API** — not her own code | 73 | 4 |
 | 79 | Vidushi | — | **Cross-test the web dashboard** — not her own code | 74 | 4 |
 
-**Load: Rumesh 18h · Nethmi 17h · Vidushi 16h**
+**Load: Rumesh 13h · Nethmi 17h · Vidushi 16h**
 
 > **Step 97 replaces the original step 72.** Persistence is written once, against the contract, rather
 > than as Prisma writes that would have to be unpicked later. This is the single item whose cost rises
@@ -260,6 +286,16 @@ reconciliation job already deferred in `analysis_access_and_reporting_design.md`
 > **Step 76 moved to Vidushi** purely to keep Rumesh's week under 20h; it is small and self-contained.
 > **Steps 78 and 79 are mandatory and nobody tests their own platform.** Finding someone else's bug is
 > the fastest route into their code, and every bug you find is one the evaluator doesn't.
+> **Two `Waits for` entries were wrong until 9 Sep, both inside one person's own chain.** Step 73
+> waited on **68**, which is in Week 14 — frontend tests blocked on a step scheduled after them, and
+> both Nethmi's, so working rule 1 could not be satisfied. Its real prerequisite is **59**, the
+> loading / empty / error states those tests assert on, so 59 now sits ahead of it. Step 74 waited on
+> **71**, Vidushi's *mobile* polish, which has nothing to do with API integration tests and was listed
+> below it in the same week; that dependency is dropped, leaving **47** (zod validation).
+> **Step 98 left this week for Week 12.** Rumesh drops from 18h to 13h here as a result — the one
+> place in the back half where there was slack to find.
+> **Step 71 now waits on 109 as well.** Mobile polish should cover the repo summary screen, not just
+> the three screens that existed when the row was written.
 > **Step 74's tenant matrix is not optional.** The two-tenant seed fixture from step 5a exists
 > precisely so these tests are cheap to write. A missing authorisation guard is the one bug class that
 > ships silently and looks like a working feature — `A-33` had to fix exactly that on `/trend`, where
@@ -329,24 +365,61 @@ the week carrying the Week 10 spillover.
 
 ---
 
+## WBS tasks with no step of their own
+
+Added 9 Sep so the WBS in `project_plan.md` reconciles against this document line for line. These are
+neither scheduled nor cut — they need no row, but the reason has to be written down once.
+
+| WBS | Task | Why there is no step |
+|---|---|---|
+| `D-08` | HealthGauge component (circular SVG score indicator) | **Absorbed.** Built inline in the repo overview and dashboard pages rather than extracted as a shared component. The score indicator exists and renders; only the "reusable component" framing was dropped. Extracting it now would be refactoring, not delivery. |
+| `B-09` | Checkstyle analyzer wrapper | **Never scheduled** — see the 29 Aug correction in `project_plan.md` §4. |
+| `B-10` | PMD analyzer wrapper | As above. |
+| `B-11` | Cppcheck analyzer wrapper | As above. |
+
+> **`B-09`–`B-11` have a knock-on that is easy to miss.** Both `B-12` (step 61) and `B-24` (step 80)
+> declare **"B-04 to B-11"** as their dependency in the WBS. For step 61 that is harmless — it
+> normalises whatever analyzers exist. For **step 80 it is not**: the row reads "worker Docker image
+> with **multi-language runtimes**", 5h, in Rumesh's heaviest week. Three of those runtimes are for
+> analyzers that will never be written. Scope step 80 to the JS/TS + Python toolchain that actually
+> ships (ESLint + `eslint-plugin-sonarjs`, PyLint, Bandit, Radon, jscpd) and the image gets smaller,
+> faster to build, and cheaper to justify in the viva.
+> **Steps 1–5 in Weeks 1–5 and `F-01`–`F-07` are not gaps.** This document starts at Week 6, and the
+> documentation track is out of scope by the header note.
+
+---
+
 ## Chain summary — who runs where
 
 | Person | Steps | Hours | Weeks 6–14 avg |
 |---|---|---|---|
-| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, 20, 23, 26, 32, **32a**, 35, 38, 41, 43, 46, 61, 62, 63, 66, 69, 70, 75, 77, 80, 83, 86, 88, **95**, **96**, **97**, **98** | ~125h | ~13.3h/wk |
-| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, 53, 55, 56, 58, 59, 64, 68, 73, 78, 81, 84, **99**, **100**, **101**, **102** | ~119h | ~12.7h/wk |
-| **Vidushi** | 4, 7, 10, 13, 15, 16, **17b**, 19, 22, 25, 28, 34, 37, 40, 45, 49, 50, 51, 54, 65, 67, 71, 74, 76, 79, 82, 85, 88, **103**, **104**, **105**, **106**, **107**, **108** | ~112h | ~11.9h/wk |
+| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, **17b**, 20, 23, 26, 32, **32a**, 35, 38, 41, 43, 46, 61, 62, 63, 66, 69, 70, 75, 77, 80, 83, 86, 88, **95**, **96**, **97**, **98** | ~141h | ~15.7h/wk |
+| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, **53**, 55, 56, 58, 59, 64, 68, 73, 78, 81, 84, **99**, **100**, **101**, **102** | ~122h | ~13.6h/wk |
+| **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 49, 50, 51, 54, 65, 67, 71, 74, 76, 79, 82, 85, 88, **103**, **104**, **105**, **106**, **107**, **108**, **109** | ~118h | ~13.1h/wk |
 
-New steps from the 29 Aug replan are in bold. They total **14h Rumesh · 14h Nethmi · 13h Vidushi** —
-the new work is split evenly by design, which was the explicit requirement for this replan.
+Steps in bold are either new from the 29 Aug replan (`5a`–`12a`, `95`–`108`) or corrected on 9 Sep
+(`17b`, `53`, `109`). The 29 Aug additions total **14h Rumesh · 14h Nethmi · 13h Vidushi** — the new
+work was split evenly by design, which was the explicit requirement for that replan.
 
 Hours are summed from the week tables above and include the shared steps (30, 31, 88–94), which are
 not listed in the Steps column. Carried steps are counted once, in the week they are actually done.
+Cut steps (48, 52, 57, 60, 87) are excluded.
 
-> **The totals moved a long way.** Before this replan the split was ~135h / ~79h / ~85h — the lead
-> carrying more than the other two combined. Cutting push, moving `B-06`, `B-07`, `D-15` and `B-20`,
-> and splitting the new work three ways brings it to roughly 125 / 119 / 112. That is close enough to
-> even that no one person is now the schedule's single point of failure.
+> **Correction, 9 Sep — the totals published on 29 Aug were wrong for the lead.** They read
+> ~125 / 119 / 112 and concluded that "no one person is now the schedule's single point of failure."
+> Nethmi's and Vidushi's figures reconciled to the week tables exactly. Rumesh's did not: the tables
+> summed to **141h**, not 125h. The 16h gap is the Aug 10–11 security work, which was written into the
+> Week 7 table but never carried into this summary — `17a` grew from 4h to 14h when it moved from a
+> Redis denylist to session-backed revocation, and `17b` was reassigned from Vidushi to him at the
+> same time. Neither change was ever priced here.
+>
+> **With step 53 and step 109 restored, the honest split is 141 / 122 / 118.** The 29 Aug replan did
+> real work — before it the split was ~135 / ~79 / ~85, the lead carrying more than the other two
+> combined, and that gap is now closed to roughly 19h. But "close enough to even" was an overstatement
+> then and still is: Rumesh carries about 16% more than Nethmi and 19% more than Vidushi, he owns two
+> of the three remaining critical links (`96` and `61`), and the third (`100`, Nethmi's) exists to
+> unblock his `97`. Treat the lead as still the busiest person on the chain and plan the last three
+> weeks accordingly, rather than assuming the load is flat.
 
 Lighter than the original plan because documentation sits on a separate track. Treat the difference as
 buffer for exam weeks and integration bugs — both consistently cost more than anyone budgets.
