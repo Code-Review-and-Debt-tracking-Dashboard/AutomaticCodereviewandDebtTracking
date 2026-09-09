@@ -31,6 +31,9 @@ import {
   PageHeaderActions,
   StatCard,
   Select,
+  LoadingState,
+  ErrorState,
+  EmptyState,
 } from "../../components/ui";
 
 /*
@@ -379,29 +382,16 @@ export function RepositoriesPage() {
 
         {/* CONTENT STATES */}
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-            <Loader2 size={32} className="animate-spin text-primary" />
-            <p className="text-sm">Loading repositories from Postgres…</p>
-          </div>
+          <LoadingState message="Loading repositories from Postgres…" className="py-20" />
         ) : error ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
-            <p className="text-sm font-semibold">{error}</p>
-            <Button
-              onClick={fetchRepos}
-              variant="destructive"
-              className="mt-4"
-            >
-              Retry
-            </Button>
-          </div>
+          <ErrorState message={error} onRetry={fetchRepos} />
         ) : filteredRepositories.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-12 text-center">
-            <Search size={32} className="mx-auto text-muted-foreground" />
-            <h3 className="mt-4 text-sm font-semibold">No repositories found</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              No repositories match your current search or organization selection.
-            </p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title="No repositories found"
+            description="No repositories match your current search or organization selection."
+            className="py-20"
+          />
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
             {filteredRepositories.map((repository, index) => (

@@ -32,6 +32,8 @@ import {
   PageHeaderDescription,
   StatCard,
   IconBox,
+  LoadingState,
+  EmptyState,
 } from "../../components/ui";
 
 const findings = [
@@ -104,7 +106,7 @@ export function PRFindingDrilldownPage() {
   const { repoId, prNumber } = useParams();
 
   const [realFindings, setRealFindings] = useState<FindingItem[]>([]);
-  const [_isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("All");
   const [category, setCategory] = useState("All");
@@ -226,8 +228,21 @@ export function PRFindingDrilldownPage() {
           </div>
 
           <div className="divide-y divide-border/60">
-            {filteredFindings.map((finding) => {
-              const CategoryIcon = categoryIcons[finding.category] ?? Code2;
+            {isLoading ? (
+              <div className="p-12">
+                <LoadingState message="Loading findings…" />
+              </div>
+            ) : filteredFindings.length === 0 ? (
+              <div className="p-12">
+                <EmptyState
+                  icon={Search}
+                  title="No findings found"
+                  description="Try adjusting your search or filters."
+                />
+              </div>
+            ) : (
+              filteredFindings.map((finding) => {
+                const CategoryIcon = categoryIcons[finding.category] ?? Code2;
 
               return (
                 <div key={finding.id} className="p-5 sm:p-6 transition hover:bg-muted/30">
@@ -283,16 +298,6 @@ export function PRFindingDrilldownPage() {
                 </div>
               );
             })}
-
-            {filteredFindings.length === 0 && (
-              <div className="flex flex-col items-center justify-center p-12 text-center">
-                <ShieldAlert size={32} className="text-muted-foreground mb-4" />
-                <p className="text-sm font-semibold">No findings match your criteria</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Try adjusting your search or filters.
-                </p>
-              </div>
-            )}
           </div>
         </Card>
       </div>

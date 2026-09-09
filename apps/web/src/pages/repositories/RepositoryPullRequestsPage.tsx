@@ -26,6 +26,8 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   StatCard,
+  LoadingState,
+  EmptyState,
 } from "../../components/ui";
 
 /* =========================================================
@@ -79,7 +81,7 @@ export function RepositoryPullRequestsPage() {
   const navigate = useNavigate();
   
   const [prs, setPrs] = useState<PullItem[]>([]);
-  const [_isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -182,9 +184,26 @@ export function RepositoryPullRequestsPage() {
                 <DataTableHeaderCell>Status</DataTableHeaderCell>
               </DataTableRow>
             </DataTableHead>
-            
             <DataTableBody>
-              {filteredPRs.map((pr) => (
+              {isLoading ? (
+                <DataTableRow>
+                  <DataTableCell colSpan={6}>
+                    <LoadingState message="Loading pull requests…" className="my-8" />
+                  </DataTableCell>
+                </DataTableRow>
+              ) : filteredPRs.length === 0 ? (
+                <DataTableRow>
+                  <DataTableCell colSpan={6}>
+                    <EmptyState
+                      icon={GitPullRequest}
+                      title="No pull requests found"
+                      description="No pull requests match your search criteria."
+                      className="my-8"
+                    />
+                  </DataTableCell>
+                </DataTableRow>
+              ) : (
+                filteredPRs.map((pr) => (
                 <DataTableRow 
                   key={pr.id} 
                   onClick={() => navigate(`/repositories/${repoId}/pull-requests/${pr.id}/findings`)}
@@ -254,14 +273,6 @@ export function RepositoryPullRequestsPage() {
                   </DataTableCell>
                 </DataTableRow>
               ))}
-              
-              {filteredPRs.length === 0 && (
-                <DataTableRow>
-                  <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    No pull requests found.
-                  </DataTableCell>
-                </DataTableRow>
-              )}
             </DataTableBody>
           </DataTable>
         </Card>

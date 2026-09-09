@@ -22,6 +22,7 @@ import {
   PageHeaderActions,
   Select,
   StatCard,
+  EmptyState,
 } from "../../components/ui";
 
 
@@ -217,53 +218,61 @@ export function GlobalFindingsPage() {
 
         {/* Findings List */}
         <div className="mt-6 space-y-3">
-          {filtered.map((finding) => (
-            <Card key={finding.id} className="transition hover:border-primary/40">
-              <div className="flex items-start justify-between gap-4 p-5">
-                <div className="min-w-0 flex-1">
-                  {/* Tags */}
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <Badge variant="default" size="sm">
-                      {finding.repoName}
-                    </Badge>
-                    <Badge variant={severityVariant[finding.severity] ?? "muted"} size="sm">
-                      {finding.severity}
-                    </Badge>
-                    <span className="text-[11px] text-muted-foreground">
-                      {finding.id}
-                    </span>
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={ShieldAlert}
+              title="No findings found"
+              description="No findings match your search query or selected filters."
+            />
+          ) : (
+            filtered.map((finding) => (
+              <Card key={finding.id} className="transition hover:border-primary/40">
+                <div className="flex items-start justify-between gap-4 p-5">
+                  <div className="min-w-0 flex-1">
+                    {/* Tags */}
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <Badge variant="default" size="sm">
+                        {finding.repoName}
+                      </Badge>
+                      <Badge variant={severityVariant[finding.severity] ?? "muted"} size="sm">
+                        {finding.severity}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground">
+                        {finding.id}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <p className="text-sm font-semibold leading-snug">
+                      {finding.title}
+                    </p>
+
+                    {/* Meta */}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {finding.file}
+                      <span className="mx-1.5">•</span>
+                      Tool: {finding.tool}
+                      <span className="mx-1.5">•</span>
+                      {finding.suggestion}
+                    </p>
                   </div>
 
-                  {/* Title */}
-                  <p className="text-sm font-semibold leading-snug">
-                    {finding.title}
-                  </p>
-
-                  {/* Meta */}
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {finding.file}
-                    <span className="mx-1.5">•</span>
-                    Tool: {finding.tool}
-                    <span className="mx-1.5">•</span>
-                    {finding.suggestion}
-                  </p>
+                  {/* Action */}
+                  <button
+                    className="
+                      inline-flex shrink-0 items-center gap-1.5
+                      rounded-xl border border-border bg-card
+                      px-3 py-2 text-xs font-medium
+                      transition hover:border-primary/40 hover:bg-muted
+                    "
+                  >
+                    View in Repository
+                    <ExternalLink size={12} />
+                  </button>
                 </div>
-
-                {/* Action */}
-                <button
-                  className="
-                    inline-flex shrink-0 items-center gap-1.5
-                    rounded-xl border border-border bg-card
-                    px-3 py-2 text-xs font-medium
-                    transition hover:border-primary/40 hover:bg-muted
-                  "
-                >
-                  View in Repository
-                  <ExternalLink size={12} />
-                </button>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))
+          )}
         </div>
 
       </div>

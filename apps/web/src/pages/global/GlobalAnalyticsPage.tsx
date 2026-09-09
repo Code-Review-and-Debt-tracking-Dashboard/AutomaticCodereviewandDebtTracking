@@ -44,6 +44,7 @@ import {
   PageHeaderActions,
   Select,
   StatCard,
+  EmptyState,
 } from "../../components/ui";
 
 
@@ -386,8 +387,18 @@ export function GlobalAnalyticsPage() {
                 <DataTableHeaderCell align="right" className="w-10" children={""} />
               </DataTableHead>
 
-              <DataTableBody>
-                {filteredRepos.map((repo) => (
+                {filteredRepos.length === 0 ? (
+                  <DataTableRow>
+                    <DataTableCell colSpan={8} className="p-8">
+                      <EmptyState
+                        icon={Code2}
+                        title="No repositories found"
+                        description="No repositories match your search or filter criteria."
+                      />
+                    </DataTableCell>
+                  </DataTableRow>
+                ) : (
+                  filteredRepos.map((repo) => (
                   <DataTableRow key={repo.name}>
                     {/* Name */}
                     <DataTableCell>
@@ -464,7 +475,8 @@ export function GlobalAnalyticsPage() {
                       <ChevronRight size={16} className="text-muted-foreground" />
                     </DataTableCell>
                   </DataTableRow>
-                ))}
+                  ))
+                )}
               </DataTableBody>
             </DataTable>
 

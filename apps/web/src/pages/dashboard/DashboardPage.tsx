@@ -42,6 +42,7 @@ import {
   PageHeaderActions,
   Select,
   StatCard,
+  EmptyState,
 } from "../../components/ui";
 
 
@@ -518,14 +519,11 @@ export function DashboardPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border p-8 text-center">
-                    <p className="text-sm font-medium">
-                      No repositories found
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Try changing your search or filters.
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon={Search}
+                    title="No repositories found"
+                    description="Try changing your search or filters."
+                  />
                 )}
               </div>
             </CardContent>

@@ -24,6 +24,8 @@ import {
   PageHeaderBadge,
   PageHeaderTitle,
   PageHeaderDescription,
+  LoadingState,
+  ErrorState,
 } from "../../components/ui";
 
 
@@ -172,15 +174,11 @@ export function RepositoryQualityGatePage() {
               <div className="space-y-6 pt-1">
 
                 {error && (
-                  <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                    {error}
-                  </div>
+                  <ErrorState message={error} />
                 )}
 
                 {isLoading ? (
-                  <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                    Loading quality gate…
-                  </div>
+                  <LoadingState message="Loading quality gate…" />
                 ) : null}
 
                 <div>

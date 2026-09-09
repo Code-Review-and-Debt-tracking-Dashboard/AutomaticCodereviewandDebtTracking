@@ -43,6 +43,9 @@ import {
   PageHeaderDescription,
   PageHeaderActions,
   StatCard,
+  TabGroup,
+  LoadingState,
+  ErrorState,
 } from "../../components/ui";
 
 interface RepoDetail {
@@ -226,9 +229,16 @@ export function RepositoryOverviewPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 size={32} className="animate-spin text-primary" />
-        <p className="text-sm">Loading repository overview…</p>
+      <main className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <LoadingState message="Loading repository overview…" />
+      </main>
+    );
+  }
+
+  if (_error) {
+    return (
+      <main className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
+        <ErrorState message={_error} />
       </main>
     );
   }

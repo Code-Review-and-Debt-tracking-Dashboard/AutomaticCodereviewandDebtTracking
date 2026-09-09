@@ -27,6 +27,7 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   StatCard,
+  EmptyState,
 } from "../../components/ui";
 
 const findings = [
@@ -255,8 +256,12 @@ export function RepositoryFindingsPage() {
               
               {filteredFindings.length === 0 && (
                 <DataTableRow>
-                  <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    No findings match your search.
+                  <DataTableCell colSpan={6} className="p-8">
+                    <EmptyState
+                      icon={ShieldAlert}
+                      title="No findings found"
+                      description="No findings match your search or selected filters."
+                    />
                   </DataTableCell>
                 </DataTableRow>
               )}

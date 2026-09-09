@@ -34,6 +34,9 @@ import {
   PageHeaderDescription,
   StatCard,
   Select,
+  LoadingState,
+  ErrorState,
+  EmptyState,
 } from "../../components/ui";
 
 const metricTrend = [
@@ -122,7 +125,7 @@ export function RepositoryTrendsPage() {
   const [days, setDays] = useState<number>(30);
   const [points, setPoints] = useState<{ date: string; score: number }[]>([]);
   const [latestScore, setLatestScore] = useState<number>(88);
-  const [_isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!repoId) return;

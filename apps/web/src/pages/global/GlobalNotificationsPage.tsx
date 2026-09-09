@@ -22,6 +22,8 @@ import {
   PageHeaderActions,
   Select,
   TabGroup,
+  LoadingState,
+  ErrorState,
 } from "../../components/ui";
 
 
@@ -311,18 +313,17 @@ export function GlobalNotificationsPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
+          <div className="mb-6">
+            <ErrorState message={error} onRetry={fetchNotifications} />
           </div>
         )}
 
 
         {/* Content */}
         {isLoading ? (
-          <Card className="flex items-center justify-center p-12 text-muted-foreground">
-            <Loader2 className="mr-2 animate-spin" size={18} />
-            Loading notifications…
-          </Card>
+          <div className="py-12">
+            <LoadingState message="Loading notifications…" />
+          </div>
         ) : filteredNotifications.length === 0 ? (
           <EmptyState
             icon={Bell}
