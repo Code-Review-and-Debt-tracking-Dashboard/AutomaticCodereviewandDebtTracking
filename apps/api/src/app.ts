@@ -10,6 +10,7 @@ import { adminRouter } from './routes/admin';
 import { authRouter, devLoginRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
 import { mobileRouter } from './routes/mobile';
+import { metricsRouter } from './routes/metrics';
 import { notificationsRouter } from './routes/notifications';
 import { orgsRouter } from './routes/orgs';
 import { queuesRouter } from './routes/queues';
@@ -39,6 +40,7 @@ export function createApp(): Express {
   }
   app.use(adminRouter);
   app.use(healthRouter);
+  app.use(metricsRouter);
   app.use(notificationsRouter);
   app.use(orgsRouter);
   app.use(queuesRouter);
