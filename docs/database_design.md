@@ -1319,6 +1319,6 @@ The `LATERAL` join (latest snapshot) and the open-PR subquery both use their exp
 
 ---
 
-*This schema is implemented in `packages/db/prisma/schema.prisma` and captured in two migrations: the baseline `20260719051244_init`, and `20260731035716_add_organization_tenancy` which introduces the tenant boundary. Apply them with `npx prisma migrate dev` (or `migrate deploy` in CI) against a running PostgreSQL instance.*
+*This schema is implemented in `packages/db/prisma/schema.prisma` and captured in three migrations: the baseline `20260719051244_init`, `20260731035716_add_organization_tenancy` which introduces the tenant boundary, and `20260810145457_add_session_rotation` which adds `Session.familyId`/`Session.revokedReason` and the `SessionRevokeReason` enum for refresh-token rotation (A-34). Apply them with `npx prisma migrate dev` (or `migrate deploy` in CI) against a running PostgreSQL instance.*
 
 *The tenancy migration is the one hand-edited migration in the project. `Repository.orgId` is `NOT NULL`, which cannot be added straight onto a table that already holds rows, so it adds the column as nullable, backfills it, and only then tightens the constraint. The backfill gives every existing repository to its linker's personal organization, and — importantly — also moves anyone who was an active member of that repository into the same organization, so that introducing the boundary does not revoke access people already had. Prisma cannot generate data migrations, so those statements are written by hand inside the generated file.*
