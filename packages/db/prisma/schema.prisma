@@ -69,6 +69,22 @@ model Organization {
   updatedAt    DateTime             @updatedAt
   members      OrganizationMember[]
   repositories Repository[]
+  agents       Agent[]
+}
+
+// One data plane deployment (a worker instance). Authenticated by tokenHash
+// instead of a user session, so a deployment can be revoked on its own
+// without touching anything else.
+model Agent {
+  id           String       @id @default(cuid())
+  tokenHash    String       @unique
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  lastSeenAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model OrganizationMember {
