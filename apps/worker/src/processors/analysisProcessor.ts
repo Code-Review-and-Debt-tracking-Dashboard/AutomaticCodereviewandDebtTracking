@@ -4,29 +4,37 @@ import type { Job } from 'bullmq';
 
 import { runBandit } from '../analyzers/bandit';
 import { runEslint } from '../analyzers/eslint';
+import { runJscpd } from '../analyzers/jscpd';
 import { runPylint } from '../analyzers/pylint';
 import { runRadon } from '../analyzers/radon';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { detectLanguages } from '../stages/detect';
+import { type AnalyzerReports, normalize } from '../stages/normalize';
+import { computeScore } from '../stages/score';
 
 /**
  * Runs one analyzer and keeps its failure to itself. A tool that falls over on a
  * repo it can't handle should cost us that tool's findings, not the whole
  * analysis — the rest still runs and the score is computed from what came back.
  */
-async function runAnalyzer(analyzer: string, analysisId: string, fn: () => Promise<void>) {
+async function runAnalyzer<T>(
+  analyzer: string,
+  analysisId: string,
+  fn: () => Promise<T>,
+): Promise<T | undefined> {
   try {
-    await fn();
+    return await fn();
   } catch (err) {
     logger.error({ analysisId, analyzer, err }, 'Analyzer failed');
+    return undefined;
   }
 }
 
 /**
- * Consumes one analysis job. Clones the repo, works out what's in it, and moves
- * the AnalysisJob row through its lifecycle — the normalize, score, gate,
- * comment and persist stages are added on top of this in later tasks.
+ * Consumes one analysis job. Clones the repo, works out what's in it, runs the
+ * analyzers over it, flattens their output into findings and scores them — the
+ * gate, comment and persist stages are added on top of this in later tasks.
  *
  * Only the analyzers are allowed to fail quietly. Everything else throws on
  * purpose: that's how BullMQ is told to retry, and the worker's 'failed'
@@ -61,8 +69,10 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       data: { progress: 15 },
     });
 
+    const reports: AnalyzerReports = {};
+
     if (detected.analyzers.includes('eslint')) {
-      await runAnalyzer('eslint', analysisId, async () => {
+      reports.eslint = await runAnalyzer('eslint', analysisId, async () => {
         const eslint = await runEslint(cloned.repoPath);
         logger.info(
           {
@@ -73,21 +83,23 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
           },
           'ESLint finished',
         );
+        return eslint;
       });
     }
 
     if (detected.analyzers.includes('pylint')) {
-      await runAnalyzer('pylint', analysisId, async () => {
+      reports.pylint = await runAnalyzer('pylint', analysisId, async () => {
         const pylint = await runPylint(cloned.repoPath);
         logger.info(
           { analysisId, messages: pylint.messages.length, counts: pylint.counts },
           'PyLint finished',
         );
+        return pylint;
       });
     }
 
     if (detected.analyzers.includes('bandit')) {
-      await runAnalyzer('bandit', analysisId, async () => {
+      reports.bandit = await runAnalyzer('bandit', analysisId, async () => {
         const bandit = await runBandit(cloned.repoPath);
         logger.info(
           {
@@ -98,11 +110,12 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
           },
           'Bandit finished',
         );
+        return bandit;
       });
     }
 
     if (detected.analyzers.includes('radon')) {
-      await runAnalyzer('radon', analysisId, async () => {
+      reports.radon = await runAnalyzer('radon', analysisId, async () => {
         const radon = await runRadon(cloned.repoPath);
         logger.info(
           {
@@ -114,10 +127,45 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
           },
           'Radon finished',
         );
+        return radon;
       });
     }
 
-    // remaining analysis stages go here, over cloned.repoPath
+    if (detected.analyzers.includes('jscpd')) {
+      reports.jscpd = await runAnalyzer('jscpd', analysisId, async () => {
+        const jscpd = await runJscpd(cloned.repoPath);
+        logger.info(
+          { analysisId, duplicates: jscpd.duplicates.length, percentage: jscpd.percentage },
+          'jscpd finished',
+        );
+        return jscpd;
+      });
+    }
+
+    const { findings, duplicationPct } = normalize(reports);
+
+    logger.info(
+      {
+        analysisId,
+        findings: findings.length,
+        duplicationPct,
+        linesOfCode: detected.linesOfCode,
+      },
+      'Findings normalized',
+    );
+
+    const score = computeScore({
+      findings,
+      duplicationPct,
+      linesOfCode: detected.linesOfCode,
+    });
+
+    logger.info(
+      { analysisId, healthScore: score.healthScore, ...score.penaltyBreakdown },
+      'Score computed',
+    );
+
+    // remaining analysis stages go here, over findings and score
 
     await prisma.analysisJob.update({
       where: { id: analysisId },
