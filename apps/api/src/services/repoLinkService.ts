@@ -150,7 +150,7 @@ export async function linkRepository(userId: string, githubRepoId: number) {
         content_type: 'json',
         secret: env.githubWebhookSecret,
       },
-      events: ['pull_request'],
+      events: ['pull_request', 'push'],
       active: true,
     });
     webhookId = String(hook.data.id);

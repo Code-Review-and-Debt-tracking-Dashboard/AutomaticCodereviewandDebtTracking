@@ -8,6 +8,7 @@ import { enqueueAnalysisJob } from '../services/queueService';
 import {
   findLinkedRepository,
   parsePullRequestEvent,
+  parsePushEvent,
   SUPPORTED_PR_ACTIONS,
   type SupportedPrAction,
   upsertPullRequest,
@@ -29,6 +30,21 @@ webhookRouter.post(
       // GitHub sends this once when the webhook is registered
       if (githubEvent === 'ping') {
         res.status(200).json({ message: 'pong' });
+        return;
+      }
+
+      if (githubEvent === 'push') {
+        const event = parsePushEvent(req.body);
+        const repository = await findLinkedRepository(event.githubRepoId);
+        const { analysisId, jobId } = await enqueueAnalysisJob({
+          repoId: repository.id,
+          branch: event.branch,
+          commitSha: event.commitSha,
+          cloneUrl: event.cloneUrl,
+          trigger: AnalysisTrigger.WEBHOOK,
+        });
+
+        res.status(202).json({ message: 'Push analysis queued', analysisId, jobId });
         return;
       }
 

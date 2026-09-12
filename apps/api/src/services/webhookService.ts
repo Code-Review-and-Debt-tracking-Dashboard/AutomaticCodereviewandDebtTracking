@@ -41,6 +41,13 @@ export interface ParsedPullRequestEvent {
   githubRepoId: string;
 }
 
+export interface ParsedPushEvent {
+  branch: string;
+  commitSha: string;
+  cloneUrl: string;
+  githubRepoId: string;
+}
+
 function isGithubPullRequestPayload(value: unknown): value is GithubPullRequestPayload {
   if (typeof value !== 'object' || value === null) return false;
   const payload = value as Record<string, unknown>;
@@ -93,6 +100,48 @@ export function parsePullRequestEvent(rawBody: Buffer): ParsedPullRequestEvent {
     headSha: payload.pull_request.head.sha,
     cloneUrl: payload.repository.clone_url,
     repoFullName: payload.repository.full_name,
+    githubRepoId: String(payload.repository.id),
+  };
+}
+
+interface GithubPushPayload {
+  ref: string;
+  after: string;
+  deleted: boolean;
+  repository: {
+    id: number;
+    clone_url: string;
+  };
+}
+
+function isGithubPushPayload(value: unknown): value is GithubPushPayload {
+  if (typeof value !== 'object' || value === null) return false;
+  const payload = value as Partial<GithubPushPayload>;
+  return (
+    typeof payload.ref === 'string' &&
+    typeof payload.after === 'string' &&
+    typeof payload.deleted === 'boolean' &&
+    typeof payload.repository?.id === 'number' &&
+    typeof payload.repository.clone_url === 'string'
+  );
+}
+
+export function parsePushEvent(rawBody: Buffer): ParsedPushEvent {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody.toString('utf8'));
+  } catch {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Malformed webhook payload: invalid JSON');
+  }
+
+  if (!isGithubPushPayload(payload) || payload.deleted || !payload.ref.startsWith('refs/heads/')) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Malformed webhook payload: invalid push fields');
+  }
+
+  return {
+    branch: payload.ref.slice('refs/heads/'.length),
+    commitSha: payload.after,
+    cloneUrl: payload.repository.clone_url,
     githubRepoId: String(payload.repository.id),
   };
 }
