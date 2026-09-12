@@ -5,6 +5,7 @@ import type { Job } from 'bullmq';
 import { runBandit } from '../analyzers/bandit';
 import { runEslint } from '../analyzers/eslint';
 import { runPylint } from '../analyzers/pylint';
+import { runRadon } from '../analyzers/radon';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { detectLanguages } from '../stages/detect';
@@ -96,6 +97,22 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
             nosec: bandit.nosec,
           },
           'Bandit finished',
+        );
+      });
+    }
+
+    if (detected.analyzers.includes('radon')) {
+      await runAnalyzer('radon', analysisId, async () => {
+        const radon = await runRadon(cloned.repoPath);
+        logger.info(
+          {
+            analysisId,
+            blocks: radon.blocks.length,
+            files: radon.maintainability.length,
+            counts: radon.counts,
+            miCounts: radon.miCounts,
+          },
+          'Radon finished',
         );
       });
     }
