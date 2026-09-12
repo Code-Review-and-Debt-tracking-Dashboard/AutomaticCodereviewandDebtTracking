@@ -5,3 +5,4 @@
 # Pinned exactly: a version bump changes which messages fire, and that would move
 # the health score of code that never changed.
 pylint==4.0.8
+bandit==1.9.4

@@ -2,6 +2,7 @@ import { AnalysisStatus, prisma } from '@codehealth/db';
 import type { AnalysisJobData } from '@codehealth/shared';
 import type { Job } from 'bullmq';
 
+import { runBandit } from '../analyzers/bandit';
 import { runEslint } from '../analyzers/eslint';
 import { runPylint } from '../analyzers/pylint';
 import { logger } from '../lib/logger';
@@ -80,6 +81,21 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
         logger.info(
           { analysisId, messages: pylint.messages.length, counts: pylint.counts },
           'PyLint finished',
+        );
+      });
+    }
+
+    if (detected.analyzers.includes('bandit')) {
+      await runAnalyzer('bandit', analysisId, async () => {
+        const bandit = await runBandit(cloned.repoPath);
+        logger.info(
+          {
+            analysisId,
+            results: bandit.results.length,
+            counts: bandit.counts,
+            nosec: bandit.nosec,
+          },
+          'Bandit finished',
         );
       });
     }
