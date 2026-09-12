@@ -9,7 +9,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { useParams } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../../lib/apiClient";
 
 import {
   BackLink,
@@ -27,6 +28,9 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   StatCard,
+  EmptyState,
+  LoadingState,
+  ErrorState,
 } from "../../components/ui";
 
 const findings = [
@@ -97,13 +101,83 @@ const categoryIcons: Record<string, React.ElementType> = {
   Maintainability: Wrench,
 };
 
+const severityLabels: Record<string, string> = {
+  CRITICAL: "Critical",
+  HIGH: "High",
+  MEDIUM: "Medium",
+  LOW: "Low",
+  INFO: "Info",
+};
+
+const categoryLabels: Record<string, string> = {
+  VULNERABILITY: "Security",
+  COMPLEXITY: "Complexity",
+  DUPLICATION: "Duplication",
+  CODE_SMELL: "Code Smell",
+  MAINTAINABILITY: "Maintainability",
+};
+
 export function RepositoryFindingsPage() {
   const { repoId } = useParams();
 
+  const [realFindings, setRealFindings] = useState<typeof findings>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("All");
 
-  const filteredFindings = findings.filter((finding) => {
+  useEffect(() => {
+    if (!repoId) return;
+
+    const loadFindings = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const trend = await api.get<{ dataPoints: { snapshotId?: string }[] }>(
+          `/api/repos/${repoId}/trend?days=365`,
+        );
+        const snapshotId = trend.dataPoints.at(-1)?.snapshotId;
+        if (!snapshotId) {
+          setRealFindings([]);
+          return;
+        }
+
+        const response = await api.get<{
+          data: Array<{
+            id: string;
+            message: string;
+            category: string;
+            severity: string;
+            file: string | null;
+            line: number | null;
+            tool: string;
+            isNew: boolean;
+          }>;
+        }>(`/api/snapshots/${snapshotId}/findings`, { limit: 100 });
+
+        setRealFindings(response.data.map((finding) => ({
+          id: finding.id,
+          title: finding.message,
+          category: categoryLabels[finding.category] ?? finding.category,
+          severity: severityLabels[finding.severity] ?? finding.severity,
+          file: finding.file ?? "unknown file",
+          line: finding.line ?? 0,
+          status: finding.isNew ? "Open" : "Existing",
+          tool: finding.tool,
+        })));
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Failed to load findings.");
+        setRealFindings([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadFindings();
+  }, [repoId]);
+
+  const sourceFindings = realFindings;
+  const filteredFindings = sourceFindings.filter((finding) => {
     const matchesSearch =
       finding.title.toLowerCase().includes(search.toLowerCase()) ||
       finding.file.toLowerCase().includes(search.toLowerCase());
@@ -115,7 +189,7 @@ export function RepositoryFindingsPage() {
   });
 
   return (
-    <main className="min-h-screen bg-background">
+    <main data-dashboard-page className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
 
         <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
@@ -140,28 +214,31 @@ export function RepositoryFindingsPage() {
           </div>
         </PageHeader>
 
+        {isLoading && <LoadingState message="Loading findings…" className="my-8" />}
+        {error && <ErrorState message={error} />}
+
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Total Findings"
-            value="183"
+            value={String(sourceFindings.length)}
             icon={ShieldAlert}
             color="danger"
           />
           <StatCard
             title="Critical"
-            value="4"
+            value={String(sourceFindings.filter((finding) => finding.severity === "Critical").length)}
             icon={AlertTriangle}
             color="danger"
           />
           <StatCard
             title="High Severity"
-            value="27"
+            value={String(sourceFindings.filter((finding) => finding.severity === "High").length)}
             icon={Bug}
             color="warning"
           />
           <StatCard
             title="Resolved"
-            value="96"
+            value={String(sourceFindings.filter((finding) => finding.status === "Existing").length)}
             icon={CheckCircle2}
             color="success"
           />
@@ -169,6 +246,7 @@ export function RepositoryFindingsPage() {
 
         <Card className="mt-6">
           <div className="border-b border-border/70 p-5">
+            <div data-dashboard-filters>
             <FilterBar
               searchPlaceholder="Search findings..."
               searchValue={search}
@@ -181,8 +259,10 @@ export function RepositoryFindingsPage() {
                 },
               ]}
             />
+            </div>
           </div>
 
+          <div data-dashboard-table>
           <DataTable>
             <DataTableHead>
               <DataTableRow>
@@ -262,6 +342,7 @@ export function RepositoryFindingsPage() {
               )}
             </DataTableBody>
           </DataTable>
+          </div>
         </Card>
       </div>
     </main>
