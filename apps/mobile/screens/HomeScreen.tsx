@@ -8,7 +8,10 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
+
+import { api } from '../lib/apiClient';
 
 interface MobileRepo {
   id: string;
@@ -22,56 +25,63 @@ interface MobileRepo {
   isPrivate: boolean;
 }
 
-const mockRepos: MobileRepo[] = [
-  {
-    id: 'repo-1',
-    name: 'AutomaticCodeReview',
-    fullName: 'CodePulse/AutomaticCodeReview',
-    language: 'TypeScript',
-    healthScore: 91,
-    openFindings: 3,
-    debtHours: 2.5,
-    sparkline: [74, 78, 82, 85, 89, 91],
-    isPrivate: true,
-  },
-  {
-    id: 'repo-2',
-    name: 'AnalysisWorker',
-    fullName: 'CodePulse/AnalysisWorker',
-    language: 'Python',
-    healthScore: 84,
-    openFindings: 8,
-    debtHours: 4.2,
-    sparkline: [88, 86, 85, 82, 84, 84],
-    isPrivate: true,
-  },
-  {
-    id: 'repo-3',
-    name: 'MobileDashboard',
-    fullName: 'CodePulse/MobileDashboard',
-    language: 'TypeScript',
-    healthScore: 78,
-    openFindings: 12,
-    debtHours: 6.8,
-    sparkline: [65, 68, 72, 70, 75, 78],
-    isPrivate: false,
-  },
-];
-
 /**
  * Step 56 (E-05): Mobile home screen — repo list with sparklines
  */
 export default function HomeScreen() {
   const [repos, setRepos] = useState<MobileRepo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchRepos = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const orgs = await api.get<{ data: { id: string }[] }>('/api/orgs');
+      const orgId = orgs.data[0]?.id;
+      if (!orgId) {
+        setRepos([]);
+        return;
+      }
+
+      const response = await api.get<{ data: Array<{
+        id: string;
+        name: string;
+        fullName: string;
+        language: string | null;
+        healthScore: number;
+        openFindings: number;
+        debtMinutes: number;
+        private: boolean;
+      }> }>(`/api/orgs/${orgId}/repos`);
+
+      const mapped = await Promise.all(response.data.map(async (repo) => {
+        const trend = await api.get<{ dataPoints: { healthScore: number }[] }>(
+          `/api/repos/${repo.id}/trend?days=30`,
+        );
+        return {
+          id: repo.id,
+          name: repo.name,
+          fullName: repo.fullName,
+          language: repo.language ?? 'Unknown',
+          healthScore: repo.healthScore,
+          openFindings: repo.openFindings,
+          debtHours: Math.round((repo.debtMinutes / 60) * 10) / 10,
+          sparkline: trend.dataPoints.map((point) => point.healthScore),
+          isPrivate: repo.private,
+        };
+      }));
+
+      setRepos(mapped);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate fetching repo list for current active org
-    const timer = setTimeout(() => {
-      setRepos(mockRepos);
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    void fetchRepos();
   }, []);
 
   const renderSparkline = (points: number[]) => {
@@ -166,6 +176,7 @@ export default function HomeScreen() {
           renderItem={renderRepoCard}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void fetchRepos(true)} tintColor="#10B981" />}
         />
       )}
     </SafeAreaView>

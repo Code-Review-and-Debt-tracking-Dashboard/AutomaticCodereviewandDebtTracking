@@ -14,6 +14,8 @@ import { signAccessToken } from '../lib/jwt';
 import { AppError } from '../middleware/errorHandler';
 import { authRateLimiter } from '../middleware/rateLimit';
 import { requireAuth } from '../middleware/requireAuth';
+import { validateRequest } from '../middleware/zodValidate';
+import { devLoginBodySchema, refreshTokenBodySchema } from '../schemas/requestSchemas';
 import {
   buildGithubAuthorizeUrl,
   devLogin,
@@ -82,7 +84,7 @@ authRouter.get('/auth/github/callback', cookies, async (req, res, next) => {
 });
 
 // No requireAuth — the whole point is that the access token has expired.
-authRouter.post('/auth/refresh', cookies, async (req, res, next) => {
+authRouter.post('/auth/refresh', cookies, validateRequest(refreshTokenBodySchema), async (req, res, next) => {
   const fromCookie: string | undefined = req.cookies?.[REFRESH_COOKIE_NAME];
   const presented = fromCookie ?? req.body?.refreshToken;
 
@@ -120,7 +122,7 @@ authRouter.post('/auth/refresh', cookies, async (req, res, next) => {
 });
 
 // Also no requireAuth: an expired access token must not stop someone logging out.
-authRouter.post('/auth/logout', cookies, async (req, res, next) => {
+authRouter.post('/auth/logout', cookies, validateRequest(refreshTokenBodySchema), async (req, res, next) => {
   const presented: unknown = req.cookies?.[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
 
   try {
@@ -148,7 +150,7 @@ authRouter.get('/auth/me', requireAuth, async (req, res, next) => {
 export const devLoginRouter = Router();
 devLoginRouter.use('/auth', authRateLimiter);
 
-devLoginRouter.post('/auth/dev-login', async (req, res, next) => {
+devLoginRouter.post('/auth/dev-login', validateRequest(devLoginBodySchema), async (req, res, next) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   if (!username) {
     next(new AppError(400, 'VALIDATION_ERROR', 'username is required'));

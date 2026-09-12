@@ -2,9 +2,9 @@ import { AnalysisStatus, prisma } from '@codehealth/db';
 import type { AnalysisJobData } from '@codehealth/shared';
 import type { Job } from 'bullmq';
 
-import { runBandit } from '../analyzers/bandit';
 import { runEslint } from '../analyzers/eslint';
 import { runJscpd } from '../analyzers/jscpd';
+import { runBandit } from '../analyzers/bandit';
 import { runPylint } from '../analyzers/pylint';
 import { runRadon } from '../analyzers/radon';
 import { logger } from '../lib/logger';
