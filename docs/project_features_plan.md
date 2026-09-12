@@ -171,8 +171,8 @@ One continuous chain, **step 1 to step 109, top to bottom**.
 | 95 | Rumesh | `B-29` | `eslint-plugin-sonarjs` added to the worker's ESLint config | 43 | 1 |
 | 46 | Rumesh | `B-05` | PyLint analyzer wrapper · *carried from Week 10* | 43 | 3 |
 | **53** | Nethmi | `B-08` | ✅ **Done 11 Aug** (`98ba506`). jscpd analyzer wrapper — duplication detection. **Row restored 9 Sep — see the note below** | 38, 47 | 3 |
-| 55 | Nethmi | `B-06` | Bandit analyzer wrapper (Python security) · *reassigned* | 47 | 3 |
-| 58 | Nethmi | `B-07` | Radon analyzer wrapper (complexity + maintainability index) · *reassigned* | 55 | 3 |
+| 55 | ~~Nethmi~~ **Rumesh** | `B-06` | ✅ **Done 12 Sep.** Bandit analyzer wrapper (Python security) · *reassigned to Rumesh* | 47 | 3 |
+| 58 | ~~Nethmi~~ **Rumesh** | `B-07` | Radon analyzer wrapper (complexity + maintainability index) · *reassigned to Rumesh* | 55 | 3 |
 | 49 | Vidushi | `D-15` | Quality gate configuration page — sliders, toggles, save · *carried, reassigned* | 36 | 5 |
 | 50 | Vidushi | `A-26` | Rate limiting middleware · *carried from Week 10* | — | 2 |
 | 51 | Vidushi | `A-31` | `GET /api/metrics` — admin-only · *carried from Week 10* | 50 | 2 |
