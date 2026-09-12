@@ -8,12 +8,13 @@ import { addMember, isRepoRole, listMembers, removeMember } from '../services/me
 import { linkRepository, listAvailableRepos, unlinkRepository } from '../services/repoLinkService';
 import { getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend, triggerManualAnalysis } from '../services/repoService';
 import { validateRequest } from '../middleware/zodValidate';
-import { addMemberSchema } from '../schemas/repoSchemas';
+import { linkRepositorySchema, addMemberSchema } from '../schemas/repoSchemas';
+import { availableReposQuerySchema, hotspotsQuerySchema, memberParamsSchema, prParamsSchema, repoIdParamsSchema, trendQuerySchema } from '../schemas/requestSchemas';
 
 export const reposRouter = Router();
 
 // GET /api/repos/available : returns repositories available to link
-reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
+reposRouter.get('/api/repos/available', requireAuth, validateRequest(availableReposQuerySchema), async (req, res, next) => {
   try {
     const orgId = typeof req.query.orgId === 'string' ? req.query.orgId : undefined;
     const data = await listAvailableRepos(req.user!.id, orgId);
@@ -28,15 +29,7 @@ reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
 // the body is just the id.
 reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   try {
-    const githubRepoId = Number(req.body?.githubRepoId);
-
-    if (!Number.isInteger(githubRepoId) || githubRepoId <= 0) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
-        { field: 'githubRepoId', message: 'must be a positive integer' },
-      ]);
-    }
-
-    const repo = await linkRepository(req.user!.id, githubRepoId);
+    const repo = await linkRepository(req.user!.id, Number(req.body.githubRepoId));
     res.status(201).json(repo);
   } catch (err) {
     next(err);
@@ -48,6 +41,7 @@ reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
 reposRouter.delete(
   '/api/repos/:repoId',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   requireRepoAccess('write'),
   async (req, res, next) => {
     try {
@@ -63,6 +57,8 @@ reposRouter.delete(
 reposRouter.get(
   '/api/repos/:repoId',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
+  validateRequest(trendQuerySchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -80,6 +76,8 @@ reposRouter.get(
 reposRouter.get(
   '/api/repos/:repoId/trend',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
+  validateRequest(hotspotsQuerySchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -94,6 +92,7 @@ reposRouter.get(
 reposRouter.get(
   '/api/repos/:repoId/members',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -108,6 +107,7 @@ reposRouter.get(
 reposRouter.get(
   '/api/repos/:repoId/debt',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -122,6 +122,7 @@ reposRouter.get(
 reposRouter.get(
   '/api/repos/:repoId/hotspots',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -137,6 +138,7 @@ reposRouter.get(
 reposRouter.get(
   '/api/repos/:repoId/pulls',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -152,6 +154,7 @@ reposRouter.get(
 reposRouter.get(
   '/api/repos/:repoId/pulls/:prNumber',
   requireAuth,
+  validateRequest(prParamsSchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -174,6 +177,7 @@ reposRouter.get(
 reposRouter.post(
   '/api/repos/:repoId/analyze',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   analyzeRateLimiter,
   requireRepoAccess('write'),
   async (req, res, next) => {
@@ -195,6 +199,7 @@ reposRouter.post(
 reposRouter.post(
   '/api/repos/:repoId/members',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   requireRepoAccess('write'),
   validateRequest(addMemberSchema),
   async (req, res, next) => {
@@ -212,6 +217,7 @@ reposRouter.post(
 reposRouter.delete(
   '/api/repos/:repoId/members/:userId',
   requireAuth,
+  validateRequest(memberParamsSchema),
   requireRepoAccess('write'),
   async (req, res, next) => {
     try {

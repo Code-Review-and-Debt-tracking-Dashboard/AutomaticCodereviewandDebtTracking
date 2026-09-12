@@ -2,6 +2,8 @@ import { Router } from 'express';
 
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
+import { validateRequest } from '../middleware/zodValidate';
+import { repoIdParamsSchema } from '../schemas/requestSchemas';
 import { getMobileSummary, getRepoSmells } from '../services/mobileService';
 
 export const mobileRouter = Router();
@@ -20,6 +22,7 @@ mobileRouter.get('/api/mobile/summary', requireAuth, async (req, res, next) => {
 mobileRouter.get(
   '/api/mobile/repos/:repoId/smells',
   requireAuth,
+  validateRequest(repoIdParamsSchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
