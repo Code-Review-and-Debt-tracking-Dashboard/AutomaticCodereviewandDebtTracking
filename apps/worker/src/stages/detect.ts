@@ -1,4 +1,4 @@
-import { readdir } from 'fs/promises';
+import { readdir, readFile } from 'fs/promises';
 import { extname, join } from 'path';
 
 import { logger } from '../lib/logger';
@@ -59,14 +59,24 @@ function isGenerated(name: string): boolean {
   return name.endsWith('.min.js') || name.endsWith('.bundle.js');
 }
 
-async function countByLanguage(dir: string, counts: Map<Language, number>): Promise<void> {
+// Blank lines are left out so that a repo's spacing habits can't move its score.
+async function countLines(path: string): Promise<number> {
+  const text = await readFile(path, 'utf8');
+  return text.split('\n').filter((line) => line.trim()).length;
+}
+
+async function countByLanguage(
+  dir: string,
+  counts: Map<Language, number>,
+  totals: { lines: number },
+): Promise<void> {
   const entries = await readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {
     if (entry.isDirectory()) {
       // isDirectory() is false for symlinks, so this can't loop.
       if (!skipDirs.has(entry.name)) {
-        await countByLanguage(join(dir, entry.name), counts);
+        await countByLanguage(join(dir, entry.name), counts, totals);
       }
       continue;
     }
@@ -76,6 +86,7 @@ async function countByLanguage(dir: string, counts: Map<Language, number>): Prom
     const language = extensions[extname(entry.name).toLowerCase()];
     if (language) {
       counts.set(language, (counts.get(language) || 0) + 1);
+      totals.lines += await countLines(join(dir, entry.name));
     }
   }
 }
@@ -84,10 +95,15 @@ async function countByLanguage(dir: string, counts: Map<Language, number>): Prom
  * Walks the cloned checkout and works out which languages are in it and which
  * analyzers should run over it. A repo can hold more than one language, so the
  * analyzer set is the union of everything found — primary is only for display.
+ *
+ * The same walk totals the lines of code, because this is the only place that
+ * already visits every source file with the right directories skipped. The
+ * scoring stage needs that number to compare repos of different sizes.
  */
 export async function detectLanguages(repoPath: string) {
   const counts = new Map<Language, number>();
-  await countByLanguage(repoPath, counts);
+  const totals = { lines: 0 };
+  await countByLanguage(repoPath, counts, totals);
 
   const languages = [...counts.entries()]
     .map(([language, fileCount]) => ({ language, fileCount }))
@@ -101,6 +117,6 @@ export async function detectLanguages(repoPath: string) {
     ? [...new Set(languages.flatMap((l) => analyzersFor[l.language])), 'jscpd' as Analyzer]
     : [];
 
-  logger.info({ primary, languages, analyzers }, 'Languages detected');
-  return { languages, primary, analyzers };
+  logger.info({ primary, languages, analyzers, linesOfCode: totals.lines }, 'Languages detected');
+  return { languages, primary, analyzers, linesOfCode: totals.lines };
 }
