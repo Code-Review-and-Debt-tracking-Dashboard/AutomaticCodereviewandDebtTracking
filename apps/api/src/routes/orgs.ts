@@ -2,6 +2,8 @@ import { Router } from 'express';
 
 import { requireAuth } from '../middleware/requireAuth';
 import { requireOrgAccess } from '../middleware/requireOrgAccess';
+import { validateRequest } from '../middleware/zodValidate';
+import { orgIdParamsSchema } from '../schemas/requestSchemas';
 import {
   listOrgMembers,
   listOrgRepositories,
@@ -35,6 +37,7 @@ orgsRouter.post('/api/orgs/sync', requireAuth, async (req, res, next) => {
 orgsRouter.get(
   '/api/orgs/:orgId/members',
   requireAuth,
+  validateRequest(orgIdParamsSchema),
   requireOrgAccess('read'),
   async (req, res, next) => {
     try {
@@ -50,6 +53,7 @@ orgsRouter.get(
 orgsRouter.get(
   '/api/orgs/:orgId/repos',
   requireAuth,
+  validateRequest(orgIdParamsSchema),
   requireOrgAccess('read'),
   async (req, res, next) => {
     try {

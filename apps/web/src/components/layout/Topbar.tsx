@@ -87,43 +87,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     avatarUrl: authUser?.avatarUrl,
   };
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: "demo-1",
-
-      title: "Analysis completed",
-
-      description: "Automatic Code Review analysis completed",
-
-      time: "8 min ago",
-
-      unread: true,
-    },
-
-    {
-      id: "demo-2",
-
-      title: "New security finding",
-
-      description: "A security issue was detected",
-
-      time: "32 min ago",
-
-      unread: true,
-    },
-
-    {
-      id: "demo-3",
-
-      title: "Pull request analyzed",
-
-      description: "PR #42 was analyzed successfully",
-
-      time: "1 hour ago",
-
-      unread: false,
-    },
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const unreadCount = notifications.filter((item) => item.unread).length;
 
@@ -183,11 +147,9 @@ NOTIFICATIONS API
           unread: !notification.readAt,
         }));
 
-        if (mapped.length > 0) {
-          setNotifications(mapped);
-        }
+        setNotifications(mapped);
       } catch {
-        // keep demo data
+        setNotifications([]);
       } finally {
         setLoadingNotifications(false);
       }
@@ -720,8 +682,8 @@ mt-1 text-xs text-muted-foreground
                       onClick={async () => {
                         try {
                           await api.put("/api/notifications/read-all");
-                          setNotifications(
-                            notifications.map((item) => ({
+                          setNotifications((previous) =>
+                            previous.map((item) => ({
                               ...item,
                               unread: false,
                             })),
@@ -762,10 +724,10 @@ p-4 text-xs text-muted-foreground
                         if (!notification.unread) return;
                         try {
                           await api.put(`/api/notifications/${notification.id}/read`);
-                          setNotifications(
-                            notifications.map((item) =>
+                          setNotifications((previous) =>
+                            previous.map((item) =>
                               item.id === notification.id ? { ...item, unread: false } : item
-                            )
+                            ),
                           );
                         } catch (err) {
                           console.error("Failed to mark notification as read", err);

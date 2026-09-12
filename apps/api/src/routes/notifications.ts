@@ -3,10 +3,17 @@ import { Router } from 'express';
 
 import { requireAuth } from '../middleware/requireAuth';
 import { AppError } from '../middleware/errorHandler';
+import { validateRequest } from '../middleware/zodValidate';
+import { notificationIdParamsSchema } from '../schemas/requestSchemas';
+import { z } from 'zod';
+
+const notificationsQuerySchema = z.object({
+  query: z.object({ unreadOnly: z.enum(['true', 'false']).optional() }).passthrough(),
+});
 
 export const notificationsRouter = Router();
 
-notificationsRouter.get('/api/notifications', requireAuth, async (req, res, next) => {
+notificationsRouter.get('/api/notifications', requireAuth, validateRequest(notificationsQuerySchema), async (req, res, next) => {
   try {
     const unreadOnly = req.query.unreadOnly === 'true';
 
@@ -41,7 +48,11 @@ notificationsRouter.get('/api/notifications', requireAuth, async (req, res, next
   }
 });
 
-notificationsRouter.put('/api/notifications/:notificationId/read', requireAuth, async (req, res, next) => {
+notificationsRouter.put(
+  '/api/notifications/:notificationId/read',
+  requireAuth,
+  validateRequest(notificationIdParamsSchema),
+  async (req, res, next) => {
   try {
     const updated = await prisma.notification.updateMany({
       where: { id: req.params.notificationId, userId: req.user!.id },
@@ -56,9 +67,10 @@ notificationsRouter.put('/api/notifications/:notificationId/read', requireAuth, 
   } catch (err) {
     next(err);
   }
-});
+  },
+);
 
-notificationsRouter.put('/api/notifications/read-all', requireAuth, async (req, res, next) => {
+notificationsRouter.put('/api/notifications/read-all', requireAuth, validateRequest(z.object({})), async (req, res, next) => {
   try {
     await prisma.notification.updateMany({
       where: { userId: req.user!.id, readAt: null },
