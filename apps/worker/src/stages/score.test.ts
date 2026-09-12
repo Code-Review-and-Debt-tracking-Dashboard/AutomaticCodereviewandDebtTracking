@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { AnalysisFinding } from '@codehealth/shared';
+import { DEBT_COST_TABLE } from './normalize';
 import { computeScore } from './score';
 
 function finding(overrides: Partial<AnalysisFinding> = {}): AnalysisFinding {
@@ -183,5 +184,78 @@ describe('computeScore', () => {
     expect(result.highCount).toBe(1);
     expect(result.mediumCount).toBe(1);
     expect(result.lowCount).toBe(1);
+  });
+});
+
+describe('debt score', () => {
+  // The normalizer stamps debtMinutes from the cost table, so do the same here
+  // instead of hand-picking numbers the scorer would just trust.
+  const costed = (overrides: Partial<AnalysisFinding> = {}): AnalysisFinding => {
+    const base = finding(overrides);
+    return { ...base, debtMinutes: DEBT_COST_TABLE[base.category][base.severity] };
+  };
+
+  it('is zero when there are no findings', () => {
+    const result = computeScore({ findings: [], duplicationPct: 0, linesOfCode: 500 });
+
+    expect(result.debtMinutes).toBe(0);
+  });
+
+  it('charges the cost table rate for a single finding', () => {
+    const result = computeScore({
+      findings: [costed({ category: 'VULNERABILITY', severity: 'CRITICAL' })],
+      duplicationPct: 0,
+      linesOfCode: 500,
+    });
+
+    expect(result.debtMinutes).toBe(60);
+  });
+
+  it('does not discount repeats of the same rule the way the health score does', () => {
+    const findings = Array.from({ length: 20 }, () =>
+      costed({ category: 'CODE_SMELL', severity: 'MEDIUM', rule: 'no-console' }),
+    );
+
+    const result = computeScore({ findings, duplicationPct: 0, linesOfCode: 1000 });
+
+    // 20 x 5, flat. The health score discounts these, debt doesn't.
+    expect(result.debtMinutes).toBe(100);
+    expect(result.penaltyBreakdown.findingPenalty).toBeLessThan(20 * 0.5);
+  });
+
+  it('sums across categories and severities', () => {
+    const findings = [
+      costed({ category: 'VULNERABILITY', severity: 'CRITICAL', rule: 'sql-injection' }),
+      costed({ category: 'VULNERABILITY', severity: 'HIGH', rule: 'xss' }),
+      costed({ category: 'COMPLEXITY', severity: 'MEDIUM', rule: 'complexity' }),
+      costed({ category: 'COMPLEXITY', severity: 'MEDIUM', rule: 'complexity' }),
+      costed({ category: 'CODE_SMELL', severity: 'LOW', rule: 'no-var' }),
+    ];
+
+    const result = computeScore({ findings, duplicationPct: 8.5, linesOfCode: 2000 });
+
+    // 60 + 30 + 15 + 15 + 3
+    expect(result.debtMinutes).toBe(123);
+  });
+
+  it('counts jscpd duplication findings even though they are left out of the penalty', () => {
+    const result = computeScore({
+      findings: [costed({ category: 'DUPLICATION', severity: 'MEDIUM', tool: 'jscpd' })],
+      duplicationPct: 0,
+      linesOfCode: 500,
+    });
+
+    expect(result.debtMinutes).toBe(10);
+    expect(result.penaltyBreakdown.findingPenalty).toBe(0);
+  });
+
+  it('is not scaled down for large repos', () => {
+    const findings = [costed({ category: 'VULNERABILITY', severity: 'CRITICAL' })];
+
+    const small = computeScore({ findings, duplicationPct: 0, linesOfCode: 500 });
+    const large = computeScore({ findings, duplicationPct: 0, linesOfCode: 50000 });
+
+    expect(large.debtMinutes).toBe(small.debtMinutes);
+    expect(large.healthScore).toBeGreaterThan(small.healthScore);
   });
 });
