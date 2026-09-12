@@ -114,11 +114,30 @@ export async function linkRepository(userId: string, githubRepoId: number) {
 
   const existing = await prisma.repository.findUnique({
     where: { githubRepoId: String(repo.id) },
-    select: { isActive: true },
+    select: { isActive: true, webhookId: true },
   });
 
   if (existing?.isActive) {
     throw new AppError(409, 'CONFLICT', 'Repository is already linked');
+  }
+
+  if (existing?.webhookId) {
+    // A previous unlink may have failed to remove this hook (see
+    // unlinkRepository below) — best effort cleanup so relinking doesn't
+    // leave two live webhooks on GitHub. Failure here just leaves us where
+    // we already were, so it isn't fatal to linking.
+    try {
+      await octokit.rest.repos.deleteWebhook({
+        owner: repo.owner.login,
+        repo: repo.name,
+        hook_id: Number(existing.webhookId),
+      });
+    } catch (err) {
+      logger.warn(
+        { err, githubRepoId: repo.id },
+        'Could not clean up stale webhook before relinking',
+      );
+    }
   }
 
   let webhookId: string;
@@ -201,8 +220,19 @@ export async function unlinkRepository(
         hook_id: Number(repository.webhookId),
       });
     } catch (err) {
-      // repo may be gone on GitHub already — unlinking still has to work
-      logger.warn({ err, repoId }, 'Could not remove GitHub webhook while unlinking');
+      if ((err as { status?: number }).status !== 404) {
+        // Not a "gone already" — the hook is likely still live on GitHub.
+        // Unlinking still has to work, but don't discard the only pointer
+        // to a hook we couldn't confirm was removed.
+        logger.error(
+          { err, repoId },
+          'Could not remove GitHub webhook while unlinking; leaving webhookId set for cleanup',
+        );
+        await prisma.repository.update({ where: { id: repoId }, data: { isActive: false } });
+        return;
+      }
+      // 404: hook (or repo) already gone on GitHub — safe to clear below.
+      logger.warn({ err, repoId }, 'GitHub webhook already gone while unlinking');
     }
   }
 

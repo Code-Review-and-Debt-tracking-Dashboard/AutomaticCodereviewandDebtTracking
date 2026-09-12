@@ -5,9 +5,10 @@ import { analyzeRateLimiter } from '../middleware/rateLimit';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
-import { listAvailableRepos, getRepoDebt, getRepoDetail, getRepoPullRequests, getRepoTrend, linkRepository, unlinkRepository, getRepoHotspots, getRepoPullRequestDetail, triggerManualAnalysis } from '../services/repoService';
+import { linkRepository, listAvailableRepos, unlinkRepository } from '../services/repoLinkService';
+import { getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend, triggerManualAnalysis } from '../services/repoService';
 import { validateRequest } from '../middleware/zodValidate';
-import { linkRepositorySchema, addMemberSchema } from '../schemas/repoSchemas';
+import { addMemberSchema } from '../schemas/repoSchemas';
 
 export const reposRouter = Router();
 
@@ -22,10 +23,20 @@ reposRouter.get('/api/repos/available', requireAuth, async (req, res, next) => {
   }
 });
 
-// POST /api/repos : link a repository to an org
-reposRouter.post('/api/repos', requireAuth, validateRequest(linkRepositorySchema), async (req, res, next) => {
+// POST /api/repos : link a repository and register its webhook. Everything
+// else comes from GitHub, and the org is derived from the repo's owner, so
+// the body is just the id.
+reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   try {
-    const repo = await linkRepository(req.user!.id, req.body);
+    const githubRepoId = Number(req.body?.githubRepoId);
+
+    if (!Number.isInteger(githubRepoId) || githubRepoId <= 0) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid request body', [
+        { field: 'githubRepoId', message: 'must be a positive integer' },
+      ]);
+    }
+
+    const repo = await linkRepository(req.user!.id, githubRepoId);
     res.status(201).json(repo);
   } catch (err) {
     next(err);
