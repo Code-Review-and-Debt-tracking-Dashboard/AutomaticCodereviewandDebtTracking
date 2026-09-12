@@ -44,32 +44,6 @@ interface PullItem {
   time: string;
 }
 
-const fallbackPullRequests: PullItem[] = [
-  {
-    id: 42,
-    title: "Improve repository health dashboard",
-    author: "seed-developer",
-    branch: "feature/health-dashboard",
-    score: 91,
-    findings: 3,
-    debtDelta: -15,
-    status: "Passed",
-    time: "2 hours ago",
-  },
-  {
-    id: 41,
-    title: "Improve analysis worker performance",
-    author: "Kasun Perera",
-    branch: "perf/worker-optimization",
-    score: 78,
-    findings: 8,
-    debtDelta: 25,
-    status: "Needs attention",
-    time: "Yesterday",
-  },
-];
-
-
 /* =========================================================
    COMPONENT
 ========================================================= */
@@ -89,13 +63,9 @@ export function RepositoryPullRequestsPage() {
       setIsLoading(true);
       try {
         const res = await api.get<{ data: PullItem[] }>(`/api/repos/${repoId}/pulls`);
-        if (res?.data && res.data.length > 0) {
-          setPrs(res.data);
-        } else {
-          setPrs(fallbackPullRequests);
-        }
+        setPrs(res?.data || []);
       } catch {
-        setPrs(fallbackPullRequests);
+        setPrs([]);
       } finally {
         setIsLoading(false);
       }
@@ -104,7 +74,13 @@ export function RepositoryPullRequestsPage() {
     fetchPulls();
   }, [repoId]);
 
-  const pullRequests = prs.length > 0 ? prs : fallbackPullRequests;
+  const pullRequests = prs;
+  const analyzedCount = prs.filter((pr) => pr.status !== "Pending").length;
+  const passedCount = prs.filter((pr) => pr.status === "Passed").length;
+  const needsAttentionCount = prs.filter((pr) => pr.status === "Needs attention").length;
+  const averageScore = analyzedCount
+    ? (prs.filter((pr) => pr.status !== "Pending").reduce((sum, pr) => sum + pr.score, 0) / analyzedCount).toFixed(1)
+    : "0.0";
 
   const filteredPRs = pullRequests.filter((pr) => {
     const matchesSearch =
@@ -114,7 +90,7 @@ export function RepositoryPullRequestsPage() {
   });
 
   return (
-    <main className="min-h-screen bg-background">
+    <main data-dashboard-page className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
         
         <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
@@ -138,25 +114,25 @@ export function RepositoryPullRequestsPage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Analyzed PRs"
-            value="128"
+            value={String(analyzedCount)}
             icon={GitPullRequest}
             color="info"
           />
           <StatCard
             title="Passed Quality Gate"
-            value="94"
+            value={String(passedCount)}
             icon={CheckCircle2}
             color="success"
           />
           <StatCard
             title="Needs Attention"
-            value="22"
+            value={String(needsAttentionCount)}
             icon={MessageSquareWarning}
             color="warning"
           />
           <StatCard
             title="Average Score"
-            value="87.4"
+            value={averageScore}
             icon={Sparkles}
             color="primary"
           />
@@ -164,13 +140,16 @@ export function RepositoryPullRequestsPage() {
 
         <Card className="mt-6">
           <div className="border-b border-border/70 p-5">
+            <div data-dashboard-filters>
             <FilterBar
               searchPlaceholder="Search pull requests..."
               searchValue={search}
               onSearchChange={setSearch}
             />
+            </div>
           </div>
 
+          <div data-dashboard-table>
           <DataTable>
             <DataTableHead>
               <DataTableRow>
@@ -200,7 +179,7 @@ export function RepositoryPullRequestsPage() {
                           #{pr.id} {pr.title}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {pr.time}
+                          {new Date(pr.time).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -264,6 +243,7 @@ export function RepositoryPullRequestsPage() {
               )}
             </DataTableBody>
           </DataTable>
+          </div>
         </Card>
       </div>
     </main>

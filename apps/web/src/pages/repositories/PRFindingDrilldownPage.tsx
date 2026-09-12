@@ -16,6 +16,7 @@ import {
   Code2,
   GitPullRequest,
   LockKeyhole,
+  Search,
   ShieldAlert,
   Wrench,
 } from "lucide-react";
@@ -34,58 +35,27 @@ import {
   IconBox,
 } from "../../components/ui";
 
-const findings = [
-  {
-    id: "FND-001",
-    message: "SQL query constructed using user input",
-    category: "Security",
-    severity: "Critical",
-    file: "src/api/users.ts",
-    line: 42,
-    state: "New",
-    tool: "ESLint Security",
-    rule: "no-sql-injection",
-  },
-  {
-    id: "FND-002",
-    message: "Function complexity exceeds recommended threshold",
-    category: "Complexity",
-    severity: "High",
-    file: "src/services/analyzer.ts",
-    line: 128,
-    state: "New",
-    tool: "PMD",
-    rule: "cognitive-complexity",
-  },
-  {
-    id: "FND-003",
-    message: "Duplicated code block detected",
-    category: "Duplication",
-    severity: "Medium",
-    file: "src/utils/format.ts",
-    line: 76,
-    state: "Existing",
-    tool: "jscpd",
-    rule: "no-duplicate-code",
-  },
-  {
-    id: "FND-004",
-    message: "Unused variable detected",
-    category: "Code Smell",
-    severity: "Low",
-    file: "src/components/Table.tsx",
-    line: 24,
-    state: "Resolved",
-    tool: "ESLint",
-    rule: "no-unused-vars",
-  },
-];
-
 const severityStyles: Record<string, string> = {
   Critical: "bg-danger/10 text-danger border-danger/20",
   High: "bg-warning/10 text-warning border-warning/20",
   Medium: "bg-info/10 text-info border-info/20",
   Low: "bg-muted text-muted-foreground border-border",
+};
+
+const categoryLabels: Record<string, string> = {
+  VULNERABILITY: "Security",
+  COMPLEXITY: "Complexity",
+  DUPLICATION: "Duplication",
+  CODE_SMELL: "Code Smell",
+  MAINTAINABILITY: "Maintainability",
+};
+
+const severityLabels: Record<string, string> = {
+  CRITICAL: "Critical",
+  HIGH: "High",
+  MEDIUM: "Medium",
+  LOW: "Low",
+  INFO: "Info",
 };
 
 interface FindingItem {
@@ -98,13 +68,34 @@ interface FindingItem {
   state: string;
   tool: string;
   rule?: string;
+  isNew?: boolean;
+  debtMinutes?: number;
+}
+
+interface FindingResponse {
+  summary: { total: number; new: number; carryOver: number };
+  data: Array<{
+    id: string;
+    file: string | null;
+    line: number | null;
+    severity: string;
+    category: string;
+    rule: string | null;
+    message: string;
+    tool: string;
+    isNew: boolean;
+    debtMinutes: number;
+  }>;
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
 export function PRFindingDrilldownPage() {
   const { repoId, prNumber } = useParams();
 
   const [realFindings, setRealFindings] = useState<FindingItem[]>([]);
-  const [_isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [summary, setSummary] = useState({ total: 0, new: 0, carryOver: 0 });
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("All");
   const [category, setCategory] = useState("All");
@@ -116,23 +107,46 @@ export function PRFindingDrilldownPage() {
     const fetchPrFindings = async () => {
       setIsLoading(true);
       try {
-        const res = await api.get<{ data: FindingItem[] }>(
+        const detail = await api.get<{ snapshots: Array<{ id: string }> }>(
           `/api/repos/${repoId}/pulls/${prNumber}`
         );
-        if (res?.data && res.data.length > 0) {
-          setRealFindings(res.data);
+        const snapshotId = detail.snapshots[0]?.id;
+        if (!snapshotId) {
+          setRealFindings([]);
+          setSummary({ total: 0, new: 0, carryOver: 0 });
+          return;
         }
+
+        const res = await api.get<FindingResponse>(
+          `/api/snapshots/${snapshotId}/findings`,
+          { page, limit: 50 },
+        );
+        setSummary(res.summary);
+        setRealFindings(res.data.map((finding) => ({
+          id: finding.id,
+          message: finding.message,
+          category: categoryLabels[finding.category] ?? finding.category,
+          severity: severityLabels[finding.severity] ?? finding.severity,
+          file: finding.file ?? "unknown file",
+          line: finding.line ?? 0,
+          state: finding.isNew ? "New" : "Existing",
+          tool: finding.tool,
+          rule: finding.rule ?? undefined,
+          isNew: finding.isNew,
+          debtMinutes: finding.debtMinutes,
+        })));
       } catch {
-        // Fallback to static demo data
+        setRealFindings([]);
+        setSummary({ total: 0, new: 0, carryOver: 0 });
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchPrFindings();
-  }, [repoId, prNumber]);
+  }, [repoId, prNumber, page]);
 
-  const activeFindings = realFindings.length > 0 ? realFindings : findings;
+  const activeFindings = realFindings;
 
   const filteredFindings = activeFindings.filter((finding) => {
     const matchesSearch =
@@ -147,7 +161,7 @@ export function PRFindingDrilldownPage() {
   });
 
   return (
-    <main className="min-h-screen bg-background">
+    <main data-dashboard-page className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
 
         <BackLink to={`/repositories/${repoId}/pull-requests`} label="Back to pull requests" />
@@ -175,25 +189,25 @@ export function PRFindingDrilldownPage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Total Findings"
-            value="4"
+            value={String(summary.total)}
             icon={ShieldAlert}
             color="primary"
           />
           <StatCard
             title="Critical"
-            value="1"
+            value={String(activeFindings.filter((finding) => finding.severity === "CRITICAL").length)}
             icon={AlertTriangle}
             color="danger"
           />
           <StatCard
             title="New"
-            value="2"
+            value={String(summary.new)}
             icon={Bug}
             color="warning"
           />
           <StatCard
             title="Resolved"
-            value="1"
+            value={String(summary.carryOver)}
             icon={CheckCircle2}
             color="success"
           />
@@ -201,6 +215,7 @@ export function PRFindingDrilldownPage() {
 
         <Card className="mt-6">
           <div className="border-b border-border/70 p-5">
+            <div data-dashboard-filters>
             <FilterBar
               searchPlaceholder="Search findings by message or file..."
               searchValue={search}
@@ -219,10 +234,11 @@ export function PRFindingDrilldownPage() {
                 {
                   value: state,
                   onChange: setState,
-                  options: ["All", "New", "Existing", "Resolved"],
+                  options: ["All", "New", "Existing"],
                 },
               ]}
             />
+            </div>
           </div>
 
           <div className="divide-y divide-border/60">
@@ -294,6 +310,27 @@ export function PRFindingDrilldownPage() {
               </div>
             )}
           </div>
+          {realFindings.length > 0 && (
+            <div className="flex items-center justify-between border-t border-border/60 p-4 text-sm">
+              <span className="text-muted-foreground">Page {page}</span>
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                className="rounded border border-border px-3 py-1 disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={realFindings.length < 50}
+                onClick={() => setPage((current) => current + 1)}
+                className="rounded border border-border px-3 py-1 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </Card>
       </div>
     </main>
