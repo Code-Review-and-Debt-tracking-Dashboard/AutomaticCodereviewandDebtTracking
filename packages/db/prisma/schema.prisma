@@ -169,6 +169,7 @@ model PullRequest {
   githubUpdatedAt DateTime?
   mergedAt        DateTime?
   closedAt        DateTime?
+  botCommentId    String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   analysisJobs    AnalysisJob[]
