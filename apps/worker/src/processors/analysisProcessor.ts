@@ -175,7 +175,12 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
     });
 
     logger.info(
-      { analysisId, healthScore: score.healthScore, ...score.penaltyBreakdown },
+      {
+        analysisId,
+        healthScore: score.healthScore,
+        debtMinutes: score.debtMinutes,
+        ...score.penaltyBreakdown,
+      },
       'Score computed',
     );
 

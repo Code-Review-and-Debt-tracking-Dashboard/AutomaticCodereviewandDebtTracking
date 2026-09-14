@@ -31,6 +31,7 @@ export interface ScoreInput {
 
 export interface ScoreResult {
   healthScore: number;
+  debtMinutes: number;
   totalIssues: number;
   vulnerabilityCount: number;
   complexityCount: number;
@@ -61,6 +62,10 @@ const round = (value: number, places: number) => {
  * less each time, and the whole lot is scaled down for big repos so a large
  * codebase isn't punished just for being large.
  *
+ * Also totals the remediation minutes the normalizer put on each finding. That
+ * one is a plain sum — no discounts, no size scaling — and it doesn't affect the
+ * health score.
+ *
  * Pure — same input, same score, every time. Nothing here touches the network or
  * the database, which is what lets an old score be recomputed and checked.
  */
@@ -85,9 +90,15 @@ export function computeScore({ findings, duplicationPct, linesOfCode }: ScoreInp
   // makes sense against the others of its own rule.
   const byRule = new Map<string, AnalysisFinding[]>();
 
+  let debtMinutes = 0;
+
   for (const finding of findings) {
     categoryCounts[finding.category]++;
     severityCounts[finding.severity]++;
+
+    // Debt is additive, so every finding counts — including the jscpd ones the
+    // health penalty skips below. A clone pair still takes time to fix.
+    debtMinutes += finding.debtMinutes;
 
     // jscpd reports the same duplication twice: once as a clone pair, once in the
     // repo percentage below. Charging both would double it.
@@ -134,6 +145,7 @@ export function computeScore({ findings, duplicationPct, linesOfCode }: ScoreInp
 
   return {
     healthScore: Math.max(0, round(100 - totalPenalty, 1)),
+    debtMinutes,
     totalIssues: findings.length,
     vulnerabilityCount: categoryCounts.VULNERABILITY,
     complexityCount: categoryCounts.COMPLEXITY,
