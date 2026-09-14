@@ -11,6 +11,7 @@ import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { computeDebtDelta } from '../stages/debt';
 import { detectLanguages } from '../stages/detect';
+import { evaluateGate } from '../stages/gate';
 import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
 import { computeScore } from '../stages/score';
@@ -35,8 +36,9 @@ async function runAnalyzer<T>(
 
 /**
  * Consumes one analysis job. Clones the repo, works out what's in it, runs the
- * analyzers over it, flattens their output into findings and scores them — the
- * gate, comment and persist stages are added on top of this in later tasks.
+ * analyzers over it, flattens their output into findings, scores them and runs
+ * them past the repo's quality gate — the comment and persist stages are added
+ * on top of this in later tasks.
  *
  * Only the analyzers are allowed to fail quietly. Everything else throws on
  * purpose: that's how BullMQ is told to retry, and the worker's 'failed'
@@ -190,6 +192,21 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
         ...score.penaltyBreakdown,
       },
       'Score computed',
+    );
+
+    const gate = await prisma.qualityGate.findUnique({ where: { repoId } });
+
+    const gateEvaluation = evaluateGate({ gate, score });
+
+    logger.info(
+      {
+        analysisId,
+        gateResult: gateEvaluation.result,
+        blockPR: gateEvaluation.blockPR,
+        breached: gateEvaluation.metrics.filter((m) => !m.passed).length,
+        checked: gateEvaluation.metrics.length,
+      },
+      'Quality gate evaluated',
     );
 
     // remaining analysis stages go here, over findings and score
