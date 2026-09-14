@@ -145,23 +145,38 @@ No diminishing returns here — debt is additive. Each finding genuinely require
 Two findings across snapshots are considered the **same finding** if:
 
 ```
-match = (finding_a.file === finding_b.file)
+match = (finding_a.tool === finding_b.tool)
+     && (finding_a.file === finding_b.file)
      && (finding_a.rule === finding_b.rule)
      && (Math.abs(finding_a.line - finding_b.line) <= 5)
 ```
 
 The ±5 line tolerance accounts for minor line shifts from unrelated code changes above the finding.
 
+`tool` is part of the key because nothing stops two analyzers from naming a rule the same way —
+`complexity` is both an ESLint rule and a PyLint symbol. Without it they would cross-match.
+
+Findings with no line (radon's maintainability index reports a file, not a position) match on the
+rest of the key when **both** sides are null. A null and a real line never match — otherwise a
+file-level finding would be reported as newly introduced on every single run.
+
 ### 3.2 Matching Algorithm
 
 ```
 1. Load previous snapshot's findings for same repo (baseline)
-2. For each finding in current snapshot:
-   a. Search baseline for a match (file + rule + line±5)
-   b. If match found:  isNew = false, remove match from baseline pool
-   c. If no match:     isNew = true
-3. Remaining unmatched baseline findings = "resolved" (fixed by this PR)
+2. Bucket the baseline by (tool, file, rule) so step 2a only scans candidates
+   that could actually match, not the whole list
+3. For each finding in current snapshot:
+   a. Search its bucket for the *closest* unclaimed baseline finding within ±5 lines
+   b. If match found:  state = EXISTING, remove match from baseline pool
+   c. If no match:     state = NEW
+4. Remaining unclaimed baseline findings = state = RESOLVED (fixed by this PR)
+5. No baseline at all (first analysis) = every finding NEW
 ```
+
+Each baseline finding can be claimed only once. That is what makes a rule firing repeatedly in one
+file behave: five occurrences dropping to three leaves two RESOLVED, rather than all five reading
+as carried over.
 
 ### 3.3 Debt Delta
 

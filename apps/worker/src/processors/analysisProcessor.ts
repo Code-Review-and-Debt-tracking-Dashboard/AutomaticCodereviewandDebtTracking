@@ -10,6 +10,7 @@ import { runRadon } from '../analyzers/radon';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { detectLanguages } from '../stages/detect';
+import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
 import { computeScore } from '../stages/score';
 
@@ -154,8 +155,21 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       'Findings normalized',
     );
 
+    // No baseline source yet, so everything comes back NEW.
+    const matched = matchFindings({ findings, baseline: null });
+
+    logger.info(
+      {
+        analysisId,
+        new: matched.findings.filter((f) => f.state === 'NEW').length,
+        existing: matched.findings.filter((f) => f.state === 'EXISTING').length,
+        resolved: matched.resolved.length,
+      },
+      'Findings matched',
+    );
+
     const score = computeScore({
-      findings,
+      findings: matched.findings,
       duplicationPct,
       linesOfCode: detected.linesOfCode,
     });

@@ -872,10 +872,10 @@ baseline-less findings. When the worker analyzes a PR:
 
 1. It analyzes the **PR head branch** (the proposed code).
 2. It compares findings against the **most recent completed snapshot on the same repository's default branch** (i.e., the last merge to `main`).
-3. `state = NEW` if the same `(file, rule)` tuple does **not** exist in the baseline (or the file is entirely new in the PR).
-4. `state = EXISTING` if the same `(file, rule)` exists in the baseline (line numbers may shift slightly; we match on file+rule with a configurable line-proximity tolerance of ±5 lines).
-5. `state = RESOLVED` is reserved for baseline findings that are absent in the head — this powers the "issues fixed by this PR" count (`resolvedIssues` in `api_design.md`).
-6. `state = UNKNOWN` when there is no baseline to compare against (the repository's first analysis).
+3. `state = EXISTING` if the baseline has an unclaimed finding with the same `(tool, file, rule)` **and** a line within ±5 of it. See `scoring_algorithm.md` §3.1 for the full key — line proximity is part of the match, not a footnote to it.
+4. `state = NEW` if no such baseline finding exists (or the file is entirely new in the PR).
+5. `state = RESOLVED` is for baseline findings that are absent in the head — this powers the "issues fixed by this PR" count (`resolvedIssues` in `api_design.md`). Because a resolved finding is by definition absent from the current run, it is **not** written as a row on the current snapshot: doing so would inflate `totalIssues`, `debtMinutes` and the `carryOver` count the findings API derives.
+6. `state = NEW` when there is no baseline to compare against (the repository's first analysis), matching the column's `@default(NEW)` and `scoring_algorithm.md` §4. `UNKNOWN` is the pre-matcher placeholder the normalizer stamps, and should not survive to the database.
 
 This lets the PR comment say "3 new issues introduced, 12 pre-existing" — the developer only needs to fix what they broke. The API surfaces a derived `isNew` boolean (`state == NEW`) for convenience.
 
