@@ -181,12 +181,20 @@ as carried over.
 ### 3.3 Debt Delta
 
 ```
-debtDelta = currentSnapshot.debtMinutes - previousSnapshot.debtMinutes
+debtDelta = currentDebtMinutes - Σ baselineFindings[i].debtMinutes
 ```
+
+The baseline debt is summed from the baseline snapshot's own findings rather than read back from
+its stored `debtMinutes` column. The two are equal by construction — the stored column is that same
+sum — but the worker holds no database credentials, so the findings it already needs for matching
+are the only baseline it can see.
 
 - **Positive** → debt increased (bad)
 - **Negative** → debt decreased (good)
-- **First snapshot** → debtDelta = 0
+- **No baseline** (first analysis) → debtDelta = 0
+
+A baseline of *no findings* is not the same as *no baseline*: a previous snapshot that came back
+clean makes the whole of the current debt the delta, because all of it is genuinely new.
 
 ---
 
@@ -200,6 +208,7 @@ debtDelta = currentSnapshot.debtMinutes - previousSnapshot.debtMinutes
 | **Duplication percentage** | Treated as a continuous penalty, not discrete findings. Added separately from finding penalties. | jscpd reports a single percentage, not per-location findings. Treating it differently from counted findings is more accurate. |
 | **Same rule 50+ times** | Diminishing factor ensures 50 occurrences of `no-unused-vars` ≈ 9.7 equivalent full-penalty findings | Prevents a single noisy rule from being worth more than all other categories combined |
 | **No previous snapshot** | debtDelta = 0, all findings marked isNew = true | First analysis has no baseline to compare against |
+| **Previous snapshot with zero findings** | debtDelta = current debtMinutes | A clean baseline is a real comparison, not a missing one — every minute of current debt was introduced since |
 | **File renamed between snapshots** | Treated as: old file findings = resolved, new file findings = isNew | True rename detection requires git diff analysis. For MVP, accept this limitation; document it. |
 
 ---
@@ -398,6 +407,13 @@ export function computeScore(input: ScoringInput): ScoringResult {
  * Match findings between current and baseline snapshots.
  * A finding matches if: same file + same rule + line within ±5.
  * Returns new, resolved, and carried-over findings plus debt delta.
+ *
+ * NOTE: the shipped code splits this in two — `matchFindings()` in
+ * `stages/match.ts` does the classification, `computeDebtDelta()` in
+ * `stages/debt.ts` does the subtraction. They are separate WBS tasks and the
+ * comment builder needs the delta without re-running the match. See §3.1-3.3
+ * for the behaviour the implementation actually follows; the listing below
+ * predates it and still does an O(n×m) scan with an unguarded null line.
  */
 export function computeDebtDelta(input: DebtDeltaInput): DebtDeltaResult {
   const { currentFindings, baselineFindings, currentDebtMinutes, baselineDebtMinutes } = input;

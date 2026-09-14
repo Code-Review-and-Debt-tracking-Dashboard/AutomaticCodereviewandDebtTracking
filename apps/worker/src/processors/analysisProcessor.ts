@@ -9,6 +9,7 @@ import { runPylint } from '../analyzers/pylint';
 import { runRadon } from '../analyzers/radon';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
+import { computeDebtDelta } from '../stages/debt';
 import { detectLanguages } from '../stages/detect';
 import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
@@ -174,8 +175,20 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       linesOfCode: detected.linesOfCode,
     });
 
+    // Same missing baseline as the matcher above, so there is no delta yet.
+    const debtDeltaMinutes = computeDebtDelta({
+      currentDebtMinutes: score.debtMinutes,
+      baseline: null,
+    });
+
     logger.info(
-      { analysisId, healthScore: score.healthScore, ...score.penaltyBreakdown },
+      {
+        analysisId,
+        healthScore: score.healthScore,
+        debtMinutes: score.debtMinutes,
+        debtDeltaMinutes,
+        ...score.penaltyBreakdown,
+      },
       'Score computed',
     );
 
