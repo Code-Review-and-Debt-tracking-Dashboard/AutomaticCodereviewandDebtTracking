@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import type { AnalysisFinding, SnapshotMetrics } from '@codehealth/shared';
+import type { AnalysisFinding, QualityGateThresholds, SnapshotMetrics } from '@codehealth/shared';
 import {
   COMMENT_MARKER,
   buildPrComment,
   debtByCategory,
   formatMinutes,
+  metricRows,
   scoreBand,
 } from './comment';
 
@@ -47,6 +48,43 @@ function metrics(overrides: Partial<SnapshotMetrics> = {}): SnapshotMetrics {
     ...overrides,
   };
 }
+
+function gate(overrides: Partial<QualityGateThresholds> = {}): QualityGateThresholds {
+  return {
+    minHealthScore: 60,
+    maxCriticalFindings: null,
+    maxVulnerabilities: null,
+    maxDuplicationPct: null,
+    maxComplexityCount: null,
+    maxCodeSmellCount: null,
+    ...overrides,
+  };
+}
+
+// The worked example from analysis_access_and_reporting_design.md §5.3.
+const SPEC_METRICS = metrics({
+  healthScore: 72.4,
+  criticalCount: 2,
+  vulnerabilityCount: 5,
+  duplicationPct: 8.1,
+  complexityCount: 12,
+  codeSmellCount: 47,
+  debtMinutes: 380,
+  debtDeltaMinutes: 45,
+  gateResult: 'FAIL',
+});
+
+const SPEC_GATE = gate({
+  minHealthScore: 60,
+  maxCriticalFindings: 0,
+  maxVulnerabilities: 3,
+  maxDuplicationPct: 5,
+  maxComplexityCount: 20,
+  maxCodeSmellCount: 50,
+});
+
+const metricTableRows = (body: string) =>
+  body.split('\n').filter((line) => line.startsWith('| ') && !line.startsWith('| Metric'));
 
 describe('formatMinutes', () => {
   it('formats zero, whole hours, and mixed durations', () => {
@@ -92,7 +130,7 @@ describe('debtByCategory', () => {
 
 describe('buildPrComment', () => {
   it('renders a clean first analysis with no findings', () => {
-    const body = buildPrComment({ metrics: metrics(), findings: [], baseline: null });
+    const body = buildPrComment({ metrics: metrics(), findings: [], baseline: null, gate: null });
     const lines = body.split('\n');
 
     expect(lines[0]).toBe(COMMENT_MARKER);
@@ -108,6 +146,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ debtMinutes: 380, debtDeltaMinutes: 45 }),
       findings: [finding()],
       baseline: { healthScore: 80 },
+      gate: null,
     });
 
     expect(body).toContain('### Technical debt: 6h 20m (⚠️ ▲ +45m since last analysis)');
@@ -118,6 +157,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ debtMinutes: 200, debtDeltaMinutes: -15 }),
       findings: [finding()],
       baseline: { healthScore: 80 },
+      gate: null,
     });
 
     expect(body).toContain('(✅ ▼ -15m since last analysis)');
@@ -128,6 +168,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ debtMinutes: 200, debtDeltaMinutes: 0 }),
       findings: [finding()],
       baseline: { healthScore: 80 },
+      gate: null,
     });
 
     expect(body).toContain('(✅ no change since last analysis)');
@@ -138,6 +179,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ healthScore: 72.4 }),
       findings: [],
       baseline: { healthScore: 76.5 },
+      gate: null,
     });
     expect(down).toContain('## CodeHealth — Health Score 72.4 ▼ 4.1');
 
@@ -145,6 +187,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ healthScore: 80 }),
       findings: [],
       baseline: { healthScore: 76.5 },
+      gate: null,
     });
     expect(up).toContain('## CodeHealth — Health Score 80 ▲ +3.5');
 
@@ -152,6 +195,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ healthScore: 80 }),
       findings: [],
       baseline: { healthScore: 80 },
+      gate: null,
     });
     expect(same).toContain('## CodeHealth — Health Score 80\n');
   });
@@ -161,6 +205,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ healthScore: 72.4 }),
       findings: [],
       baseline: null,
+      gate: null,
     });
 
     expect(body).toContain('## CodeHealth — Health Score 72.4\n');
@@ -173,6 +218,7 @@ describe('buildPrComment', () => {
       metrics: metrics({ healthScore: 55, gateResult: 'FAIL' }),
       findings: [],
       baseline: null,
+      gate: null,
     });
     expect(failed).toContain('🟠 **Fair** · Quality gate: **FAILED**');
 
@@ -180,10 +226,11 @@ describe('buildPrComment', () => {
       metrics: metrics({ healthScore: 95, gateResult: 'PASS' }),
       findings: [],
       baseline: null,
+      gate: null,
     });
     expect(passed).toContain('🟢 **Excellent** · Quality gate: **PASSED**');
 
-    const none = buildPrComment({ metrics: metrics(), findings: [], baseline: null });
+    const none = buildPrComment({ metrics: metrics(), findings: [], baseline: null, gate: null });
     expect(none).not.toContain('Quality gate');
   });
 
@@ -197,6 +244,7 @@ describe('buildPrComment', () => {
         finding({ category: 'COMPLEXITY', debtMinutes: 60 }),
       ],
       baseline: null,
+      gate: null,
     });
 
     const rows = body.split('\n').filter((line) => line.startsWith('| ') && !line.startsWith('| Category'));
@@ -207,5 +255,148 @@ describe('buildPrComment', () => {
     ]);
     expect(body).not.toContain('Duplication');
     expect(body).not.toContain('Maintainability');
+  });
+});
+
+describe('metricRows', () => {
+  it('omits rows whose threshold is not configured', () => {
+    const rows = metricRows(metrics({ vulnerabilityCount: 1 }), gate({ maxVulnerabilities: 3 }));
+
+    expect(rows.map((row) => row.label)).toEqual(['Health Score', 'Vulnerabilities']);
+  });
+
+  it('sorts failing rows above passing rows, keeping the fixed order within each group', () => {
+    const rows = metricRows(SPEC_METRICS, SPEC_GATE);
+
+    expect(rows.map((row) => `${row.label}:${row.passed}`)).toEqual([
+      'Critical findings:false',
+      'Vulnerabilities:false',
+      'Duplication:false',
+      'Health Score:true',
+      'Complexity issues:true',
+      'Code smells:true',
+    ]);
+  });
+
+  it('treats a value exactly at its limit as passing', () => {
+    const atLimit = metricRows(
+      metrics({ healthScore: 60, vulnerabilityCount: 3 }),
+      gate({ minHealthScore: 60, maxVulnerabilities: 3 }),
+    );
+    expect(atLimit.every((row) => row.passed)).toBe(true);
+
+    const overLimit = metricRows(
+      metrics({ healthScore: 59.9, vulnerabilityCount: 4 }),
+      gate({ minHealthScore: 60, maxVulnerabilities: 3 }),
+    );
+    expect(overLimit.every((row) => !row.passed)).toBe(true);
+  });
+});
+
+describe('buildPrComment metrics table', () => {
+  it('renders no metrics table when the repo has no quality gate', () => {
+    const body = buildPrComment({
+      metrics: metrics({ gateResult: 'FAIL' }),
+      findings: [],
+      baseline: null,
+      gate: null,
+    });
+
+    expect(body).not.toContain('| Metric |');
+    expect(body).not.toContain('Technical debt |');
+    expect(body).toContain('Quality gate: **FAILED**\n');
+  });
+
+  it('renders the §5.3 example: failing rows first, debt trend last, breach count in the verdict', () => {
+    const body = buildPrComment({
+      metrics: SPEC_METRICS,
+      findings: [],
+      baseline: { healthScore: 76.5 },
+      gate: SPEC_GATE,
+    });
+
+    expect(body).toContain('🟡 **Good** · Quality gate: **FAILED** — 3 of 6 metrics breached');
+    expect(body).toContain('| Metric | Value | Threshold |  |\n|---|---:|---:|:-:|');
+    expect(metricTableRows(body)).toEqual([
+      '| Critical findings | 2 | ≤ 0 | ❌ |',
+      '| Vulnerabilities | 5 | ≤ 3 | ❌ |',
+      '| Duplication | 8.1% | ≤ 5% | ❌ |',
+      '| Health Score | 72.4 | ≥ 60 | ✅ |',
+      '| Complexity issues | 12 | ≤ 20 | ✅ |',
+      '| Code smells | 47 | ≤ 50 | ✅ |',
+      '| Technical debt | 6h 20m | ▲ +45m | ⚠️ |',
+    ]);
+  });
+
+  it('rounds duplication to one decimal but compares the raw value', () => {
+    const body = buildPrComment({
+      metrics: metrics({ duplicationPct: 5.04 }),
+      findings: [],
+      baseline: null,
+      gate: gate({ maxDuplicationPct: 5 }),
+    });
+
+    expect(body).toContain('| Duplication | 5% | ≤ 5% | ❌ |');
+  });
+
+  it('adds the breach count only on FAIL and never counts the debt row', () => {
+    const passed = buildPrComment({
+      metrics: metrics({ healthScore: 95, debtDeltaMinutes: 45, gateResult: 'PASS' }),
+      findings: [],
+      baseline: { healthScore: 90 },
+      gate: gate(),
+    });
+    expect(passed).toContain('Quality gate: **PASSED**\n');
+    expect(passed).not.toContain('metrics breached');
+    expect(passed).toContain('| Technical debt | 0m | ▲ +45m | ⚠️ |');
+
+    const failed = buildPrComment({
+      metrics: metrics({ healthScore: 40, debtDeltaMinutes: 45, gateResult: 'FAIL' }),
+      findings: [],
+      baseline: { healthScore: 90 },
+      gate: gate(),
+    });
+    expect(failed).toContain('Quality gate: **FAILED** — 1 of 1 metrics breached');
+  });
+
+  it('shows the debt trend as a down arrow, a dash, or no status on a first analysis', () => {
+    const down = buildPrComment({
+      metrics: metrics({ debtMinutes: 200, debtDeltaMinutes: -15 }),
+      findings: [],
+      baseline: { healthScore: 90 },
+      gate: gate(),
+    });
+    expect(down).toContain('| Technical debt | 3h 20m | ▼ -15m | ✅ |');
+
+    const held = buildPrComment({
+      metrics: metrics({ debtMinutes: 200, debtDeltaMinutes: 0 }),
+      findings: [],
+      baseline: { healthScore: 90 },
+      gate: gate(),
+    });
+    expect(held).toContain('| Technical debt | 3h 20m | — | ✅ |');
+
+    const first = buildPrComment({
+      metrics: metrics({ debtMinutes: 200 }),
+      findings: [],
+      baseline: null,
+      gate: gate(),
+    });
+    expect(first).toContain('| Technical debt | 3h 20m | — | — |');
+  });
+
+  it('keeps the debt-by-category table below the metrics table', () => {
+    const body = buildPrComment({
+      metrics: metrics({ debtMinutes: 60 }),
+      findings: [finding({ category: 'VULNERABILITY', debtMinutes: 60 })],
+      baseline: null,
+      gate: gate(),
+    });
+    const lines = body.split('\n');
+
+    expect(lines.indexOf('| Metric | Value | Threshold |  |')).toBeLessThan(
+      lines.indexOf('### Technical debt: 1h (first analysis, no baseline)'),
+    );
+    expect(body).toContain('| Vulnerabilities | 1 | 1h |');
   });
 });

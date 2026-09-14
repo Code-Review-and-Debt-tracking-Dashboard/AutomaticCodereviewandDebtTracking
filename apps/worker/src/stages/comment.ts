@@ -1,4 +1,9 @@
-import type { AnalysisFinding, FindingCategory, SnapshotMetrics } from '@codehealth/shared';
+import type {
+  AnalysisFinding,
+  FindingCategory,
+  QualityGateThresholds,
+  SnapshotMetrics,
+} from '@codehealth/shared';
 
 // Lets the poster find its own comment on a PR if botCommentId is ever lost.
 export const COMMENT_MARKER = '<!-- codehealth-bot -->';
@@ -8,6 +13,8 @@ export interface CommentInput {
   findings: AnalysisFinding[];
   // Null on the first analysis of a repo: there is no previous snapshot to diff against.
   baseline: { healthScore: number } | null;
+  // Null when the repo has no quality gate configured (mirrors metrics.gateResult).
+  gate: QualityGateThresholds | null;
 }
 
 interface ScoreBand {
@@ -99,17 +106,96 @@ function debtTable(findings: AnalysisFinding[]): string[] {
   return ['| Category | Findings | Debt |', '|---|---:|---:|', ...rows];
 }
 
+export interface MetricRow {
+  label: string;
+  value: string;
+  threshold: string;
+  passed: boolean;
+}
+
+const percent = (value: number) => `${round1(value)}%`;
+
+function maxRow(
+  label: string,
+  value: number,
+  max: number | null,
+  format: (n: number) => string = String,
+): MetricRow | null {
+  if (max === null) return null;
+  return { label, value: format(value), threshold: `≤ ${format(max)}`, passed: value <= max };
+}
+
+/**
+ * One row per configured threshold, failing rows first so the reason a gate
+ * failed is the first thing read. Within each group the order is fixed, so
+ * two runs with the same breaches render identically.
+ */
+export function metricRows(metrics: SnapshotMetrics, gate: QualityGateThresholds): MetricRow[] {
+  const candidates: Array<MetricRow | null> = [
+    {
+      label: 'Health Score',
+      value: String(metrics.healthScore),
+      threshold: `≥ ${gate.minHealthScore}`,
+      passed: metrics.healthScore >= gate.minHealthScore,
+    },
+    maxRow('Critical findings', metrics.criticalCount, gate.maxCriticalFindings),
+    maxRow('Vulnerabilities', metrics.vulnerabilityCount, gate.maxVulnerabilities),
+    maxRow('Duplication', metrics.duplicationPct, gate.maxDuplicationPct, percent),
+    maxRow('Complexity issues', metrics.complexityCount, gate.maxComplexityCount),
+    maxRow('Code smells', metrics.codeSmellCount, gate.maxCodeSmellCount),
+  ];
+
+  const rows = candidates.filter((row): row is MetricRow => row !== null);
+  return [...rows.filter((row) => !row.passed), ...rows.filter((row) => row.passed)];
+}
+
+// Debt has no threshold on QualityGate, so it is a trend indicator only and
+// never counts towards the breached total.
+function debtRow(metrics: SnapshotMetrics, baseline: CommentInput['baseline']): string {
+  const value = formatMinutes(metrics.debtMinutes);
+  if (!baseline) return `| Technical debt | ${value} | — | — |`;
+
+  const delta = metrics.debtDeltaMinutes;
+  let trend = '—';
+  if (delta > 0) trend = `▲ +${formatMinutes(delta)}`;
+  else if (delta < 0) trend = `▼ -${formatMinutes(delta)}`;
+
+  return `| Technical debt | ${value} | ${trend} | ${delta > 0 ? '⚠️' : '✅'} |`;
+}
+
+function metricsTable(
+  rows: MetricRow[],
+  metrics: SnapshotMetrics,
+  baseline: CommentInput['baseline'],
+): string[] {
+  return [
+    '| Metric | Value | Threshold |  |',
+    '|---|---:|---:|:-:|',
+    ...rows.map(
+      (row) => `| ${row.label} | ${row.value} | ${row.threshold} | ${row.passed ? '✅' : '❌'} |`,
+    ),
+    debtRow(metrics, baseline),
+  ];
+}
+
 /**
  * Renders the PR comment body from the numbers that go on the health snapshot.
  * Everything is read from the metrics rather than recomputed, so the comment
  * can never disagree with what the dashboard shows for the same run.
  */
-export function buildPrComment({ metrics, findings, baseline }: CommentInput): string {
+export function buildPrComment({ metrics, findings, baseline, gate }: CommentInput): string {
   const band = scoreBand(metrics.healthScore);
+  const rows = gate ? metricRows(metrics, gate) : [];
 
   const statusParts = [`${band.emoji} **${band.label}**`];
   if (metrics.gateResult) {
-    statusParts.push(`Quality gate: **${metrics.gateResult === 'PASS' ? 'PASSED' : 'FAILED'}**`);
+    let verdict = `Quality gate: **${metrics.gateResult === 'PASS' ? 'PASSED' : 'FAILED'}**`;
+    // The verdict restates the stored gateResult; the count only explains it.
+    if (gate && metrics.gateResult === 'FAIL') {
+      const breached = rows.filter((row) => !row.passed).length;
+      verdict += ` — ${breached} of ${rows.length} metrics breached`;
+    }
+    statusParts.push(verdict);
   }
 
   const lines = [
@@ -118,6 +204,7 @@ export function buildPrComment({ metrics, findings, baseline }: CommentInput): s
     '',
     statusParts.join(' · '),
     '',
+    ...(gate ? [...metricsTable(rows, metrics, baseline), ''] : []),
     `### Technical debt: ${formatMinutes(metrics.debtMinutes)} (${debtDeltaText(metrics.debtDeltaMinutes, baseline)})`,
     '',
     ...debtTable(findings),
