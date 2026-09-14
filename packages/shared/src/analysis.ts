@@ -68,6 +68,17 @@ export interface SnapshotMetrics {
   gateResult: GateResult | null;
 }
 
+// The repo's QualityGate row, as the worker needs it. Only minHealthScore
+// always has a value; a null max* means that metric is not enforced.
+export interface QualityGateThresholds {
+  minHealthScore: number;
+  maxCriticalFindings: number | null;
+  maxVulnerabilities: number | null;
+  maxDuplicationPct: number | null;
+  maxComplexityCount: number | null;
+  maxCodeSmellCount: number | null;
+}
+
 export interface AnalysisResultsPayload {
   analysisId: string;
   // The sha actually checked out. Manual runs are queued as 'HEAD', so the
