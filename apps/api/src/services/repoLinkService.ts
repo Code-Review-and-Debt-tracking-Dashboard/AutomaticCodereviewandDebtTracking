@@ -1,4 +1,5 @@
 import { prisma } from '@codehealth/db';
+import { linkRepo, type LinkOutcome } from '@codehealth/github';
 import { Octokit } from '@octokit/rest';
 
 import { env } from '../config/env';
@@ -6,21 +7,7 @@ import { decrypt } from '../lib/crypto';
 import { logger } from '../lib/logger';
 import { AppError } from '../middleware/errorHandler';
 
-// The org a repo lands in comes from its GitHub owner, never from the request.
-interface GithubRepo {
-  id: number;
-  name: string;
-  full_name: string;
-  html_url: string;
-  clone_url: string;
-  default_branch: string;
-  language: string | null;
-  private: boolean;
-  owner: { id: number; login: string };
-  permissions?: { admin?: boolean };
-}
-
-async function githubClientFor(userId: string): Promise<Octokit> {
+export async function githubClientFor(userId: string): Promise<Octokit> {
   const credential = await prisma.gitHubCredential.findUnique({ where: { userId } });
 
   if (!credential) {
@@ -28,22 +15,6 @@ async function githubClientFor(userId: string): Promise<Octokit> {
   }
 
   return new Octokit({ auth: decrypt(credential.encryptedAccessToken) });
-}
-
-// By id, not owner/name, so a rename on GitHub can't point us elsewhere.
-// Octokit has no typed method for this route, hence the cast.
-async function fetchRepo(octokit: Octokit, githubRepoId: number): Promise<GithubRepo> {
-  try {
-    const response = await octokit.request('GET /repositories/{repository_id}', {
-      repository_id: githubRepoId,
-    });
-    return response.data as GithubRepo;
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) {
-      throw new AppError(404, 'NOT_FOUND', 'Repository not found on GitHub');
-    }
-    throw new AppError(502, 'GITHUB_UNAVAILABLE', 'Could not read the repository from GitHub');
-  }
 }
 
 // Repos the picker can offer: admin on GitHub (needed to register the hook)
@@ -89,105 +60,41 @@ export async function listAvailableRepos(userId: string, orgId?: string) {
     }));
 }
 
+// The link itself is shared with the bulk job, which needs to carry on past a
+// repo it can't link. Here each way it can fail is just a status code.
+export function assertLinked(outcome: LinkOutcome) {
+  switch (outcome.status) {
+    case 'LINKED':
+      return outcome.repository;
+    case 'ALREADY_LINKED':
+      throw new AppError(409, 'CONFLICT', 'Repository is already linked');
+    case 'NO_ADMIN':
+      throw new AppError(403, 'FORBIDDEN', 'You need admin access to this repository on GitHub');
+    case 'NOT_IN_ORG':
+      throw new AppError(
+        404,
+        'NOT_FOUND',
+        'This repository belongs to an organization you are not a member of; sync your organizations if you have just joined it',
+      );
+    case 'NOT_FOUND':
+      throw new AppError(404, 'NOT_FOUND', 'Repository not found on GitHub');
+    case 'GITHUB_ERROR':
+      throw new AppError(502, 'GITHUB_UNAVAILABLE', outcome.message);
+  }
+}
+
 export async function linkRepository(userId: string, githubRepoId: number) {
   const octokit = await githubClientFor(userId);
-  const repo = await fetchRepo(octokit, githubRepoId);
 
-  // creating a webhook needs admin on GitHub's side
-  if (repo.permissions?.admin !== true) {
-    throw new AppError(403, 'FORBIDDEN', 'You need admin access to this repository on GitHub');
-  }
+  const outcome = await linkRepo(
+    octokit,
+    userId,
+    githubRepoId,
+    { webhookUrl: env.githubWebhookUrl, webhookSecret: env.githubWebhookSecret },
+    logger,
+  );
 
-  const organization = await prisma.organization.findUnique({
-    where: { githubOrgId: String(repo.owner.id) },
-    select: { id: true, members: { where: { userId }, select: { status: true } } },
-  });
-
-  // 404 not 403, so you can't probe another org's repos
-  if (!organization || organization.members[0]?.status !== 'ACTIVE') {
-    throw new AppError(
-      404,
-      'NOT_FOUND',
-      'This repository belongs to an organization you are not a member of; sync your organizations if you have just joined it',
-    );
-  }
-
-  const existing = await prisma.repository.findUnique({
-    where: { githubRepoId: String(repo.id) },
-    select: { isActive: true, webhookId: true },
-  });
-
-  if (existing?.isActive) {
-    throw new AppError(409, 'CONFLICT', 'Repository is already linked');
-  }
-
-  if (existing?.webhookId) {
-    // A previous unlink may have failed to remove this hook (see
-    // unlinkRepository below) — best effort cleanup so relinking doesn't
-    // leave two live webhooks on GitHub. Failure here just leaves us where
-    // we already were, so it isn't fatal to linking.
-    try {
-      await octokit.rest.repos.deleteWebhook({
-        owner: repo.owner.login,
-        repo: repo.name,
-        hook_id: Number(existing.webhookId),
-      });
-    } catch (err) {
-      logger.warn(
-        { err, githubRepoId: repo.id },
-        'Could not clean up stale webhook before relinking',
-      );
-    }
-  }
-
-  let webhookId: string;
-  try {
-    const hook = await octokit.rest.repos.createWebhook({
-      owner: repo.owner.login,
-      repo: repo.name,
-      config: {
-        url: env.githubWebhookUrl,
-        content_type: 'json',
-        secret: env.githubWebhookSecret,
-      },
-      events: ['pull_request', 'push'],
-      active: true,
-    });
-    webhookId = String(hook.data.id);
-  } catch {
-    throw new AppError(502, 'GITHUB_UNAVAILABLE', 'Could not register the webhook on GitHub');
-  }
-
-  // upsert, so relinking an old repo keeps its snapshots and findings
-  const fields = {
-    name: repo.name,
-    fullName: repo.full_name,
-    htmlUrl: repo.html_url,
-    cloneUrl: repo.clone_url,
-    defaultBranch: repo.default_branch,
-    language: repo.language,
-    private: repo.private,
-    webhookId,
-    isActive: true,
-    orgId: organization.id,
-    ownerId: userId,
-  };
-
-  const repository = await prisma.repository.upsert({
-    where: { githubRepoId: String(repo.id) },
-    update: fields,
-    create: { githubRepoId: String(repo.id), ...fields },
-  });
-
-  return {
-    id: repository.id,
-    name: repository.name,
-    fullName: repository.fullName,
-    language: repository.language,
-    isActive: repository.isActive,
-    orgId: repository.orgId,
-    webhookId: repository.webhookId,
-  };
+  return assertLinked(outcome);
 }
 
 export async function unlinkRepository(
