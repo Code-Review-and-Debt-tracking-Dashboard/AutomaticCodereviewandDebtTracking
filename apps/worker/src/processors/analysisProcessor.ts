@@ -7,6 +7,7 @@ import { runJscpd } from '../analyzers/jscpd';
 import { runBandit } from '../analyzers/bandit';
 import { runPylint } from '../analyzers/pylint';
 import { runRadon } from '../analyzers/radon';
+import { runTodoScan } from '../analyzers/todoScan';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { computeDebtDelta } from '../stages/debt';
@@ -143,6 +144,17 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
           'jscpd finished',
         );
         return jscpd;
+      });
+    }
+
+    if (detected.analyzers.includes('todo-scan')) {
+      reports.todoScan = await runAnalyzer('todo-scan', analysisId, async () => {
+        const todoScan = await runTodoScan(cloned.repoPath);
+        logger.info(
+          { analysisId, matches: todoScan.matches.length, counts: todoScan.counts },
+          'TODO scan finished',
+        );
+        return todoScan;
       });
     }
 

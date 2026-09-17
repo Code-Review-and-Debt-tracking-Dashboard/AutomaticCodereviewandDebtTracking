@@ -13,7 +13,8 @@ export type Analyzer =
   | 'checkstyle'
   | 'pmd'
   | 'cppcheck'
-  | 'jscpd';
+  | 'jscpd'
+  | 'todo-scan';
 
 const extensions: Record<string, Language> = {
   '.js': 'javascript',
@@ -111,10 +112,10 @@ export async function detectLanguages(repoPath: string) {
 
   const primary = languages.length ? languages[0].language : null;
 
-  // jscpd looks for duplication regardless of language, so it runs whenever
+  // jscpd and the TODO scan don't care about language, so they run whenever
   // there is anything to analyse at all.
-  const analyzers = languages.length
-    ? [...new Set(languages.flatMap((l) => analyzersFor[l.language])), 'jscpd' as Analyzer]
+  const analyzers: Analyzer[] = languages.length
+    ? [...new Set(languages.flatMap((l) => analyzersFor[l.language])), 'jscpd', 'todo-scan']
     : [];
 
   logger.info({ primary, languages, analyzers, linesOfCode: totals.lines }, 'Languages detected');
