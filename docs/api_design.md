@@ -406,6 +406,66 @@ Link a GitHub repository and register webhook.
 >
 > **Tenant assignment is not a choice the caller makes.** `orgId` is resolved from the repository's GitHub owner (`repository.owner.id`), so a repo always lands in the organization that actually owns it on GitHub. The caller must be an active member of that organization, which is why linking a repo from an org you are not in is a `404` rather than a `403`.
 
+### `POST /api/orgs/:orgId/repos/bulk-link`
+
+Link many repositories at once. The work is queued — several hundred repos means a webhook
+registration call each, which no request timeout would survive — so this returns immediately and
+the caller polls the status endpoint below.
+
+- **Auth:** Required, caller must be an active member of `:orgId`
+- **Body:**
+
+```json
+{ "githubRepoIds": [123456, 123457, 123458] }
+```
+
+Duplicate ids are collapsed. Between 1 and 200 ids per request.
+
+- **Success `202`:**
+
+```json
+{ "message": "Bulk link queued", "jobId": "42", "total": 3 }
+```
+
+- **Errors:** `400` empty list or more than 200 ids | `404` caller is not an active member of `:orgId`
+
+### `GET /api/orgs/:orgId/repos/bulk-link/:jobId`
+
+Progress and per-repository outcome for a bulk link job.
+
+- **Auth:** Required, caller must be an active member of `:orgId`, and the job must belong to it
+- **Success `200`:**
+
+```json
+{
+  "jobId": "42",
+  "state": "completed",
+  "progress": { "done": 3, "total": 3 },
+  "results": [
+    { "githubRepoId": 123456, "status": "LINKED", "fullName": "acme-corp/api" },
+    { "githubRepoId": 123457, "status": "ALREADY_LINKED", "fullName": "acme-corp/web" },
+    { "githubRepoId": 123458, "status": "NO_ADMIN", "fullName": "acme-corp/infra" }
+  ],
+  "summary": {
+    "LINKED": 1, "ALREADY_LINKED": 1, "NO_ADMIN": 1,
+    "NOT_IN_ORG": 0, "NOT_FOUND": 0, "NO_CREDENTIAL": 0, "GITHUB_ERROR": 0
+  },
+  "failedReason": null
+}
+```
+
+`results` and `summary` are `null` until the job finishes; `progress` is live. Every status key is
+always present in `summary`, so the UI can read a zero without checking the key exists.
+
+Per-repository statuses: `LINKED`, `ALREADY_LINKED`, `NO_ADMIN` (no admin on GitHub),
+`NOT_IN_ORG` (repo's GitHub owner isn't `:orgId`), `NOT_FOUND`, `NO_CREDENTIAL` (caller's stored
+GitHub token is missing or unusable), `GITHUB_ERROR`.
+
+**Partial failure is the normal outcome, not an error.** Users routinely lack admin on some
+repositories; the job records why each one was skipped and still completes.
+
+- **Errors:** `404` unknown job, job belongs to another org, or results have aged out (kept 1 hour)
+
 ### `DELETE /api/repos/:repoId`
 
 Unlink repository and remove GitHub webhook.
@@ -1013,6 +1073,8 @@ Authorization: Bearer <jwt-token>
 | 5b | `POST` | `/api/orgs/sync` | Bearer | Re-sync organizations from GitHub |
 | 5c | `GET` | `/api/orgs/:orgId/members` | Bearer (org member) | List organization members |
 | 5d | `GET` | `/api/orgs/:orgId/repos` | Bearer (org member) | Repos in this org the caller can open |
+| 5e | `POST` | `/api/orgs/:orgId/repos/bulk-link` | Bearer (org member) | Queue a bulk repository link |
+| 5f | `GET` | `/api/orgs/:orgId/repos/bulk-link/:jobId` | Bearer (org member) | Bulk link progress + per-repo result |
 | 6 | `GET` | `/api/repos` | Bearer | List repos user can see |
 | 7 | `GET` | `/api/repos/available` | Bearer | List unlinkable GitHub repos |
 | 8 | `POST` | `/api/repos` | Bearer | Link a repository (caller becomes repo owner) |
@@ -1123,4 +1185,4 @@ Bull Board web UI for real-time BullMQ job queue monitoring.
 
 ---
 
-*This document serves as the API contract. Frontend and mobile teammates can start building against these shapes immediately using mock data. All types should be codified in `packages/shared/src/types/api.ts`. Total endpoint count: 36 (33 REST + 3 observability/admin).*
+*This document serves as the API contract. Frontend and mobile teammates can start building against these shapes immediately using mock data. All types should be codified in `packages/shared/src/types/api.ts`. Total endpoint count: 38 (35 REST + 3 observability/admin).*

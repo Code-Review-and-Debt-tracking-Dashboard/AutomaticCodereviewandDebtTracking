@@ -31,4 +31,10 @@ export const env = {
   // Upper bound on a single clone. Big repos take a while, but a clone that
   // hangs shouldn't hold a worker slot until the whole job times out.
   cloneTimeoutMs: Number(process.env.CLONE_TIMEOUT_MS) || 120_000,
+
+  // Both must match the API's. The bulk link job registers webhooks pointing
+  // back at the API, and a different secret here means every delivery it
+  // registers fails the API's signature check.
+  githubWebhookUrl: required('GITHUB_WEBHOOK_URL', 'http://localhost:4000/webhooks/github'),
+  githubWebhookSecret: required('GITHUB_WEBHOOK_SECRET', 'dev_webhook_secret'),
 };
