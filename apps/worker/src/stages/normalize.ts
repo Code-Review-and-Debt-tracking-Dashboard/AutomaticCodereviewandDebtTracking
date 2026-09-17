@@ -9,6 +9,7 @@ import type { EslintReport } from '../analyzers/eslint';
 import type { JscpdReport } from '../analyzers/jscpd';
 import type { PylintMessageType, PylintReport } from '../analyzers/pylint';
 import type { RadonMiRank, RadonRank, RadonReport } from '../analyzers/radon';
+import type { TodoMarker, TodoScanReport } from '../analyzers/todoScan';
 
 // Remediation minutes per finding. Exported because the debt score is the sum of
 // these and has to use the same numbers.
@@ -260,12 +261,41 @@ export function fromJscpd(report: JscpdReport): AnalysisFinding[] {
   );
 }
 
+// ── TODO scan ──
+
+// A fix-me or hack admits something is wrong or worked around; a to-do or xxx
+// only says something is unfinished.
+const todoSeverities: Record<TodoMarker, Severity> = {
+  FIXME: 'MEDIUM',
+  HACK: 'MEDIUM',
+  TODO: 'LOW',
+  XXX: 'LOW',
+};
+
+export function fromTodoScan(report: TodoScanReport): AnalysisFinding[] {
+  return report.matches.map((match) =>
+    complete({
+      file: match.file,
+      line: match.line,
+      endLine: match.line,
+      column: null,
+      endColumn: null,
+      severity: todoSeverities[match.marker],
+      category: 'MAINTAINABILITY',
+      rule: match.marker.toLowerCase(),
+      message: match.text ? `${match.marker}: ${match.text}` : match.marker,
+      tool: 'todo-scan',
+    }),
+  );
+}
+
 export interface AnalyzerReports {
   eslint?: EslintReport;
   pylint?: PylintReport;
   bandit?: BanditReport;
   radon?: RadonReport;
   jscpd?: JscpdReport;
+  todoScan?: TodoScanReport;
 }
 
 /**
@@ -280,6 +310,7 @@ export function normalize(reports: AnalyzerReports) {
     ...(reports.bandit ? fromBandit(reports.bandit) : []),
     ...(reports.radon ? fromRadon(reports.radon) : []),
     ...(reports.jscpd ? fromJscpd(reports.jscpd) : []),
+    ...(reports.todoScan ? fromTodoScan(reports.todoScan) : []),
   ];
 
   // No analyzer promises an order, and the same commit has to produce the same
