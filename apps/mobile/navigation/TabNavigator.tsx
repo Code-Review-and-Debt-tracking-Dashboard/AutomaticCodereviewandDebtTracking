@@ -1,16 +1,44 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import RepoSummaryScreen from '../screens/RepoSummaryScreen';
+
+export type HomeStackParamList = {
+  RepoList: undefined;
+  RepoSummary: { repoId: string; repoName: string };
+};
 
 const Tab = createBottomTabNavigator();
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+
+function HomeStackScreen() {
+  return (
+    <HomeStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#0D1117' },
+        headerTintColor: '#F0F6FC',
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: '#0D1117' },
+      }}
+    >
+      <HomeStack.Screen name="RepoList" component={HomeScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen
+        name="RepoSummary"
+        component={RepoSummaryScreen}
+        options={({ route }) => ({ title: route.params.repoName })}
+      />
+    </HomeStack.Navigator>
+  );
+}
 
 export default function TabNavigator() {
   return (
     <NavigationContainer>
-      <Tab.Navigator>
-        <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Notifications" component={NotificationsScreen} />
+      <Tab.Navigator screenOptions={{ headerShown: false }}>
+        <Tab.Screen name="Home" component={HomeStackScreen} />
+        <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true }} />
       </Tab.Navigator>
     </NavigationContainer>
   );
