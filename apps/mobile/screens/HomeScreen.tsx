@@ -6,12 +6,16 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
+import type { HomeStackParamList } from '../navigation/TabNavigator';
 
 interface MobileRepo {
   id: string;
@@ -29,6 +33,7 @@ interface MobileRepo {
  * Step 56 (E-05): Mobile home screen — repo list with sparklines
  */
 export default function HomeScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const [repos, setRepos] = useState<MobileRepo[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,7 +125,11 @@ export default function HomeScreen() {
         : '#EF4444';
 
     return (
-      <TouchableOpacity style={styles.card} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('RepoSummary', { repoId: item.id, repoName: item.name })}
+      >
         <View style={styles.cardHeader}>
           <View style={styles.titleRow}>
             <Text style={styles.repoName}>{item.name}</Text>
