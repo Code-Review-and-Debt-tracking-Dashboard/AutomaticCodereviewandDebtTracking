@@ -37,3 +37,53 @@ jobs:
 
       # TypeScript type checking
       - run: npm run typecheck --workspaces --include-workspace-root --if-present
+
+  test:
+    runs-on: ubuntu-latest
+
+    # apps/api's integration tests run against real Postgres and Redis.
+    # Ports match the defaults in apps/api/tests/setup/env.ts, which are
+    # the same host ports docker-compose.yml maps locally.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: code_review_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5433/code_review_test
+      TEST_REDIS_URL: redis://localhost:6380/1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run generate --workspace packages/db
+
+      - run: npm run test --workspace apps/worker
+
+      - run: npm run test --workspace apps/api
