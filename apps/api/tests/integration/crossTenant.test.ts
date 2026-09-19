@@ -21,6 +21,17 @@ interface ScopedRoute {
 const SCOPED_ROUTES: ScopedRoute[] = [
   { method: 'get', template: '/api/orgs/:orgId/members', path: (t) => `/api/orgs/${t.org.id}/members` },
   { method: 'get', template: '/api/orgs/:orgId/repos', path: (t) => `/api/orgs/${t.org.id}/repos` },
+  {
+    method: 'post',
+    template: '/api/orgs/:orgId/repos/bulk-link',
+    path: (t) => `/api/orgs/${t.org.id}/repos/bulk-link`,
+    body: () => ({ githubRepoIds: [123456] }),
+  },
+  {
+    method: 'get',
+    template: '/api/orgs/:orgId/repos/bulk-link/:jobId',
+    path: (t) => `/api/orgs/${t.org.id}/repos/bulk-link/${t.bulkLinkJobId}`,
+  },
 
   { method: 'get', template: '/api/repos/:repoId', path: (t) => `/api/repos/${t.repo.id}` },
   { method: 'delete', template: '/api/repos/:repoId', path: (t) => `/api/repos/${t.repo.id}` },
@@ -73,7 +84,9 @@ const SCOPED_ROUTES: ScopedRoute[] = [
 
 const label = (r: ScopedRoute): string => `${r.method.toUpperCase()} ${r.template}`;
 
-// Strings that would only appear in a response if org A's data leaked.
+// Strings that would only appear in a response if org A's data leaked. The
+// bulk-link job id is left out: BullMQ ids are small sequential integers, so
+// "1" would match digits in unrelated headers.
 function secretsOf(t: Tenant): string[] {
   return [t.org.id, t.org.login, t.repo.id, t.repo.name, t.repo.fullName, t.snapshot.id, t.pullRequest.title];
 }

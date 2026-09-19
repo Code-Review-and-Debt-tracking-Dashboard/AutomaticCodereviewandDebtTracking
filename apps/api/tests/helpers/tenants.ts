@@ -7,6 +7,7 @@ import type {
   User,
 } from '@codehealth/db';
 
+import { enqueueBulkLink } from '../../src/services/bulkLinkService';
 import {
   addOrgMember,
   addRepoMember,
@@ -35,6 +36,8 @@ export interface Tenant {
   snapshot: HealthSnapshot;
   pullRequest: PullRequest;
   qualityGate: QualityGate;
+  /** a queued bulk-link job owned by this org (lives in Redis, not Postgres) */
+  bulkLinkJobId: string;
 }
 
 export async function seedTenant(label: string): Promise<Tenant> {
@@ -61,7 +64,22 @@ export async function seedTenant(label: string): Promise<Tenant> {
   const pullRequest = await createPullRequest(repo, { title: `${label} pull request` });
   const qualityGate = await createQualityGate(repo);
 
-  return { org, owner, admin, teamLead, developer, bystander, repo, snapshot, pullRequest, qualityGate };
+  // no worker runs in tests, so the job just sits in the queue
+  const { jobId } = await enqueueBulkLink(owner.id, org.id, [900_001, 900_002]);
+
+  return {
+    org,
+    owner,
+    admin,
+    teamLead,
+    developer,
+    bystander,
+    repo,
+    snapshot,
+    pullRequest,
+    qualityGate,
+    bulkLinkJobId: jobId!,
+  };
 }
 
 export interface TwoOrgs {

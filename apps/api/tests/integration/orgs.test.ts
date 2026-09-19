@@ -1,6 +1,7 @@
 import { prisma } from '@codehealth/db';
 import { describe, expect, it } from 'vitest';
 
+import { bulkLinkQueue } from '../../src/lib/queue';
 import { api } from '../helpers/app';
 import { bearer } from '../helpers/auth';
 import { addOrgMember, addRepoMember, createOrg, createRepo, createUser } from '../helpers/factories';
@@ -138,5 +139,100 @@ describe('GET /api/orgs/:orgId/repos', () => {
       debtMinutes: t.snapshot.debtMinutes,
     });
     expect(main.lastAnalyzedAt).toBe(t.snapshot.calculatedAt.toISOString());
+  });
+});
+
+describe('POST /api/orgs/:orgId/repos/bulk-link', () => {
+  it('401 without a token', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().post(`/api/orgs/${t.org.id}/repos/bulk-link`).send({ githubRepoIds: [1] });
+    expect(res.status).toBe(401);
+  });
+
+  it('400 for an empty list, a non-numeric id, or more than 200 ids', async () => {
+    const t = await seedTenant('acme');
+    const url = `/api/orgs/${t.org.id}/repos/bulk-link`;
+
+    const empty = await api().post(url).send({ githubRepoIds: [] }).set(bearer(t.owner));
+    expect(empty.status).toBe(400);
+    expect(empty.body.errors[0].path).toBe('body.githubRepoIds');
+
+    const bad = await api().post(url).send({ githubRepoIds: ['abc'] }).set(bearer(t.owner));
+    expect(bad.status).toBe(400);
+
+    const tooMany = await api()
+      .post(url)
+      .send({ githubRepoIds: Array.from({ length: 201 }, (_, i) => i + 1) })
+      .set(bearer(t.owner));
+    expect(tooMany.status).toBe(400);
+  });
+
+  it('404 for a non-member', async () => {
+    const t = await seedTenant('acme');
+    const stranger = await createUser();
+    const res = await api()
+      .post(`/api/orgs/${t.org.id}/repos/bulk-link`)
+      .send({ githubRepoIds: [1] })
+      .set(bearer(stranger));
+    expect(res.status).toBe(404);
+  });
+
+  it('202 for any active member; queues one deduplicated job', async () => {
+    const t = await seedTenant('acme');
+    const res = await api()
+      .post(`/api/orgs/${t.org.id}/repos/bulk-link`)
+      .send({ githubRepoIds: [11, '22', 11] })
+      .set(bearer(t.developer));
+
+    expect(res.status).toBe(202);
+    expect(res.body).toEqual({ message: 'Bulk link queued', jobId: expect.any(String), total: 2 });
+
+    const job = await bulkLinkQueue.getJob(res.body.jobId);
+    expect(job?.data).toEqual({ userId: t.developer.id, orgId: t.org.id, githubRepoIds: [11, 22] });
+  });
+});
+
+describe('GET /api/orgs/:orgId/repos/bulk-link/:jobId', () => {
+  it('401 without a token', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get(`/api/orgs/${t.org.id}/repos/bulk-link/${t.bulkLinkJobId}`);
+    expect(res.status).toBe(401);
+  });
+
+  it('404 for a non-member', async () => {
+    const t = await seedTenant('acme');
+    const stranger = await createUser();
+    const res = await api().get(`/api/orgs/${t.org.id}/repos/bulk-link/${t.bulkLinkJobId}`).set(bearer(stranger));
+    expect(res.status).toBe(404);
+  });
+
+  it('404 for an unknown job id', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get(`/api/orgs/${t.org.id}/repos/bulk-link/999999`).set(bearer(t.owner));
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe('Bulk link job not found');
+  });
+
+  it("404 for another org's job, even for a member of the org in the URL", async () => {
+    const a = await seedTenant('acme');
+    const b = await seedTenant('globex');
+    // job ids are sequential, so this is exactly the guessing attack the service guards against
+    const res = await api().get(`/api/orgs/${a.org.id}/repos/bulk-link/${b.bulkLinkJobId}`).set(bearer(a.owner));
+    expect(res.status).toBe(404);
+  });
+
+  it('reports a queued job with zero progress and no results yet', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get(`/api/orgs/${t.org.id}/repos/bulk-link/${t.bulkLinkJobId}`).set(bearer(t.developer));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      jobId: t.bulkLinkJobId,
+      state: 'waiting',
+      progress: { done: 0, total: 2 },
+      results: null,
+      summary: null,
+      failedReason: null,
+    });
   });
 });
