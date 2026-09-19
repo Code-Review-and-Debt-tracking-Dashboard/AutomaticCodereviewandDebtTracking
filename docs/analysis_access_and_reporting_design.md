@@ -366,8 +366,8 @@ code that already exists.
 **Flow A — bulk enable, user-initiated:**
 
 ```
-GET  /orgs/:orgId/available-repos      existing listAvailableRepos
-POST /orgs/:orgId/repos/bulk-link      { githubRepoIds: [...] }  → 202 { jobId }
+GET  /api/repos/available?orgId=...   existing listAvailableRepos
+POST /api/orgs/:orgId/repos/bulk-link { githubRepoIds: [...] }  → 202 { jobId }
      └─ queued job, per repo: fetchRepo → check admin → createWebhook → upsert Repository
      └─ per-repo status recorded
 summary: enabled 47 · already linked 5 · skipped 7 (no admin)

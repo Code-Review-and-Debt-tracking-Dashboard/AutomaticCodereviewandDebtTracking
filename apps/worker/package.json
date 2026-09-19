@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@codehealth/db": "^1.0.0",
+    "@codehealth/github": "^1.0.0",
     "@codehealth/shared": "^1.0.0",
     "@eslint/js": "^10.0.1",
     "bullmq": "^5.81.3",
