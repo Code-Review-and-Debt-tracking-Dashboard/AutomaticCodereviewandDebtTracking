@@ -233,3 +233,100 @@ export async function listOrgRepositories(orgId: string, userId: string) {
     };
   });
 }
+
+export async function getOrgPullRequests(orgId: string, userId: string) {
+  // First, verify the user has access to this org
+  const orgAccess = await prisma.organizationMember.findUnique({
+    where: { orgId_userId: { orgId, userId } },
+  });
+
+  if (!orgAccess || orgAccess.status !== 'ACTIVE') {
+    throw new AppError(403, 'FORBIDDEN', 'You do not have access to this organization');
+  }
+
+  // Find all repos the user can access in this org
+  const repositories = await prisma.repository.findMany({
+    where: {
+      orgId,
+      isActive: true,
+      OR: [{ ownerId: userId }, { members: { some: { userId, status: 'ACTIVE' } } }],
+    },
+    select: { id: true, name: true },
+  });
+
+  const repoIds = repositories.map((r) => r.id);
+  const repoNameMap = new Map(repositories.map((r) => [r.id, r.name]));
+
+  // Get all PRs for these repos
+  const pullRequests = await prisma.pullRequest.findMany({
+    where: { repoId: { in: repoIds } },
+    include: {
+      analysisJobs: {
+        orderBy: { completedAt: 'desc' },
+        take: 1,
+        include: {
+          snapshot: true,
+        },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  let totalAnalyzed = 0;
+  let gatePassed = 0;
+  let needsAttention = 0;
+  let totalHealthScore = 0;
+  let healthScoreCount = 0;
+  let totalDebtDelta = 0;
+
+  const mappedPulls = pullRequests.map((pr) => {
+    const latestJob = pr.analysisJobs[0];
+    const snapshot = latestJob?.snapshot;
+
+    const score = snapshot?.healthScore ?? 85;
+    const gateStatus = snapshot ? (snapshot.gateResult === 'PASS' ? 'Passed' : 'Needs attention') : 'Pending';
+
+    totalAnalyzed++;
+    if (gateStatus === 'Passed') gatePassed++;
+    if (gateStatus === 'Needs attention') needsAttention++;
+    
+    if (snapshot) {
+      totalHealthScore += score;
+      healthScoreCount++;
+      totalDebtDelta += (snapshot.debtDeltaMinutes ?? 0);
+    }
+
+    return {
+      id: pr.prNumber,
+      repoName: repoNameMap.get(pr.repoId) || 'Unknown',
+      title: pr.title,
+      author: pr.authorLogin,
+      branch: pr.headBranch,
+      score: score,
+      findings: snapshot?.totalIssues ?? 0,
+      debtDelta: snapshot?.debtDeltaMinutes ?? 0,
+      status: gateStatus,
+      time: pr.githubUpdatedAt ? pr.githubUpdatedAt.toISOString() : pr.updatedAt.toISOString(),
+      htmlUrl: pr.htmlUrl,
+    };
+  });
+
+  const avgHealthScore = healthScoreCount > 0 ? (totalHealthScore / healthScoreCount) : 0;
+  
+  // For the UI, debt delta metric is just average of the PR's debt deltas or we could return total.
+  // Using totalDebtDelta as a metric for the "from last week" equivalent if we don't have historical data.
+  // We'll format a placeholder string or real percentage if applicable.
+  // A rough estimate: 
+  const avgHealthScoreDelta = totalDebtDelta > 0 ? `-${totalDebtDelta}m` : `+${Math.abs(totalDebtDelta)}m`;
+
+  return {
+    stats: {
+      totalAnalyzed,
+      gatePassed,
+      needsAttention,
+      avgHealthScore: avgHealthScore.toFixed(1),
+      avgHealthScoreDelta,
+    },
+    pullRequests: mappedPulls,
+  };
+}
