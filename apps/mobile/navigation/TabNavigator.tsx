@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import RepoSummaryScreen from '../screens/RepoSummaryScreen';
+import { colors } from '../theme';
 
 export type HomeStackParamList = {
   RepoList: undefined;
@@ -17,10 +18,10 @@ function HomeStackScreen() {
   return (
     <HomeStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: '#0D1117' },
-        headerTintColor: '#F0F6FC',
+        headerStyle: { backgroundColor: colors.bg },
+        headerTintColor: colors.textPrimary,
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: '#0D1117' },
+        contentStyle: { backgroundColor: colors.bg },
       }}
     >
       <HomeStack.Screen name="RepoList" component={HomeScreen} options={{ headerShown: false }} />
@@ -36,9 +37,17 @@ function HomeStackScreen() {
 export default function TabNavigator() {
   return (
     <NavigationContainer>
-      <Tab.Navigator screenOptions={{ headerShown: false }}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
+          tabBarActiveTintColor: colors.success,
+          tabBarInactiveTintColor: colors.textMuted,
+          sceneStyle: { backgroundColor: colors.bg },
+        }}
+      >
         <Tab.Screen name="Home" component={HomeStackScreen} />
-        <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true }} />
+        <Tab.Screen name="Notifications" component={NotificationsScreen} />
       </Tab.Navigator>
     </NavigationContainer>
   );

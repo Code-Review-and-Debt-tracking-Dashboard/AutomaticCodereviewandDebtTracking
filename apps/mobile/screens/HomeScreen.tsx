@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   StatusBar,
   RefreshControl,
 } from 'react-native';
@@ -15,6 +14,9 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { EmptyState, ErrorState, LoadingState } from '../components';
+import { colors } from '../theme';
 import type { HomeStackParamList } from '../navigation/TabNavigator';
 
 interface MobileRepo {
@@ -29,67 +31,52 @@ interface MobileRepo {
   isPrivate: boolean;
 }
 
+async function loadRepos(): Promise<MobileRepo[]> {
+  const orgs = await api.get<{ data: { id: string }[] }>('/api/orgs');
+  const orgId = orgs.data[0]?.id;
+  if (!orgId) return [];
+
+  const response = await api.get<{ data: Array<{
+    id: string;
+    name: string;
+    fullName: string;
+    language: string | null;
+    healthScore: number;
+    openFindings: number;
+    debtMinutes: number;
+    private: boolean;
+  }> }>(`/api/orgs/${orgId}/repos`);
+
+  return Promise.all(response.data.map(async (repo) => {
+    // A missing trend shouldn't take the whole list down with it.
+    const trend = await api
+      .get<{ dataPoints: { healthScore: number }[] }>(`/api/repos/${repo.id}/trend?days=30`)
+      .catch(() => ({ dataPoints: [] as { healthScore: number }[] }));
+    return {
+      id: repo.id,
+      name: repo.name,
+      fullName: repo.fullName,
+      language: repo.language ?? 'Unknown',
+      healthScore: repo.healthScore,
+      openFindings: repo.openFindings,
+      debtHours: Math.round((repo.debtMinutes / 60) * 10) / 10,
+      sparkline: trend.dataPoints.map((point) => point.healthScore),
+      isPrivate: repo.private,
+    };
+  }));
+}
+
 /**
  * Step 56 (E-05): Mobile home screen — repo list with sparklines
  */
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
-  const [repos, setRepos] = useState<MobileRepo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchRepos = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-
-    try {
-      const orgs = await api.get<{ data: { id: string }[] }>('/api/orgs');
-      const orgId = orgs.data[0]?.id;
-      if (!orgId) {
-        setRepos([]);
-        return;
-      }
-
-      const response = await api.get<{ data: Array<{
-        id: string;
-        name: string;
-        fullName: string;
-        language: string | null;
-        healthScore: number;
-        openFindings: number;
-        debtMinutes: number;
-        private: boolean;
-      }> }>(`/api/orgs/${orgId}/repos`);
-
-      const mapped = await Promise.all(response.data.map(async (repo) => {
-        const trend = await api.get<{ dataPoints: { healthScore: number }[] }>(
-          `/api/repos/${repo.id}/trend?days=30`,
-        );
-        return {
-          id: repo.id,
-          name: repo.name,
-          fullName: repo.fullName,
-          language: repo.language ?? 'Unknown',
-          healthScore: repo.healthScore,
-          openFindings: repo.openFindings,
-          debtHours: Math.round((repo.debtMinutes / 60) * 10) / 10,
-          sparkline: trend.dataPoints.map((point) => point.healthScore),
-          isPrivate: repo.private,
-        };
-      }));
-
-      setRepos(mapped);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    void fetchRepos();
-  }, []);
+  const { data, loading, refreshing, error, load } = useAsyncData(loadRepos);
+  const repos = data ?? [];
 
   const renderSparkline = (points: number[]) => {
+    if (points.length === 0) return <View style={styles.sparklineContainer} />;
+
     const min = Math.min(...points);
     const max = Math.max(...points);
     const range = max - min || 1;
@@ -175,17 +162,45 @@ export default function HomeScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.loaderCenter}>
-          <ActivityIndicator size="large" color="#10B981" />
-        </View>
+        <LoadingState />
+      ) : error && !data ? (
+        <ErrorState
+          title="Couldn't load repositories"
+          message={error}
+          onRetry={() => void load()}
+          retrying={loading}
+        />
       ) : (
         <FlatList
           data={repos}
           keyExtractor={(item) => item.id}
           renderItem={renderRepoCard}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={
+            repos.length === 0 ? [styles.listContent, styles.listEmpty] : styles.listContent
+          }
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void fetchRepos(true)} tintColor="#10B981" />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void load(true)}
+              tintColor={colors.success}
+              colors={[colors.success]}
+              progressBackgroundColor={colors.card}
+            />
+          }
+          ListHeaderComponent={
+            error ? (
+              <ErrorState compact message={error} onRetry={() => void load(true)} retrying={refreshing} />
+            ) : null
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="📦"
+              title="No repositories yet"
+              description="Link a repository from the web dashboard and it will show up here."
+              action={{ label: 'Refresh', onPress: () => void load(true) }}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -214,14 +229,14 @@ const styles = StyleSheet.create({
     color: '#8B949E',
     marginTop: 2,
   },
-  loaderCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   listContent: {
     padding: 16,
     gap: 14,
+  },
+  // Without flexGrow an empty list has no height and can't be pulled on Android.
+  listEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   card: {
     backgroundColor: '#161B22',
