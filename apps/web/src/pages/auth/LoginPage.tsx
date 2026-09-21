@@ -41,6 +41,11 @@ const features = [
   },
 ];
 
+const SIGN_OUT_MESSAGES: Record<string, string> = {
+  session_expired: "Your session has expired. Please log in again.",
+  logged_out: "You have been logged out.",
+};
+
 export function LoginPage() {
   const { status, authLostReason } = useAuth();
 

@@ -129,7 +129,7 @@ export function GlobalPullRequestsPage() {
           <StatCard
             title="Avg Health Score"
             value={stats.avgHealthScore}
-            subtext={`${stats.avgHealthScoreDelta} from last week`}
+            change={`${stats.avgHealthScoreDelta} from last week`}
             icon={ShieldAlert}
             iconColor="bg-info/10 text-info"
             delay={0.24}
