@@ -1,10 +1,15 @@
+import { useEffect, useState } from "react";
 import { CheckCircle2, Mail, User, Users } from "lucide-react";
+
+import { useAuth } from "../../contexts/AuthContext";
+import { useOrg } from "../../contexts/OrgContext";
+import { api } from "../../lib/apiClient";
 
 import {
   Badge,
   Card,
-  CardContent,
   CardTitle,
+  CardContent,
   IconBox,
   PageHeader,
   PageHeaderTitle,
@@ -12,23 +17,38 @@ import {
   PageHeaderActions,
 } from "../../components/ui";
 
-
-/* =========================================================
-   PROFILE DATA
-========================================================= */
-
-const profileStats = [
-  { label: "Organizations", value: "2", icon: Users },
-  { label: "Repositories", value: "14", icon: CheckCircle2 },
-  { label: "Email", value: "nethmi@example.com", icon: Mail },
-];
-
-
-/* =========================================================
-   COMPONENT
-========================================================= */
-
 export function ProfilePage() {
+  const { user } = useAuth();
+  const { orgs, selectedOrg } = useOrg();
+  const [repoCount, setRepoCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!selectedOrg) {
+      setRepoCount(0);
+      return;
+    }
+
+    const loadData = async () => {
+      try {
+        const repos = await api.get<any[]>(`/api/orgs/${selectedOrg.id}/repos`);
+        setRepoCount(Array.isArray(repos) ? repos.length : (repos?.data ?? []).length);
+      } catch (error) {
+        console.error("Failed to load repo count", error);
+        setRepoCount(0);
+      }
+    };
+
+    loadData();
+  }, [selectedOrg]);
+
+  if (!user) return null;
+
+  const profileStats = [
+    { label: "Organizations", value: orgs.length.toString(), icon: Users },
+    { label: "Repositories", value: repoCount !== null ? repoCount.toString() : "…", icon: CheckCircle2 },
+    { label: "Email", value: user.email ?? "", icon: Mail },
+  ];
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
@@ -45,7 +65,7 @@ export function ProfilePage() {
           <PageHeaderActions>
             <Badge variant="outline" size="lg">
               <User size={14} />
-              Nethmi Bhagya
+              {user.username}
             </Badge>
           </PageHeaderActions>
         </PageHeader>
@@ -55,10 +75,10 @@ export function ProfilePage() {
           {/* Avatar Card */}
           <Card className="p-6 text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-bold text-primary">
-              NB
+              {user.username.charAt(0).toUpperCase()}
             </div>
-            <h2 className="mt-4 text-xl font-semibold">Nethmi Bhagya</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Frontend engineer</p>
+            <h2 className="mt-4 text-xl font-semibold">{user.username}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{user.platformRole}</p>
           </Card>
 
           {/* Profile Details Card */}
