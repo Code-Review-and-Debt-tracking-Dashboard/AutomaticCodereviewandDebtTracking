@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   RefreshControl,
-  TouchableOpacity,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { ErrorState, LoadingState } from '../components';
+import { colors } from '../theme';
 import type { HomeStackParamList } from '../navigation/TabNavigator';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'RepoSummary'>;
@@ -51,6 +52,13 @@ interface RepoSmells {
   totalSmells: number;
 }
 
+interface RepoSummaryData {
+  detail: RepoDetail;
+  trend: TrendPoint[];
+  debt: RepoDebt | null;
+  smells: RepoSmells | null;
+}
+
 const CATEGORIES: { key: DebtCategory; label: string; color: string }[] = [
   { key: 'vulnerability', label: 'Vulnerability', color: '#EF4444' },
   { key: 'complexity', label: 'Complexity', color: '#58A6FF' },
@@ -87,64 +95,41 @@ const formatDate = (iso: string) =>
 export default function RepoSummaryScreen({ route }: Props) {
   const { repoId } = route.params;
 
-  const [detail, setDetail] = useState<RepoDetail | null>(null);
-  const [trend, setTrend] = useState<TrendPoint[]>([]);
-  const [debt, setDebt] = useState<RepoDebt | null>(null);
-  const [smells, setSmells] = useState<RepoSmells | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, refreshing, error, load } = useAsyncData<RepoSummaryData>(async () => {
+    const [detailRes, trendRes, debtRes, smellsRes] = await Promise.allSettled([
+      api.get<RepoDetail>(`/api/repos/${repoId}`),
+      api.get<{ dataPoints: TrendPoint[] }>(`/api/repos/${repoId}/trend?days=30`),
+      api.get<RepoDebt>(`/api/repos/${repoId}/debt`),
+      api.get<RepoSmells>(`/api/mobile/repos/${repoId}/smells?limit=${TOP_ISSUES_LIMIT}`),
+    ]);
 
-  const fetchSummary = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError(null);
+    // The detail call is required; the rest degrade to an empty section.
+    if (detailRes.status === 'rejected') throw detailRes.reason;
 
-    try {
-      const [detailRes, trendRes, debtRes, smellsRes] = await Promise.allSettled([
-        api.get<RepoDetail>(`/api/repos/${repoId}`),
-        api.get<{ dataPoints: TrendPoint[] }>(`/api/repos/${repoId}/trend?days=30`),
-        api.get<RepoDebt>(`/api/repos/${repoId}/debt`),
-        api.get<RepoSmells>(`/api/mobile/repos/${repoId}/smells?limit=${TOP_ISSUES_LIMIT}`),
-      ]);
-
-      if (detailRes.status === 'rejected') {
-        setError('Could not load repository.');
-        return;
-      }
-
-      setDetail(detailRes.value);
-      setTrend(trendRes.status === 'fulfilled' ? trendRes.value.dataPoints : []);
-      setDebt(debtRes.status === 'fulfilled' ? debtRes.value : null);
-      setSmells(smellsRes.status === 'fulfilled' ? smellsRes.value : null);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    void fetchSummary();
+    return {
+      detail: detailRes.value,
+      trend: trendRes.status === 'fulfilled' ? trendRes.value.dataPoints : [],
+      debt: debtRes.status === 'fulfilled' ? debtRes.value : null,
+      smells: smellsRes.status === 'fulfilled' ? smellsRes.value : null,
+    };
   }, [repoId]);
 
   if (loading) {
+    return <LoadingState />;
+  }
+
+  if (!data) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#10B981" />
-      </View>
+      <ErrorState
+        title="Could not load repository"
+        message={error ?? undefined}
+        onRetry={() => void load()}
+        retrying={loading}
+      />
     );
   }
 
-  if (error || !detail) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.emptyText}>{error ?? 'Something went wrong.'}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => void fetchSummary()}>
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const { detail, trend, debt, smells } = data;
 
   const color = scoreColor(detail.healthScore);
   const delta =
@@ -170,9 +155,20 @@ export default function RepoSummaryScreen({ route }: Props) {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => void fetchSummary(true)} tintColor="#10B981" />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load(true)}
+          tintColor={colors.success}
+          colors={[colors.success]}
+          progressBackgroundColor={colors.card}
+        />
       }
     >
+      {/* Refresh failed, but the data already on screen is still usable */}
+      {error ? (
+        <ErrorState compact message={error} onRetry={() => void load(true)} retrying={refreshing} />
+      ) : null}
+
       {/* Gauge */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Health Score</Text>
@@ -318,13 +314,6 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0D1117',
-    gap: 12,
-  },
   card: {
     backgroundColor: '#161B22',
     borderRadius: 16,
@@ -348,16 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#8B949E',
     marginTop: 12,
-  },
-  retryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#21262D',
-  },
-  retryText: {
-    color: '#58A6FF',
-    fontWeight: '600',
   },
   gaugeRow: {
     flexDirection: 'row',

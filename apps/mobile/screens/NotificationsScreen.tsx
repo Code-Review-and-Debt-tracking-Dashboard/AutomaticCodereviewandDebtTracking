@@ -1,17 +1,21 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   Animated,
   PanResponder,
-  SafeAreaView,
+  RefreshControl,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { api } from '../lib/apiClient';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { EmptyState, ErrorState, LoadingState } from '../components';
+import { colors, radius, spacing } from '../theme';
 
 interface NotificationData {
   id: string;
@@ -97,35 +101,28 @@ const SwipeableItem = ({
 };
 
 export default function NotificationsScreen() {
-  const [notifications, setNotifications] = useState<NotificationData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, refreshing, error, load, setData } = useAsyncData(async () => {
+    const res = await api.get<{ data: NotificationData[] }>('/api/notifications');
+    return res.data ?? [];
+  });
 
-  const fetchNotifications = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get<{ data: NotificationData[] }>('/api/notifications');
-      setNotifications(res.data || []);
-    } catch (err) {
-      setNotifications([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
+  const notifications = data ?? [];
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   const handleMarkRead = async (id: string) => {
     try {
       await api.put(`/api/notifications/${id}/read`);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
+      setData((prev) =>
+        prev
+          ? prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
+          : prev
       );
     } catch (err) {
       // Optimistic update fallback
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
+      setData((prev) =>
+        prev
+          ? prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
+          : prev
       );
     }
   };
@@ -133,102 +130,148 @@ export default function NotificationsScreen() {
   const handleDismiss = async (id: string) => {
     try {
       await api.put(`/api/notifications/${id}/read`);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setData((prev) => (prev ? prev.filter((n) => n.id !== id) : prev));
     } catch (err) {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setData((prev) => (prev ? prev.filter((n) => n.id !== id) : prev));
     }
   };
 
   const markAllRead = async () => {
     try {
       await api.put('/api/notifications/read-all');
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, readAt: new Date().toISOString() }))
+      setData((prev) =>
+        prev ? prev.map((n) => ({ ...n, readAt: new Date().toISOString() })) : prev
       );
     } catch (err) {
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, readAt: new Date().toISOString() }))
+      setData((prev) =>
+        prev ? prev.map((n) => ({ ...n, readAt: new Date().toISOString() })) : prev
       );
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <Text>Notifications</Text>
-    </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
+
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        {unreadCount > 0 && (
+          <TouchableOpacity activeOpacity={0.8} onPress={() => void markAllRead()}>
+            <Text style={styles.markAllText}>Mark all read</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {loading ? (
+        <LoadingState />
+      ) : error && !data ? (
+        <ErrorState
+          title="Couldn't load notifications"
+          message={error}
+          onRetry={() => void load()}
+          retrying={loading}
+        />
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <SwipeableItem
+              item={item}
+              onDismiss={() => void handleDismiss(item.id)}
+              onPress={() => void handleMarkRead(item.id)}
+            />
+          )}
+          contentContainerStyle={
+            notifications.length === 0
+              ? [styles.listContent, styles.listEmpty]
+              : styles.listContent
+          }
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void load(true)}
+              tintColor={colors.success}
+              colors={[colors.success]}
+              progressBackgroundColor={colors.card}
+            />
+          }
+          ListHeaderComponent={
+            error ? (
+              <ErrorState compact message={error} onRetry={() => void load(true)} retrying={refreshing} />
+            ) : null
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="🔔"
+              title="You're all caught up"
+              description="Alerts about your repositories will show up here."
+            />
+          }
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-  },
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.bg,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.divider,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   markAllText: {
     fontSize: 14,
-    color: '#4F46E5',
+    color: colors.link,
     fontWeight: '600',
   },
   listContent: {
-    padding: 16,
+    padding: spacing.lg,
+  },
+  // Without flexGrow an empty list has no height and can't be pulled on Android.
+  listEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   swipeContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
     position: 'relative',
-    borderRadius: 12,
+    borderRadius: radius.lg,
     overflow: 'hidden',
   },
   deleteBackground: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.danger,
     justifyContent: 'center',
     alignItems: 'flex-end',
     paddingRight: 20,
-    borderRadius: 12,
+    borderRadius: radius.lg,
   },
   deleteText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: 'bold',
   },
   notificationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
   },
   notificationHeader: {
     flexDirection: 'row',
@@ -239,21 +282,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: colors.textPrimary,
     flex: 1,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3B82F6',
+    backgroundColor: colors.link,
   },
   body: {
     fontSize: 14,
-    color: '#4B5563',
+    color: colors.text,
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   footer: {
     flexDirection: 'row',
@@ -262,24 +305,16 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: colors.textMuted,
   },
   repoName: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#6B7280',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    color: colors.textMuted,
+    backgroundColor: colors.divider,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
     overflow: 'hidden',
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6B7280',
   },
 });
