@@ -160,12 +160,47 @@ export default function NotificationsScreen() {
     );
   }
 
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
+
   return (
-    <View style={styles.container}>
-      <Text>Notifications</Text>
-    </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F3F4F6' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>
+          Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}
+        </Text>
+        {unreadCount > 0 && (
+          <TouchableOpacity onPress={markAllRead}>
+            <Text style={styles.markAllText}>Mark all read</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* List */}
+      {notifications.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No notifications</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <SwipeableItem
+              item={item}
+              onDismiss={() => handleDismiss(item.id)}
+              onPress={() => handleMarkRead(item.id)}
+            />
+          )}
+        />
+      )}
+    </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
