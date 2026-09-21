@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { FolderOpen, Search } from "lucide-react";
 import { useParams } from "react-router-dom";
+
+import { api } from "../../lib/apiClient";
 
 import {
   BackLink,
@@ -12,25 +15,26 @@ import {
   PageHeaderDescription,
 } from "../../components/ui";
 
-
-/* =========================================================
-   DATA
-========================================================= */
-
-const files = [
-  "src/api/users.ts",
-  "src/services/analyzer.ts",
-  "src/components/Table.tsx",
-  "src/utils/format.ts",
-];
-
-
-/* =========================================================
-   COMPONENT
-========================================================= */
-
 export function RepositoryFilesPage() {
   const { repoId } = useParams();
+  const [files, setFiles] = useState<{ filePath: string; debtMinutes: number; totalFindings: number }[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!repoId) return;
+    const loadFiles = async () => {
+      try {
+        const response = await api.get<{ files: any[] }>(`/repos/${repoId}/hotspots`);
+        setFiles(response?.files ?? []);
+      } catch (error) {
+        console.error("Failed to load files", error);
+        setFiles([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadFiles();
+  }, [repoId]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -58,11 +62,21 @@ export function RepositoryFilesPage() {
             </div>
 
             <CardContent className="mt-4 space-y-2 p-0">
-              {files.map((file) => (
-                <div key={file} className="rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground">
-                  {file}
+              {isLoading ? (
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground">
+                  Loading files…
                 </div>
-              ))}
+              ) : files === null || files.length === 0 ? (
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground">
+                  No files found for this repository snapshot.
+                </div>
+              ) : (
+                files.map((file) => (
+                  <div key={file.filePath} className="rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground">
+                    {file.filePath}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 

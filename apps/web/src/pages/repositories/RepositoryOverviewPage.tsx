@@ -35,14 +35,14 @@ import { api } from "../../lib/apiClient";
 import { Loader2 } from "lucide-react";
 
 import {
-  Button,
   Card,
+  Button,
+  StatCard,
   PageHeader,
   PageHeaderBadge,
   PageHeaderTitle,
   PageHeaderDescription,
   PageHeaderActions,
-  StatCard,
 } from "../../components/ui";
 
 interface RepoDetail {
