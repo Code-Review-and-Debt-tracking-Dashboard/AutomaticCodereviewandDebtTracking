@@ -14,3 +14,23 @@ export const addMemberSchema = z.object({
     repoId: z.string(),
   }),
 });
+
+export const bulkLinkSchema = z.object({
+  params: z.object({
+    orgId: z.string().min(1),
+  }),
+  body: z.object({
+    // Capped so one request can't queue an unbounded batch.
+    githubRepoIds: z
+      .array(z.coerce.number().int().positive())
+      .min(1, 'Pick at least one repository')
+      .max(200, 'At most 200 repositories at a time'),
+  }),
+});
+
+export const bulkLinkStatusSchema = z.object({
+  params: z.object({
+    orgId: z.string().min(1),
+    jobId: z.string().min(1),
+  }),
+});

@@ -173,7 +173,7 @@ This is an active university group project. Honest state of play:
 
 | Component | Status | Notes |
 |---|---|---|
-| Monorepo, CI, Docker Compose | ✅ Implemented | Lint + type-check across all workspaces on every PR |
+| Monorepo, CI, Docker Compose | ✅ Implemented | Lint, type-check, and tests (worker unit + API integration) on every PR |
 | Database schema | ✅ Implemented | 14 Prisma models covering users, orgs, repos, analyses, findings, gates, notifications |
 | Authentication | ✅ Implemented | GitHub OAuth, JWT, rotating refresh tokens, encrypted token storage |
 | Multi-tenancy & RBAC | ✅ Implemented | Platform, organisation, and repository-level access middleware |
@@ -453,6 +453,21 @@ Full derivation and rationale: [`docs/scoring_algorithm.md`](docs/scoring_algori
 2. Generate the Prisma Client — its output is gitignored, so anything importing `@codehealth/db` fails to type-check without this step
 3. Lint every workspace
 4. Type-check every workspace
+
+A second `test` job starts Postgres and Redis service containers and runs the worker unit tests and the API integration tests.
+
+## Testing
+
+```bash
+docker compose up -d                  # the API suite needs real Postgres + Redis
+npm test                              # every workspace with a test script
+npm run test --workspace apps/api     # API integration tests only
+npm run test --workspace apps/worker  # worker unit tests only
+```
+
+The API suite in [`apps/api/tests`](apps/api/tests) drives `createApp()` in-process with supertest against a dedicated `code_review_test` database (created and migrated on first run) and Redis db `1`. Every test starts from empty tables and a flushed Redis, so it never touches the dev database. Override the targets with `TEST_DATABASE_URL` / `TEST_REDIS_URL`; the database name must end in `_test`.
+
+`tests/integration/crossTenant.test.ts` is the tenancy guard: it calls every `:repoId`, `:orgId` and `:snapshotId` route with a second organisation's tokens and asserts a bare `404`, then walks the Express router and fails if any such route is missing from its matrix.
 
 ---
 

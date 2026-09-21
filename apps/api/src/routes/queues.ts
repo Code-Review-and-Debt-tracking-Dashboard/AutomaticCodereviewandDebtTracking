@@ -5,13 +5,13 @@ import { Router } from 'express';
 import basicAuth from 'express-basic-auth';
 
 import { env } from '../config/env';
-import { analysisQueue } from '../lib/queue';
+import { analysisQueue, bulkLinkQueue } from '../lib/queue';
 
 const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/admin/queues');
 
 createBullBoard({
-  queues: [new BullMQAdapter(analysisQueue)],
+  queues: [new BullMQAdapter(analysisQueue), new BullMQAdapter(bulkLinkQueue)],
   serverAdapter,
 });
 

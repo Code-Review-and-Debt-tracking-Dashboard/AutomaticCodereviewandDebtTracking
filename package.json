@@ -1,5 +1,8 @@
 {
     "name": "codehealth",
     "private": true,
-    "workspaces": ["apps/*", "packages/*"]
-  }
+    "workspaces": ["apps/*", "packages/*"],
+    "scripts": {
+        "test": "npm run test --workspaces --if-present"
+    }
+}

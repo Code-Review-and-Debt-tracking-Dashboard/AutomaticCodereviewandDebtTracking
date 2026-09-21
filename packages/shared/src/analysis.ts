@@ -64,7 +64,8 @@ export interface SnapshotMetrics {
   duplicationPct: number;
   totalIssues: number;
   linesOfCode: number;
-  // Null when the repo has no quality gate configured.
+  // Null when the run never reached the gate stage. A repo with no gate
+  // configured is still evaluated, against the built-in defaults.
   gateResult: GateResult | null;
 }
 
