@@ -321,19 +321,11 @@ that path without a membership check, because no user is being authorized.
   │    configured thresholds                            │
   │  • Determine: PASS or FAIL                          │
   │  Output: gateResult (GateResult enum, persisted on  │
-  │  the HealthSnapshot in Stage 8)                     │
+  │  the HealthSnapshot in Stage 7)                     │
   └──────────────────┬──────────────────────────────────┘
                      │
   ┌──────────────────▼──────────────────────────────────┐
-  │  STAGE 7: COMMENT                                   │
-  │  • Build markdown summary (score, top issues, gate) │
-  │  • POST/PATCH PR comment via Octokit                │
-  │  • POST commit status (success/failure) via Octokit │
-  │  Output: commentId, statusId                        │
-  └──────────────────┬──────────────────────────────────┘
-                     │
-  ┌──────────────────▼──────────────────────────────────┐
-  │  STAGE 8: PERSIST                                   │
+  │  STAGE 7: PERSIST                                   │
   │  • Write HealthSnapshot result row (score, metrics, │
   │    debtMinutes, debtDeltaMinutes, gateResult),      │
   │    linked 1:1 to this AnalysisJob via analysisId    │
@@ -345,6 +337,18 @@ that path without a membership check, because no user is being authorized.
   └──────────────────┬──────────────────────────────────┘
                      │
   ┌──────────────────▼──────────────────────────────────┐
+  │  STAGE 8: COMMENT                                   │
+  │  • Build markdown summary (score, top issues, gate) │
+  │  • POST/PATCH PR comment via Octokit                │
+  │  • POST commit status (success/failure) via Octokit │
+  │  • Runs after PERSIST: a retry of a failed persist  │
+  │    would otherwise post a second comment on the PR  │
+  │  • A failure here is logged and does NOT fail the   │
+  │    job — the snapshot is already stored             │
+  │  Output: commentId, statusId                        │
+  └──────────────────┬──────────────────────────────────┘
+                     │
+  ┌──────────────────▼──────────────────────────────────┐
   │  STAGE 9: CLEANUP                                   │
   │  • rm -rf temp clone directory                      │
   │  • Runs in finally block (even on error/timeout)    │
@@ -352,7 +356,7 @@ that path without a membership check, because no user is being authorized.
   └─────────────────────────────────────────────────────┘
 ```
 
-**Error handling:** If any stage fails, the pipeline jumps to PERSIST (mark status=FAILED with error message) then CLEANUP. BullMQ retries up to 3 times with exponential backoff.
+**Error handling:** If any stage fails, the pipeline jumps to PERSIST (mark status=FAILED with error message) then CLEANUP. BullMQ retries up to 3 times with exponential backoff. COMMENT is the one exception: it runs after PERSIST, and a failure there is logged and swallowed rather than failing the job — the snapshot is already written, so a GitHub outage costs the comment, not the analysis.
 
 ---
 
