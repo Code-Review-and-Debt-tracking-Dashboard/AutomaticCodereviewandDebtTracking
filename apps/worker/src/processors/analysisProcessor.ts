@@ -23,6 +23,7 @@ import { evaluateGate } from '../stages/gate';
 import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
 import { postPrComment } from '../stages/postComment';
+import { postCommitStatus } from '../stages/postStatus';
 import { type ScoreResult, computeScore } from '../stages/score';
 
 /**
@@ -292,6 +293,14 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
         baseline: null,
         gate,
       }),
+    });
+
+    // Hangs off the commit rather than the pull request, so push and manual
+    // runs get a verdict too. The sha is the one that was checked out.
+    await postCommitStatus({
+      analysisId,
+      commitSha: cloned.commitSha,
+      evaluation: gateEvaluation,
     });
   } catch (err) {
     // Only this scope knows how far the run got, and the 'failed' listener has
