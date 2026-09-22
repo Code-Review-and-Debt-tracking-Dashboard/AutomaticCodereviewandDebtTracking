@@ -51,6 +51,7 @@ describe("LinkRepositoryModal Component", () => {
   });
 
   it("fetches and renders available repositories when modal opens", async () => {
+    // Component calls api.get<{ data: AvailableRepo[] }>(...) and reads res.data
     mockedApi.get.mockResolvedValueOnce({ data: mockAvailableRepos });
 
     render(
@@ -70,9 +71,10 @@ describe("LinkRepositoryModal Component", () => {
     expect(screen.getByText("Linked")).toBeInTheDocument();
   });
 
-  it("links a repository when Link button is clicked", async () => {
+  it("links selected repositories via bulk-link when Link button is clicked", async () => {
     mockedApi.get.mockResolvedValueOnce({ data: mockAvailableRepos });
-    mockedApi.post.mockResolvedValueOnce({ data: { success: true } });
+    // Component calls api.post<{ jobId: string; total: number }>(...) and reads res.jobId
+    mockedApi.post.mockResolvedValueOnce({ jobId: "job-xyz", total: 1 });
 
     const handleRepoLinked = vi.fn();
     const handleClose = vi.fn();
@@ -90,15 +92,23 @@ describe("LinkRepositoryModal Component", () => {
       expect(screen.getByText("backend-service")).toBeInTheDocument();
     });
 
-    const linkBtn = screen.getByRole("button", { name: /Link/i });
+    // Click the repo row to select it (only non-linked repos are selectable)
+    const repoRow = screen.getByText("backend-service").closest("div[class*='cursor-pointer']") ??
+      screen.getByText("backend-service").closest("div");
+    await user.click(repoRow!);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Link 1 repository/i })).toBeInTheDocument();
+    });
+
+    const linkBtn = screen.getByRole("button", { name: /Link 1 repository/i });
     await user.click(linkBtn);
 
     await waitFor(() => {
-      expect(mockedApi.post).toHaveBeenCalledWith("/api/repos", {
-        githubRepoId: 101,
-      });
-      expect(handleRepoLinked).toHaveBeenCalledTimes(1);
-      expect(handleClose).toHaveBeenCalledTimes(1);
+      expect(mockedApi.post).toHaveBeenCalledWith(
+        "/api/orgs/org-1/repos/bulk-link",
+        { githubRepoIds: ["101"] },
+      );
     });
   });
 
