@@ -7,6 +7,7 @@ import { AppError } from '../middleware/errorHandler';
 import { requireAgent } from '../middleware/requireAgent';
 import { validateRequest } from '../middleware/zodValidate';
 import { analysisQueue } from '../lib/queue';
+import { createAnalysisNotifications } from '../services/notificationService';
 import { Job } from 'bullmq';
 
 export const jobsRouter = Router();
@@ -268,6 +269,14 @@ jobsRouter.post(
         return res.status(200).json({ snapshotId: existing.id });
       }
 
+      // Read before the new snapshot exists, or the ordering below would just
+      // return the row we are about to write. Null on a repo's first analysis.
+      const previous = await prisma.healthSnapshot.findFirst({
+        where: { repoId: job.repoId },
+        orderBy: { calculatedAt: 'desc' },
+        select: { healthScore: true },
+      });
+
       // Create snapshot and findings, and update job status in a transaction
       const snapshot = await prisma.$transaction(async (tx) => {
         const created = await tx.healthSnapshot.create({
@@ -288,6 +297,14 @@ jobsRouter.post(
             })),
           });
         }
+
+        await createAnalysisNotifications(tx, {
+          repoId: job.repoId,
+          snapshotId: created.id,
+          metrics,
+          findings,
+          previousScore: previous?.healthScore ?? null,
+        });
 
         await tx.analysisJob.update({
           where: { id: job.id },
