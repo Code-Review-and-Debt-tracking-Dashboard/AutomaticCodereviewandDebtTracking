@@ -10,42 +10,43 @@ import { Job } from 'bullmq';
 
 export const jobsRouter = Router();
 
+const LEASE_DURATION_MS = 10 * 60_000;
+
 // A-37: Job Lease Endpoint
-// Since jobs are enqueued in BullMQ, we can pop them or we can fetch them via DB. 
-// Given the requirements "Job-lease endpoint... fixed visibility timeout", we'll lease via Postgres
-// to provide a simple HTTP pull interface.
 jobsRouter.post('/jobs/lease', requireAgent, async (req, res, next) => {
   try {
-    const job = await prisma.$transaction(async (tx) => {
-      // Find the oldest pending job
-      const pendingJobs = await tx.analysisJob.findMany({
-        where: { status: AnalysisStatus.PENDING },
-        orderBy: { queuedAt: 'asc' },
-        take: 1,
-        // PostgreSQL specific lock
-        // skipLocked would require raw query but prisma doesn't support skipLocked natively on findMany yet
-        // However, we can just do a simple findFirst and update, assuming low concurrency of agents for now.
-      });
-
-      if (!pendingJobs.length) return null;
-
-      const jobToLease = pendingJobs[0];
-
-      return await tx.analysisJob.update({
-        where: { id: jobToLease.id },
-        data: {
-          status: AnalysisStatus.RUNNING,
-          startedAt: new Date(),
-        },
-        include: {
-          repository: true,
-        },
-      });
+    // An agent that died mid-job leaves its job stuck at RUNNING. Reclaim
+    // anything past its lease before handing out a new one.
+    await prisma.analysisJob.updateMany({
+      where: { status: AnalysisStatus.RUNNING, leaseExpiresAt: { lt: new Date() } },
+      data: { status: AnalysisStatus.PENDING, leaseExpiresAt: null },
     });
 
-    if (!job) {
+    const startedAt = new Date();
+    const leaseExpiresAt = new Date(startedAt.getTime() + LEASE_DURATION_MS);
+
+    // SKIP LOCKED so two agents polling at once can't lease the same job.
+    const leased = await prisma.$queryRaw<{ id: string }[]>`
+      UPDATE "AnalysisJob"
+      SET status = 'RUNNING'::"AnalysisStatus", "startedAt" = ${startedAt}, "leaseExpiresAt" = ${leaseExpiresAt}
+      WHERE id = (
+        SELECT id FROM "AnalysisJob"
+        WHERE status = 'PENDING'::"AnalysisStatus"
+        ORDER BY "queuedAt" ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      RETURNING id;
+    `;
+
+    if (!leased.length) {
       return res.status(204).send();
     }
+
+    const job = await prisma.analysisJob.findUniqueOrThrow({
+      where: { id: leased[0].id },
+      include: { repository: true },
+    });
 
     res.status(200).json({
       id: job.id,
@@ -128,7 +129,13 @@ const ingestResultsSchema = z.object({
   duplicationPct: z.number().optional(),
   totalIssues: z.number().optional(),
   linesOfCode: z.number().optional(),
-  rawMetrics: z.any().optional(),
+  // Flat record of small primitives only (tool versions, counts) — no
+  // nested structure or large strings, so this can't be used to smuggle
+  // source code across the boundary.
+  rawMetrics: z
+    .record(z.string(), z.union([z.string().max(200), z.number(), z.boolean()]))
+    .refine((obj) => Object.keys(obj).length <= 20, 'rawMetrics accepts at most 20 keys')
+    .optional(),
   findings: z
     .array(
       z.object({

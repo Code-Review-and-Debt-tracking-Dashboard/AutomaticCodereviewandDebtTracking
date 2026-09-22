@@ -181,24 +181,25 @@ model PullRequest {
 }
 
 model AnalysisJob {
-  id            String          @id @default(cuid())
-  status        AnalysisStatus  @default(PENDING)
-  trigger       AnalysisTrigger @default(WEBHOOK)
-  progress      Int             @default(0)
-  branch        String
-  commitSha     String
-  bullJobId     String?         @unique
-  retryCount    Int             @default(0)
-  errorMessage  String?
-  repoId        String
-  pullRequestId String?
-  queuedAt      DateTime        @default(now())
-  startedAt     DateTime?
-  completedAt   DateTime?
-  updatedAt     DateTime        @updatedAt
-  pullRequest   PullRequest?    @relation(fields: [pullRequestId], references: [id])
-  repository    Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
-  snapshot      HealthSnapshot?
+  id             String          @id @default(cuid())
+  status         AnalysisStatus  @default(PENDING)
+  trigger        AnalysisTrigger @default(WEBHOOK)
+  progress       Int             @default(0)
+  branch         String
+  commitSha      String
+  bullJobId      String?         @unique
+  retryCount     Int             @default(0)
+  errorMessage   String?
+  repoId         String
+  pullRequestId  String?
+  queuedAt       DateTime        @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  leaseExpiresAt DateTime?
+  updatedAt      DateTime        @updatedAt
+  pullRequest    PullRequest?    @relation(fields: [pullRequestId], references: [id])
+  repository     Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  snapshot       HealthSnapshot?
 
   @@index([repoId, status])
   @@index([status, queuedAt])
