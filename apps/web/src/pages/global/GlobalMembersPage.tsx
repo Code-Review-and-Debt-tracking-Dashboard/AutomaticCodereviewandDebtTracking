@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
 import { ShieldCheck, Users } from "lucide-react";
+
+import { useOrg } from "../../contexts/OrgContext";
+import { api } from "../../lib/apiClient";
 
 import {
   Badge,
@@ -10,37 +14,31 @@ import {
 } from "../../components/ui";
 
 
-/* =========================================================
-   MEMBER DATA
-========================================================= */
-
-const members = [
-  {
-    name: "Nethmi Bhagya",
-    role: "Owner",
-    status: "Active",
-    initials: "NB",
-  },
-  {
-    name: "Rumesh Perera",
-    role: "Admin",
-    status: "Active",
-    initials: "RP",
-  },
-  {
-    name: "Vidushi Silva",
-    role: "Member",
-    status: "Active",
-    initials: "VS",
-  },
-];
-
-
-/* =========================================================
-   COMPONENT
-========================================================= */
-
 export function GlobalMembersPage() {
+  const { selectedOrg } = useOrg();
+  const [members, setMembers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!selectedOrg) {
+      setIsLoading(false);
+      return;
+    }
+
+    const loadMembers = async () => {
+      try {
+        const response = await api.get<{ data: any[] }>(`/api/orgs/${selectedOrg.id}/members`);
+        setMembers(response?.data ?? []);
+      } catch (error) {
+        console.error("Failed to load members", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMembers();
+  }, [selectedOrg]);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
@@ -57,7 +55,7 @@ export function GlobalMembersPage() {
           <PageHeaderActions>
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
               <Users size={14} />
-              {members.length} members
+              {isLoading ? "…" : `${members.length} members`}
             </div>
           </PageHeaderActions>
         </PageHeader>
@@ -65,15 +63,15 @@ export function GlobalMembersPage() {
 
         {/* Member Cards */}
         <div className="grid gap-4 md:grid-cols-3">
-          {members.map((member) => (
-            <Card key={member.name} className="p-5 transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg">
+          {!isLoading && members.map((member) => (
+            <Card key={member.id} className="p-5 transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg">
               <div className="flex items-center gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 font-semibold text-primary">
-                  {member.initials}
+                  {member.user?.name?.charAt(0) || "U"}
                 </div>
 
                 <div>
-                  <p className="text-sm font-semibold">{member.name}</p>
+                  <p className="text-sm font-semibold">{member.user?.name}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {member.role}
                   </p>
@@ -83,7 +81,7 @@ export function GlobalMembersPage() {
               <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
                 <Badge variant="success" size="sm">
                   <ShieldCheck size={12} className="mr-1" />
-                  {member.status}
+                  Active
                 </Badge>
                 <span>Organization member</span>
               </div>

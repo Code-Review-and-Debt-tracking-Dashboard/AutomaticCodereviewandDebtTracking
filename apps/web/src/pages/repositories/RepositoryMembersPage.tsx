@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Crown,
   MoreHorizontal,
@@ -7,14 +8,16 @@ import {
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 
+import { api } from "../../lib/apiClient";
+
 import {
   BackLink,
   Badge,
-  Button,
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
+  Button,
   PageHeader,
   PageHeaderBadge,
   PageHeaderTitle,
@@ -23,41 +26,26 @@ import {
 } from "../../components/ui";
 
 
-/* =========================================================
-   MEMBER DATA
-========================================================= */
-
-const members = [
-  {
-    name: "Nethmi Bhagya",
-    email: "nethmi@example.com",
-    role: "Owner",
-    joined: "Jun 12, 2026",
-    avatar: "NB",
-  },
-  {
-    name: "Kasun Perera",
-    email: "kasun@example.com",
-    role: "Developer",
-    joined: "Jun 18, 2026",
-    avatar: "KP",
-  },
-  {
-    name: "Amaya Silva",
-    email: "amaya@example.com",
-    role: "Reviewer",
-    joined: "Jun 22, 2026",
-    avatar: "AS",
-  },
-];
-
-
-/* =========================================================
-   COMPONENT
-========================================================= */
-
 export function RepositoryMembersPage() {
   const { repoId } = useParams();
+  const [members, setMembers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!repoId) return;
+
+    const loadMembers = async () => {
+      try {
+        const response = await api.get<{ data: any[] }>(`/repos/${repoId}/members`);
+        setMembers(response?.data ?? []);
+      } catch (error) {
+        console.error("Failed to load members", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadMembers();
+  }, [repoId]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -96,40 +84,40 @@ export function RepositoryMembersPage() {
             <div>
               <CardTitle>Repository Members</CardTitle>
               <CardDescription>
-                {members.length} people currently have access.
+                {isLoading ? "Loading…" : `${members.length} people currently have access.`}
               </CardDescription>
             </div>
           </CardHeader>
 
           <div className="divide-y divide-border/60">
-            {members.map((member) => (
+            {!isLoading && members.map((member) => (
               <div
-                key={member.email}
+                key={member.id}
                 className="flex flex-col gap-4 p-5 transition hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex items-center gap-4">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 font-semibold text-primary">
-                    {member.avatar}
+                    {member.user?.name?.charAt(0) || "U"}
                   </div>
 
                   <div>
                     <p className="font-semibold">
-                      {member.name}
+                      {member.user?.name}
                     </p>
 
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {member.email}
+                      {member.user?.email}
                     </p>
 
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Joined {member.joined}
+                      Joined {new Date(member.createdAt || Date.now()).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <Badge variant="muted" size="lg">
-                    {member.role === "Owner" ? (
+                    {member.role === "OWNER" || member.role === "Owner" ? (
                       <Crown size={13} className="text-warning" />
                     ) : (
                       <ShieldCheck size={13} className="text-primary" />

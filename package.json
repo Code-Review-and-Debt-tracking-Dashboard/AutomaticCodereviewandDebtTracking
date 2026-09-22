@@ -1,8 +1,18 @@
 {
     "name": "codehealth",
     "private": true,
-    "workspaces": ["apps/*", "packages/*"],
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
     "scripts": {
         "test": "npm run test --workspaces --if-present"
+    },
+    "devDependencies": {
+        "@testing-library/jest-dom": "^7.0.1",
+        "@testing-library/react": "^16.3.3",
+        "@testing-library/user-event": "^14.6.7",
+        "jsdom": "^30.1.0",
+        "vitest": "^5.0.1"
     }
 }

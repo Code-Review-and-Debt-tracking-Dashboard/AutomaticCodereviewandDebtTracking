@@ -14,7 +14,11 @@ import { Navigate } from "react-router-dom";
 
 import { useAuth } from "../../contexts/AuthContext";
 
-import { Card, IconBox } from "../../components/ui";
+import {
+  Card,
+  Button,
+  IconBox,
+} from "../../components/ui";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -40,6 +44,11 @@ const features = [
     text: "Protect your standards.",
   },
 ];
+
+const SIGN_OUT_MESSAGES: Record<string, string> = {
+  session_expired: "Your session has expired. Please log in again.",
+  logged_out: "You have been logged out.",
+};
 
 export function LoginPage() {
   const { status, authLostReason } = useAuth();

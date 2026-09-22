@@ -2,10 +2,10 @@ import { Bot, Sparkles, Zap, ArrowRight } from "lucide-react";
 
 import {
   Badge,
-  Button,
   Card,
   CardTitle,
   CardDescription,
+  Button,
   IconBox,
   PageHeader,
   PageHeaderTitle,

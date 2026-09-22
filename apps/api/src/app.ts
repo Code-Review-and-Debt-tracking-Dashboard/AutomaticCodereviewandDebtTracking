@@ -18,6 +18,7 @@ import { reposRouter } from './routes/repos';
 import { qualityGatesRouter } from './routes/qualityGates';
 import { snapshotsRouter } from './routes/snapshots';
 import { webhookRouter } from './routes/webhooks';
+import { jobsRouter } from './routes/jobs';
 
 export function createApp(): Express {
   const app = express();
@@ -48,6 +49,7 @@ export function createApp(): Express {
   app.use(qualityGatesRouter);
   app.use(snapshotsRouter);
   app.use(mobileRouter);
+  app.use(jobsRouter);
   app.use(notFoundHandler);
   app.use(errorHandler);
 

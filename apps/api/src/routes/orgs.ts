@@ -11,6 +11,7 @@ import {
   listOrgRepositories,
   listUserOrganizations,
   resyncOrganizations,
+  getOrgPullRequests,
 } from '../services/orgService';
 
 export const orgsRouter = Router();
@@ -95,6 +96,21 @@ orgsRouter.get(
   async (req, res, next) => {
     try {
       const data = await getBulkLinkStatus(req.params.jobId, req.params.orgId);
+      res.status(200).json(data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+orgsRouter.get(
+  '/api/orgs/:orgId/pulls',
+  requireAuth,
+  validateRequest(orgIdParamsSchema),
+  requireOrgAccess('read'),
+  async (req, res, next) => {
+    try {
+      const data = await getOrgPullRequests(req.params.orgId, req.user!.id);
       res.status(200).json(data);
     } catch (err) {
       next(err);

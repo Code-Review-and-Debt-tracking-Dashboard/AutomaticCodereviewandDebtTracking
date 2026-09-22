@@ -2,9 +2,9 @@ import { Bell, Moon, Settings, Shield, SlidersHorizontal } from "lucide-react";
 
 import {
   Card,
-  CardContent,
   CardHeader,
   CardTitle,
+  CardContent,
   PageHeader,
   PageHeaderTitle,
   PageHeaderDescription,

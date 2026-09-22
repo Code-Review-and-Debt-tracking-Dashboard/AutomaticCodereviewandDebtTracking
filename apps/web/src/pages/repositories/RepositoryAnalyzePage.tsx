@@ -1,12 +1,15 @@
+import { useEffect, useState } from "react";
 import { ScanSearch, PlayCircle, Sparkles } from "lucide-react";
 import { useParams } from "react-router-dom";
 
+import { api } from "../../lib/apiClient";
+
 import {
   BackLink,
-  Button,
   Card,
   CardTitle,
   CardContent,
+  Button,
   IconBox,
   PageHeader,
   PageHeaderTitle,
@@ -33,6 +36,45 @@ const analysisSteps = [
 export function RepositoryAnalyzePage() {
   const { repoId } = useParams();
 
+  const [repoInfo, setRepoInfo] = useState<{
+    name: string;
+    defaultBranch?: string;
+    lastAnalyzedAt?: string | null;
+  } | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!repoId) return;
+
+    const loadRepo = async () => {
+      try {
+        const repoData = await api.get<any>(`/repos/${repoId}`);
+        setRepoInfo(repoData);
+      } catch (error) {
+        console.error("Failed to load repo info", error);
+      }
+    };
+
+    loadRepo();
+  }, [repoId]);
+
+  const handleRunAnalysis = async () => {
+    if (!repoId) return;
+    setIsRunning(true);
+    setSuccessMessage(null);
+    setRunError(null);
+    try {
+      const result = await api.post<any>(`/repos/${repoId}/analyze`);
+      setSuccessMessage(result?.message || "Analysis queued");
+    } catch (error: any) {
+      setRunError(error?.response?.data?.error?.message || "Failed to start analysis.");
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
@@ -49,12 +91,24 @@ export function RepositoryAnalyzePage() {
           </div>
 
           <PageHeaderActions>
-            <Button>
+            <Button onClick={handleRunAnalysis} disabled={isRunning}>
               <PlayCircle size={16} />
-              Run analysis
+              {isRunning ? "Running…" : "Run analysis"}
             </Button>
           </PageHeaderActions>
         </PageHeader>
+
+        {successMessage && (
+          <div className="mt-4 rounded-xl border border-success/30 bg-success/10 p-3 text-sm text-success">
+            {successMessage}
+          </div>
+        )}
+
+        {runError && (
+          <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {runError}
+          </div>
+        )}
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
 
@@ -88,7 +142,14 @@ export function RepositoryAnalyzePage() {
 
             <CardContent className="mt-4 p-0">
               <div className="rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
-                No manual run has been started yet for repository {repoId}.
+                {repoInfo?.lastAnalyzedAt ? (
+                  <p>
+                    Last analyzed on branch: {repoInfo.defaultBranch || "main"} &mdash;{" "}
+                    {new Date(repoInfo.lastAnalyzedAt).toLocaleDateString()}
+                  </p>
+                ) : (
+                  <p>No manual run has been started yet for repository {repoId}.</p>
+                )}
               </div>
             </CardContent>
           </Card>

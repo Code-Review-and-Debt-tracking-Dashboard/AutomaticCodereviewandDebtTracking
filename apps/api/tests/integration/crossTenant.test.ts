@@ -21,6 +21,7 @@ interface ScopedRoute {
 const SCOPED_ROUTES: ScopedRoute[] = [
   { method: 'get', template: '/api/orgs/:orgId/members', path: (t) => `/api/orgs/${t.org.id}/members` },
   { method: 'get', template: '/api/orgs/:orgId/repos', path: (t) => `/api/orgs/${t.org.id}/repos` },
+  { method: 'get', template: '/api/orgs/:orgId/pulls', path: (t) => `/api/orgs/${t.org.id}/pulls` },
   {
     method: 'post',
     template: '/api/orgs/:orgId/repos/bulk-link',

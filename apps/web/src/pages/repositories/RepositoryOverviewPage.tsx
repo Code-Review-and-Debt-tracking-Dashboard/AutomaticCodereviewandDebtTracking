@@ -35,14 +35,14 @@ import { api } from "../../lib/apiClient";
 import { Loader2 } from "lucide-react";
 
 import {
-  Button,
   Card,
+  Button,
+  StatCard,
   PageHeader,
   PageHeaderBadge,
   PageHeaderTitle,
   PageHeaderDescription,
   PageHeaderActions,
-  StatCard,
 } from "../../components/ui";
 
 interface RepoDetail {
@@ -530,8 +530,8 @@ export function RepositoryOverviewPage() {
                     </Pie>
 
                     <Tooltip
-                      formatter={(value: number, name: string) => [
-                        `${Math.floor(value / 60)}h ${Math.round(value % 60)}m`,
+                      formatter={(value: any, name: any) => [
+                        `${Math.floor(Number(value || 0) / 60)}h ${Math.round(Number(value || 0) % 60)}m`,
                         name,
                       ]}
                       contentStyle={{

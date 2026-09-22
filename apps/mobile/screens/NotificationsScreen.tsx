@@ -162,58 +162,47 @@ export default function NotificationsScreen() {
         )}
       </View>
 
-      {loading ? (
-        <LoadingState />
-      ) : error && !data ? (
-        <ErrorState
-          title="Couldn't load notifications"
-          message={error}
-          onRetry={() => void load()}
-          retrying={loading}
-        />
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F3F4F6' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>
+          Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}
+        </Text>
+        {unreadCount > 0 && (
+          <TouchableOpacity onPress={markAllRead}>
+            <Text style={styles.markAllText}>Mark all read</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* List */}
+      {notifications.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No notifications</Text>
+        </View>
       ) : (
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
             <SwipeableItem
               item={item}
-              onDismiss={() => void handleDismiss(item.id)}
-              onPress={() => void handleMarkRead(item.id)}
+              onDismiss={() => handleDismiss(item.id)}
+              onPress={() => handleMarkRead(item.id)}
             />
           )}
-          contentContainerStyle={
-            notifications.length === 0
-              ? [styles.listContent, styles.listEmpty]
-              : styles.listContent
-          }
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void load(true)}
-              tintColor={colors.success}
-              colors={[colors.success]}
-              progressBackgroundColor={colors.card}
-            />
-          }
-          ListHeaderComponent={
-            error ? (
-              <ErrorState compact message={error} onRetry={() => void load(true)} retrying={refreshing} />
-            ) : null
-          }
-          ListEmptyComponent={
-            <EmptyState
-              icon="🔔"
-              title="You're all caught up"
-              description="Alerts about your repositories will show up here."
-            />
-          }
         />
       )}
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
