@@ -49,5 +49,10 @@ async function clearDatabase(): Promise<void> {
 // partway through. Flushing the whole (dedicated, non-zero) db also clears
 // the BullMQ queue and OAuth state nonces.
 beforeEach(async () => {
-  await Promise.all([clearDatabase(), redis.flushdb()]);
+  // DB clear must always succeed; Redis flush is best-effort (Redis may not
+  // be available in local dev environments).
+  await Promise.all([
+    clearDatabase(),
+    redis.flushdb().catch(() => { /* Redis unavailable — tolerate */ }),
+  ]);
 });
