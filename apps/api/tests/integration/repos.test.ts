@@ -1,6 +1,7 @@
 import { prisma } from '@codehealth/db';
 import { describe, expect, it } from 'vitest';
 
+import { analysisQueue } from '../../src/lib/queue';
 import { api } from '../helpers/app';
 import { bearer } from '../helpers/auth';
 import {
@@ -427,35 +428,81 @@ describe('POST /api/repos/:repoId/analyze', () => {
     expect(res.status).toBe(403);
   });
 
-  it('202 for the owner and records a MANUAL job on the default branch', async () => {
+  it('202 for the owner: records a MANUAL job and puts it on the queue', async () => {
     const t = await seedTenant('acme');
     const res = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
 
     expect(res.status).toBe(202);
-    expect(res.body).toMatchObject({ message: 'Analysis queued', analysisId: expect.any(String) });
+    expect(res.body).toMatchObject({ message: 'Analysis queued', analysisId: expect.any(String), jobId: expect.any(String) });
 
     const job = await prisma.analysisJob.findUnique({ where: { id: res.body.analysisId } });
-    expect(job).toMatchObject({ repoId: t.repo.id, trigger: 'MANUAL', status: 'PENDING', branch: t.repo.defaultBranch });
+    expect(job).toMatchObject({
+      repoId: t.repo.id,
+      trigger: 'MANUAL',
+      status: 'PENDING',
+      branch: t.repo.defaultBranch,
+      commitSha: 'HEAD',
+      bullJobId: res.body.jobId,
+      pullRequestId: null,
+    });
+
+    const queued = await analysisQueue.getJob(res.body.jobId);
+    expect(queued?.data).toMatchObject({ analysisId: job!.id, repoId: t.repo.id, branch: t.repo.defaultBranch });
   });
 
-  // The route wires repoService.triggerManualAnalysis, which does not apply
-  // the owner/org-admin narrowing that queueService.triggerManualAnalysis
-  // does. Pinning current behaviour so a fix shows up as a diff here.
-  it('202 for a TEAM_LEAD (current behaviour: write access is enough)', async () => {
+  // Deliberately narrower than the route's write guard: triggering an analysis
+  // is limited to the repo owner and org managers.
+  it('403 for a TEAM_LEAD', async () => {
     const t = await seedTenant('acme');
     const res = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.teamLead));
-    expect(res.status).toBe(202);
+    expect(res.status).toBe(403);
+    // the route's middleware lets a TEAM_LEAD through, so this is the service
+    expect(res.body.error.message).toMatch(/owner or an organization admin/);
+  });
+
+  it('429 while an analysis of the same repo is still running', async () => {
+    const t = await seedTenant('acme');
+
+    const first = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
+    expect(first.status).toBe(202);
+
+    const second = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
+    expect(second.status).toBe(429);
+    expect(second.body.error).toMatchObject({ code: 'RATE_LIMITED', message: /already in progress/ });
+  });
+
+  it('a job left unfinished past the stale window stops blocking', async () => {
+    const t = await seedTenant('acme');
+
+    const first = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
+    expect(first.status).toBe(202);
+
+    await prisma.analysisJob.update({
+      where: { id: first.body.analysisId },
+      data: { queuedAt: new Date(Date.now() - 16 * 60 * 1000) },
+    });
+
+    const second = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
+    expect(second.status).toBe(202);
   });
 
   it('429 after 5 triggers by the same user', async () => {
     const t = await seedTenant('acme');
+
+    // Each job is completed before the next trigger, so it is the rate limiter
+    // that rejects the sixth, not the in-progress guard.
     for (let i = 0; i < 5; i++) {
       const ok = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
       expect(ok.status).toBe(202);
+      await prisma.analysisJob.update({
+        where: { id: ok.body.analysisId },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      });
     }
+
     const limited = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
     expect(limited.status).toBe(429);
-    expect(limited.body.error.code).toBe('RATE_LIMITED');
+    expect(limited.body.error).toMatchObject({ code: 'RATE_LIMITED', message: 'Too many requests, try again later' });
   });
 });
 

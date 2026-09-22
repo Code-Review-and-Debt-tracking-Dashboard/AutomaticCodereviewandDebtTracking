@@ -58,6 +58,9 @@ export async function enqueueAnalysisJob(input: EnqueueAnalysisInput) {
   return { analysisId: analysis.id, jobId: job.id };
 }
 
+// How long a job can sit unfinished before a new one is allowed anyway.
+const STALE_AFTER_MS = 15 * 60 * 1000;
+
 /**
  * Manual whole-repo analysis of the default branch. The commit sha isn't known
  * here — the worker clones the branch and resolves it — so 'HEAD' is recorded
@@ -83,8 +86,14 @@ export async function triggerManualAnalysis(repoId: string, userId: string, orgR
     );
   }
 
+  // Ignore jobs older than the window: a worker that died mid-job would
+  // otherwise block the repo forever.
   const running = await prisma.analysisJob.findFirst({
-    where: { repoId, status: { in: [AnalysisStatus.PENDING, AnalysisStatus.RUNNING] } },
+    where: {
+      repoId,
+      status: { in: [AnalysisStatus.PENDING, AnalysisStatus.RUNNING] },
+      queuedAt: { gt: new Date(Date.now() - STALE_AFTER_MS) },
+    },
     select: { id: true },
   });
 
