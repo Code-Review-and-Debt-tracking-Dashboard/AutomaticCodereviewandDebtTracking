@@ -26,7 +26,7 @@ type Overrides<M, JsonKeys extends keyof M> = Partial<Omit<M, JsonKeys>> & {
   [K in JsonKeys]?: Prisma.InputJsonValue;
 };
 
-let seq = 0;
+let seq = Math.floor(Math.random() * 1000000000);
 const next = (): number => ++seq;
 
 export async function createUser(overrides: Partial<User> = {}): Promise<User> {
