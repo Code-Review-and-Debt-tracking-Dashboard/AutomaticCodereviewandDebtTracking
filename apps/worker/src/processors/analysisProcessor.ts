@@ -16,11 +16,13 @@ import { runTodoScan } from '../analyzers/todoScan';
 import { fetchQualityGate, postResults, startJob } from '../lib/apiClient';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
+import { buildPrComment } from '../stages/comment';
 import { computeDebtDelta } from '../stages/debt';
 import { detectLanguages } from '../stages/detect';
 import { evaluateGate } from '../stages/gate';
 import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
+import { postPrComment } from '../stages/postComment';
 import { type ScoreResult, computeScore } from '../stages/score';
 
 /**
@@ -264,21 +266,33 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
 
     stage = 'persist';
 
-    await postResults(
-      buildResultsPayload({
-        analysisId,
-        commitSha: cloned.commitSha,
-        findings: matched.findings,
-        score,
-        debtDeltaMinutes,
-        gateResult: gateEvaluation.result,
-        linesOfCode: detected.linesOfCode,
-        // Nothing in the repo had an analyzer that could read it.
-        analysisLimited: detected.analyzers.length === 0,
-      }),
-    );
+    const payload = buildResultsPayload({
+      analysisId,
+      commitSha: cloned.commitSha,
+      findings: matched.findings,
+      score,
+      debtDeltaMinutes,
+      gateResult: gateEvaluation.result,
+      linesOfCode: detected.linesOfCode,
+      // Nothing in the repo had an analyzer that could read it.
+      analysisLimited: detected.analyzers.length === 0,
+    });
+
+    await postResults(payload);
 
     logger.info({ analysisId, findings: matched.findings.length }, 'Results persisted');
+
+    // After persist, so a retry of a failed persist can't leave a second
+    // comment on the PR. Renders the stored numbers, never a fresh count.
+    await postPrComment({
+      analysisId,
+      body: buildPrComment({
+        metrics: payload.metrics,
+        findings: matched.findings,
+        baseline: null,
+        gate,
+      }),
+    });
   } catch (err) {
     // Only this scope knows how far the run got, and the 'failed' listener has
     // to report it.

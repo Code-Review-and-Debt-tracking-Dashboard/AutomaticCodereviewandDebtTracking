@@ -516,11 +516,21 @@ needs agreement from the DB owner before it lands.
 known marker string in the body. That costs an extra API call per analysis and is more fragile. The
 column is preferable.
 
-⚠️ **Cross-plane note.** Posting the comment is a GitHub write, which in Topology B would come from
-inside the customer's network. Either the data plane posts it directly using its own credential, or
-it returns the rendered body to the control plane to post. The former keeps all GitHub writes on the
-customer's side and is more consistent with §3.4; the latter keeps `botCommentId` handling in one
-place. **This is unresolved — see §9.**
+✅ **Cross-plane note — resolved.** Posting the comment is a GitHub write, which in Topology B comes
+from inside the customer's network. The choice was between the data plane posting it directly using
+its own credential, and the data plane returning the rendered body to the control plane to post.
+
+**Decided: the data plane posts it directly.** This keeps every GitHub write on the customer's side,
+which is what §3.4 already prefers, and it matches what the worker does today — it already decrypts
+the repository owner's token through Prisma in order to clone, so minting an Octokit from that same
+credential adds no new trust boundary. The cost is that `botCommentId` is read and written from the
+worker rather than from one place in the control plane; that is one nullable column on a row the
+worker already reaches via `AnalysisJob.pullRequestId`.
+
+**Credential consequence.** The data plane's credential needs PR-comment write. The current OAuth
+scope `repo` (`apps/api/src/services/authService.ts`) already covers it, so nothing changes today.
+If the GitHub App in §3.7 is ever adopted, this is the requirement that maps to
+`pull_requests: write` on the installation token.
 
 ---
 
@@ -613,8 +623,9 @@ requirement, GitHub-only VCS integration, or any out-of-scope item.
    **per-file** metrics, or metrics computed over **the pull request diff only** rather than the
    whole repository, §5 changes substantially — diff-scoped metrics in particular would require a
    second scoring path and are not costed here. **This needs confirmation before B-18 is built.**
-2. **Who posts the PR comment in Topology B** is unresolved (§5.5). The choice affects whether the
-   data plane needs `pull_requests: write` on its local credential.
+2. ~~**Who posts the PR comment in Topology B** is unresolved (§5.5).~~ **Resolved** — the data
+   plane posts it directly using its own credential (§5.5). Its credential therefore needs
+   PR-comment write, which the current `repo` OAuth scope already grants.
 3. **Lease semantics over HTTP** (§3.4) are specified only in outline. Visibility timeout duration
    and whether renew is supported need deciding before implementation.
 4. **Semgrep rule licensing** is mixed across rulesets and must be verified against §6 of
