@@ -154,7 +154,9 @@ export default function NotificationsScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
+        <Text style={styles.headerTitle}>
+          Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}
+        </Text>
         {unreadCount > 0 && (
           <TouchableOpacity activeOpacity={0.8} onPress={() => void markAllRead()}>
             <Text style={styles.markAllText}>Mark all read</Text>
