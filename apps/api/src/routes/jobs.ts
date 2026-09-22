@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { AppError } from '../middleware/errorHandler';
 import { requireAgent } from '../middleware/requireAgent';
-import { validate } from '../middleware/validate';
+import { validateRequest } from '../middleware/zodValidate';
 import { analysisQueue } from '../lib/queue';
 import { Job } from 'bullmq';
 
@@ -90,7 +90,7 @@ const failJobSchema = z.object({
 jobsRouter.post(
   '/jobs/:jobId/fail',
   requireAgent,
-  validate({ body: failJobSchema }),
+  validateRequest(z.object({ body: failJobSchema })),
   async (req, res, next) => {
     try {
       const { jobId } = req.params;
@@ -151,7 +151,7 @@ const ingestResultsSchema = z.object({
 jobsRouter.post(
   '/jobs/:jobId/results',
   requireAgent,
-  validate({ body: ingestResultsSchema }),
+  validateRequest(z.object({ body: ingestResultsSchema })),
   async (req, res, next) => {
     try {
       const { jobId } = req.params;
