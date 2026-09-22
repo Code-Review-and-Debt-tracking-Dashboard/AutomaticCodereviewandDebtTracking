@@ -57,6 +57,7 @@ function gate(overrides: Partial<QualityGateThresholds> = {}): QualityGateThresh
     maxDuplicationPct: null,
     maxComplexityCount: null,
     maxCodeSmellCount: null,
+    blockPR: false,
     ...overrides,
   };
 }
