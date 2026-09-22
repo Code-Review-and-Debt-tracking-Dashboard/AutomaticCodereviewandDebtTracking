@@ -32,6 +32,14 @@ export const env = {
   // hangs shouldn't hold a worker slot until the whole job times out.
   cloneTimeoutMs: Number(process.env.CLONE_TIMEOUT_MS) || 120_000,
 
+  // Where the worker reports results. It has no database credentials, so every
+  // write it makes goes through this API.
+  apiBaseUrl: required('API_BASE_URL', 'http://localhost:4000'),
+
+  // Identifies this worker deployment to the API. The API stores only its
+  // hash, so a lost token is revoked rather than recovered.
+  agentToken: required('AGENT_TOKEN', 'dev_agent_token'),
+
   // Both must match the API's. The bulk link job registers webhooks pointing
   // back at the API, and a different secret here means every delivery it
   // registers fails the API's signature check.

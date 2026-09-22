@@ -1,5 +1,7 @@
 require("dotenv/config");
 
+const crypto = require("crypto");
+
 const { PrismaPg } = require("@prisma/adapter-pg");
 const {
   AnalysisStatus,
@@ -469,6 +471,17 @@ async function main() {
       platform: DevicePlatform.ANDROID,
       deviceName: "Seed Android Device",
     },
+  });
+
+  // The worker authenticates as this agent when it reports results. Only the
+  // hash is stored, so the raw token has to match the worker's AGENT_TOKEN.
+  const agentToken = process.env.AGENT_TOKEN || "dev_agent_token";
+  const tokenHash = crypto.createHash("sha256").update(agentToken).digest("hex");
+
+  await prisma.agent.upsert({
+    where: { tokenHash },
+    update: { orgId: acme.id, revokedAt: null },
+    create: { tokenHash, orgId: acme.id },
   });
 
   const [orgCount, userCount, repositoryCount, snapshotCount, findingCount, notificationCount] =

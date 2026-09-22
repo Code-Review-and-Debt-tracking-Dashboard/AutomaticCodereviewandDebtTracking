@@ -78,6 +78,7 @@ export interface QualityGateThresholds {
   maxDuplicationPct: number | null;
   maxComplexityCount: number | null;
   maxCodeSmellCount: number | null;
+  blockPR: boolean;
 }
 
 export interface AnalysisResultsPayload {
@@ -97,4 +98,7 @@ export interface AnalysisFailurePayload {
   analysisId: string;
   stage: AnalysisStage;
   errorMessage: string;
+  // How many attempts the run had used by the time it gave up. Only the data
+  // plane knows this, so it has to come across with the failure.
+  retryCount: number;
 }

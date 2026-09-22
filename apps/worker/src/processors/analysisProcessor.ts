@@ -1,5 +1,10 @@
-import { AnalysisStatus, prisma } from '@codehealth/db';
-import type { AnalysisJobData } from '@codehealth/shared';
+import type {
+  AnalysisFinding,
+  AnalysisJobData,
+  AnalysisResultsPayload,
+  AnalysisStage,
+  GateResult,
+} from '@codehealth/shared';
 import type { Job } from 'bullmq';
 
 import { runEslint } from '../analyzers/eslint';
@@ -8,6 +13,7 @@ import { runBandit } from '../analyzers/bandit';
 import { runPylint } from '../analyzers/pylint';
 import { runRadon } from '../analyzers/radon';
 import { runTodoScan } from '../analyzers/todoScan';
+import { fetchQualityGate, postResults, startJob } from '../lib/apiClient';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { computeDebtDelta } from '../stages/debt';
@@ -15,7 +21,43 @@ import { detectLanguages } from '../stages/detect';
 import { evaluateGate } from '../stages/gate';
 import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
-import { computeScore } from '../stages/score';
+import { type ScoreResult, computeScore } from '../stages/score';
+
+/**
+ * Flattens one finished run into the shape the results endpoint accepts. Kept
+ * separate from the processor so it can be tested without running a job.
+ *
+ * The spread is deliberate: the score already carries every metric except the
+ * three below, so a field going missing from either side is a compile error
+ * rather than a column that quietly stays zero.
+ */
+export function buildResultsPayload(input: {
+  analysisId: string;
+  commitSha: string;
+  findings: AnalysisFinding[];
+  score: ScoreResult;
+  debtDeltaMinutes: number;
+  gateResult: GateResult;
+  linesOfCode: number;
+  analysisLimited: boolean;
+}): AnalysisResultsPayload {
+  const { penaltyBreakdown: _penaltyBreakdown, ...metrics } = input.score;
+
+  return {
+    analysisId: input.analysisId,
+    commitSha: input.commitSha,
+    metrics: {
+      ...metrics,
+      debtDeltaMinutes: input.debtDeltaMinutes,
+      linesOfCode: input.linesOfCode,
+      gateResult: input.gateResult,
+    },
+    findings: input.findings,
+    // Nothing captures analyzer versions yet.
+    toolVersions: {},
+    analysisLimited: input.analysisLimited,
+  };
+}
 
 /**
  * Runs one analyzer and keeps its failure to itself. A tool that falls over on a
@@ -38,42 +80,37 @@ async function runAnalyzer<T>(
 /**
  * Consumes one analysis job. Clones the repo, works out what's in it, runs the
  * analyzers over it, flattens their output into findings, scores them and runs
- * them past the repo's quality gate — the comment and persist stages are added
- * on top of this in later tasks.
+ * them past the repo's quality gate, and reports the whole lot to the API.
+ *
+ * Nothing in here touches the database. The worker has no credentials for it —
+ * every read and write crosses the API instead, so the same process can run
+ * inside a customer's network without holding ours.
  *
  * Only the analyzers are allowed to fail quietly. Everything else throws on
  * purpose: that's how BullMQ is told to retry, and the worker's 'failed'
- * listener is what marks the row FAILED. The temp directory is still removed on
- * that path, because it's in a finally.
+ * listener is what marks the row FAILED. The stage is attached on the way out
+ * so that listener can say where it broke. The temp directory is still removed
+ * on that path, because it's in a finally.
  */
 export async function analysisProcessor(job: Job<AnalysisJobData>) {
   const { analysisId, repoId, branch, commitSha } = job.data;
 
-  await prisma.analysisJob.update({
-    where: { id: analysisId },
-    data: { status: AnalysisStatus.RUNNING, startedAt: new Date() },
-  });
+  await startJob(analysisId);
 
   logger.info({ jobId: job.id, analysisId, repoId, branch, commitSha }, 'Analysis started');
 
+  let stage: AnalysisStage = 'clone';
   const workspace = await createWorkspace();
 
   try {
+    // Manual runs are queued with a placeholder sha. The one that comes back
+    // here is what was actually checked out, and it travels with the results.
     const cloned = await cloneRepository(job.data, workspace);
 
-    // Manual runs are queued with a placeholder sha, so record the real one.
-    await prisma.analysisJob.update({
-      where: { id: analysisId },
-      data: { commitSha: cloned.commitSha, progress: 10 },
-    });
-
+    stage = 'detect';
     const detected = await detectLanguages(cloned.repoPath);
 
-    await prisma.analysisJob.update({
-      where: { id: analysisId },
-      data: { progress: 15 },
-    });
-
+    stage = 'analyze';
     const reports: AnalyzerReports = {};
 
     if (detected.analyzers.includes('eslint')) {
@@ -158,6 +195,7 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       });
     }
 
+    stage = 'normalize';
     const { findings, duplicationPct } = normalize(reports);
 
     logger.info(
@@ -169,6 +207,8 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       },
       'Findings normalized',
     );
+
+    stage = 'score';
 
     // No baseline source yet, so everything comes back NEW.
     const matched = matchFindings({ findings, baseline: null });
@@ -206,7 +246,8 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       'Score computed',
     );
 
-    const gate = await prisma.qualityGate.findUnique({ where: { repoId } });
+    stage = 'gate';
+    const gate = await fetchQualityGate(analysisId);
 
     const gateEvaluation = evaluateGate({ gate, score });
 
@@ -221,12 +262,27 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       'Quality gate evaluated',
     );
 
-    // remaining analysis stages go here, over findings and score
+    stage = 'persist';
 
-    await prisma.analysisJob.update({
-      where: { id: analysisId },
-      data: { status: AnalysisStatus.COMPLETED, progress: 100, completedAt: new Date() },
-    });
+    await postResults(
+      buildResultsPayload({
+        analysisId,
+        commitSha: cloned.commitSha,
+        findings: matched.findings,
+        score,
+        debtDeltaMinutes,
+        gateResult: gateEvaluation.result,
+        linesOfCode: detected.linesOfCode,
+        // Nothing in the repo had an analyzer that could read it.
+        analysisLimited: detected.analyzers.length === 0,
+      }),
+    );
+
+    logger.info({ analysisId, findings: matched.findings.length }, 'Results persisted');
+  } catch (err) {
+    // Only this scope knows how far the run got, and the 'failed' listener has
+    // to report it.
+    throw Object.assign(err as Error, { stage });
   } finally {
     await cleanupWorkspace(workspace);
   }

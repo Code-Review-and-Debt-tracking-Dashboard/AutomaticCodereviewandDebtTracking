@@ -1,14 +1,18 @@
 import 'dotenv/config';
 
-import { AnalysisStatus, prisma } from '@codehealth/db';
+// Only for the shutdown disconnect — the bulk link processor and the clone
+// stage still read credentials through Prisma. The analysis pipeline does not.
+import { prisma } from '@codehealth/db';
 import {
   ANALYSIS_QUEUE_NAME,
   BULK_LINK_QUEUE_NAME,
   type AnalysisJobData,
+  type AnalysisStage,
   type BulkLinkJobData,
 } from '@codehealth/shared';
 import { Worker } from 'bullmq';
 
+import { reportFailure } from './lib/apiClient';
 import { env } from './config/env';
 import { logger } from './lib/logger';
 import { redis } from './lib/redis';
@@ -43,14 +47,13 @@ worker.on('failed', async (job, err) => {
   if (job.attemptsMade < attempts) return;
 
   try {
-    await prisma.analysisJob.update({
-      where: { id: job.data.analysisId },
-      data: {
-        status: AnalysisStatus.FAILED,
-        errorMessage: err.message,
-        retryCount: job.attemptsMade,
-        completedAt: new Date(),
-      },
+    await reportFailure({
+      analysisId: job.data.analysisId,
+      // The processor tags the error with the stage it died in. An untagged one
+      // came from a call to the API itself, which is the persist boundary.
+      stage: (err as { stage?: AnalysisStage }).stage ?? 'persist',
+      errorMessage: err.message,
+      retryCount: job.attemptsMade,
     });
   } catch (updateErr) {
     logger.error({ analysisId: job.data.analysisId, err: updateErr }, 'Could not mark analysis failed');
