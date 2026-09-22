@@ -1,0 +1,42 @@
+import { prisma } from '@codehealth/db';
+import crypto from 'crypto';
+import type { NextFunction, Request, Response } from 'express';
+
+import { AppError } from './errorHandler';
+
+export async function requireAgent(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new AppError(401, 'UNAUTHORIZED', 'Missing or invalid Authorization header');
+    }
+
+    const token = authHeader.substring(7);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const agent = await prisma.agent.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!agent || agent.revokedAt) {
+      throw new AppError(401, 'UNAUTHORIZED', 'Invalid or revoked agent token');
+    }
+
+    // Attach agent to request
+    (req as any).agent = agent;
+
+    // Update lastSeenAt asynchronously
+    prisma.agent
+      .update({
+        where: { id: agent.id },
+        data: { lastSeenAt: new Date() },
+      })
+      .catch((err) => {
+        console.error('Failed to update agent lastSeenAt', err);
+      });
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
