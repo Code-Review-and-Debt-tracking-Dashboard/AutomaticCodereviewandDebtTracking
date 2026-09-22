@@ -352,20 +352,3 @@ export async function getRepoPullRequestDetail(repoId: string, prNumber: number)
     snapshots,
   };
 }
-
-/** Enqueue a manual on-demand analysis job for a repository. */
-export async function triggerManualAnalysis(repoId: string, userId: string, role?: string) {
-    const repo = await getActiveRepo(repoId);
-
-    const job = await prisma.analysisJob.create({
-        data: {
-            repoId,
-            status: 'PENDING',
-            trigger: 'MANUAL',
-            branch: repo.defaultBranch,
-            commitSha: 'manual',
-        },
-    });
-
-    return { jobId: job.id, status: job.status, analysisId: job.id };
-}
