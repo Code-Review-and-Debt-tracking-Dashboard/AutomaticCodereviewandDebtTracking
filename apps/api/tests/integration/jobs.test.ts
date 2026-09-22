@@ -1,10 +1,25 @@
-import { prisma, type AnalysisJob, type Organization, type Repository } from '@codehealth/db';
-import type { AnalysisResultsPayload } from '@codehealth/shared';
+import {
+  prisma,
+  type AnalysisJob,
+  type NotificationType,
+  type Organization,
+  type Repository,
+  type User,
+} from '@codehealth/db';
+import type { AnalysisResultsPayload, SnapshotMetrics } from '@codehealth/shared';
 import crypto from 'crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { api } from '../helpers/app';
-import { createAnalysisJob, createOrg, createQualityGate, createRepo, createUser } from '../helpers/factories';
+import {
+  addRepoMember,
+  createAnalysisJob,
+  createOrg,
+  createQualityGate,
+  createRepo,
+  createSnapshot,
+  createUser,
+} from '../helpers/factories';
 
 // The API stores only the hash, so a test agent is a token plus its hash.
 async function createAgent(org: Organization, token: string, revoked = false) {
@@ -61,12 +76,13 @@ function results(analysisId: string, overrides: Partial<AnalysisResultsPayload> 
 
 describe('agent job endpoints', () => {
   let org: Organization;
+  let owner: User;
   let repo: Repository;
   let job: AnalysisJob;
   let auth: { authorization: string };
 
   beforeEach(async () => {
-    const owner = await createUser();
+    owner = await createUser();
     org = await createOrg();
     repo = await createRepo(org, owner);
     job = await createAnalysisJob(repo, { status: 'PENDING', commitSha: 'HEAD' });
@@ -167,6 +183,101 @@ describe('agent job endpoints', () => {
 
       const res = await api().post(`/jobs/${job.id}/results`).set(auth).send(payload);
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('notification creation', () => {
+    function metrics(overrides: Partial<SnapshotMetrics> = {}) {
+      return { ...results(job.id).metrics, ...overrides };
+    }
+
+    // The default payload fails the gate, so a test that wants a quiet run has
+    // to pass this in.
+    const quiet = () => ({ metrics: metrics({ gateResult: 'PASS' as const }), findings: [] });
+
+    function ingest(overrides: Partial<AnalysisResultsPayload> = {}) {
+      return api().post(`/jobs/${job.id}/results`).set(auth).send(results(job.id, overrides));
+    }
+
+    function rows(type?: NotificationType) {
+      return prisma.notification.findMany({
+        where: { repoId: repo.id, ...(type ? { type } : {}) },
+      });
+    }
+
+    it('tells the repo owner the gate failed', async () => {
+      await ingest();
+
+      const found = await rows('QUALITY_GATE_FAILED');
+      expect(found).toHaveLength(1);
+      expect(found[0].userId).toBe(owner.id);
+      expect(found[0].title).toContain(repo.name);
+      expect(found[0].snapshotId).not.toBeNull();
+      expect(found[0].readAt).toBeNull();
+      expect(found[0].data).toMatchObject({ gateResult: 'FAIL', healthScore: 71.5 });
+    });
+
+    it('says nothing about a run that passed the gate with no new criticals', async () => {
+      await ingest(quiet());
+      expect(await rows()).toHaveLength(0);
+    });
+
+    it('reports a drop of more than ten points since the last analysis', async () => {
+      await createSnapshot(repo, { healthScore: 90 });
+      await ingest({ ...quiet(), metrics: metrics({ gateResult: 'PASS', healthScore: 70 }) });
+
+      const found = await rows('SCORE_DROPPED');
+      expect(found).toHaveLength(1);
+      expect(found[0].body).toBe('Down 20 points, from 90 to 70.');
+    });
+
+    it('ignores a smaller drop', async () => {
+      await createSnapshot(repo, { healthScore: 75 });
+      await ingest({ ...quiet(), metrics: metrics({ gateResult: 'PASS', healthScore: 70 }) });
+
+      expect(await rows('SCORE_DROPPED')).toHaveLength(0);
+    });
+
+    it('has nothing to compare a first analysis against', async () => {
+      await ingest({ ...quiet(), metrics: metrics({ gateResult: 'PASS', healthScore: 10 }) });
+      expect(await rows('SCORE_DROPPED')).toHaveLength(0);
+    });
+
+    it('flags a new critical vulnerability', async () => {
+      const finding = { ...results(job.id).findings[0], state: 'NEW' as const };
+      await ingest({ ...quiet(), findings: [finding] });
+
+      const found = await rows('CRITICAL_FINDING');
+      expect(found).toHaveLength(1);
+      expect(found[0].body).toContain('detect-eval-with-expression');
+      expect(found[0].data).toMatchObject({ count: 1, file: 'src/auth.ts' });
+    });
+
+    it('leaves a critical vulnerability that was already there alone', async () => {
+      // The default finding is CRITICAL + VULNERABILITY but EXISTING.
+      await ingest({ metrics: metrics({ gateResult: 'PASS' }) });
+      expect(await rows('CRITICAL_FINDING')).toHaveLength(0);
+    });
+
+    it('notifies the owner and active members once each, and nobody else', async () => {
+      const member = await createUser();
+      const removed = await createUser();
+      await createUser(); // no membership at all
+      await addRepoMember(repo, member, 'DEVELOPER', 'ACTIVE');
+      await addRepoMember(repo, removed, 'DEVELOPER', 'REMOVED');
+      // the owner holding a member row too must not double up
+      await addRepoMember(repo, owner, 'TEAM_LEAD', 'ACTIVE');
+
+      await ingest();
+
+      const found = await rows('QUALITY_GATE_FAILED');
+      expect(found.map((n) => n.userId).sort()).toEqual([owner.id, member.id].sort());
+    });
+
+    it('does not notify twice when the same results arrive again', async () => {
+      await ingest();
+      await ingest();
+      expect(await rows()).toHaveLength(1);
     });
   });
 
