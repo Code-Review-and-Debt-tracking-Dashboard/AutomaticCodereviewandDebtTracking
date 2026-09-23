@@ -14,18 +14,31 @@ vi.mock("../../lib/apiClient", () => ({
 
 const mockedApi = vi.mocked(api);
 
-const mockDrilldownFindings = [
+const snapshotFindings = [
   {
     id: "FND-100",
     message: "Hardcoded API key detected",
-    category: "Security",
-    severity: "Critical",
+    category: "VULNERABILITY",
+    severity: "CRITICAL",
     file: "src/config.ts",
     line: 12,
-    state: "New",
-    tool: "Gitleaks",
+    rule: "security/detect-secret",
+    tool: "eslint",
+    isNew: true,
   },
 ];
+
+// the PR endpoint returns snapshots; findings come from the newest snapshot
+function mockApi(data = snapshotFindings) {
+  mockedApi.get.mockImplementation((url: string) => {
+    if (url.includes("/pulls/")) {
+      return Promise.resolve({
+        snapshots: [{ id: "snap-1", createdAt: "2026-09-23T09:00:00.000Z" }],
+      } as any);
+    }
+    return Promise.resolve({ data } as any);
+  });
+}
 
 function renderPage() {
   return render(
@@ -46,7 +59,7 @@ describe("PRFindingDrilldownPage", () => {
   });
 
   it("fetches and renders PR findings drilldown report", async () => {
-    mockedApi.get.mockResolvedValueOnce({ data: mockDrilldownFindings });
+    mockApi();
 
     renderPage();
 
@@ -57,7 +70,7 @@ describe("PRFindingDrilldownPage", () => {
   });
 
   it("filters findings by search query", async () => {
-    mockedApi.get.mockResolvedValueOnce({ data: mockDrilldownFindings });
+    mockApi();
     const user = userEvent.setup();
 
     renderPage();
@@ -70,5 +83,15 @@ describe("PRFindingDrilldownPage", () => {
     await user.type(searchInput, "nonexistent");
 
     expect(screen.getByText("No findings match your criteria")).toBeInTheDocument();
+  });
+
+  it("says the PR has not been analyzed instead of showing invented findings", async () => {
+    mockedApi.get.mockResolvedValue({ snapshots: [] } as any);
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/has not been analyzed yet/i)).toBeInTheDocument();
+    });
   });
 });
