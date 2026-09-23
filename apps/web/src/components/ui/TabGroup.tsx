@@ -1,13 +1,10 @@
-
-
 /*
  * =========================================================
- * TAB GROUP — Pill-style tab switcher
+ * TAB GROUP — Underlined tab switcher
  * =========================================================
  *
- * Renders a row of pill-shaped tabs with active state
- * and optional count badges. Used on the Notifications
- * page (All / Unread / Critical).
+ * A rule with the active tab marked underneath, rather
+ * than floating pills.
  */
 
 interface Tab {
@@ -30,13 +27,7 @@ export function TabGroup({
   className = "",
 }: TabGroupProps) {
   return (
-    <div
-      className={`
-        inline-flex items-center gap-1 rounded-xl
-        border border-border bg-card p-1
-        ${className}
-      `}
-    >
+    <div className={`flex items-center gap-5 border-b border-border ${className}`}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
 
@@ -46,13 +37,12 @@ export function TabGroup({
             type="button"
             onClick={() => onTabChange(tab.id)}
             className={`
-              inline-flex items-center gap-2 rounded-lg
-              px-3 py-2 text-xs font-semibold
-              transition-all duration-200
+              relative -mb-px inline-flex items-center gap-2 border-b-2 pb-2.5
+              text-[13px] transition-colors
               ${
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "border-primary font-medium text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }
             `}
           >
@@ -60,16 +50,9 @@ export function TabGroup({
 
             {tab.count !== undefined && (
               <span
-                className={`
-                  inline-flex h-5 min-w-5 items-center
-                  justify-center rounded-full px-1.5
-                  text-[10px] font-bold
-                  ${
-                    isActive
-                      ? "bg-primary-foreground/20 text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }
-                `}
+                className={`font-mono text-[11px] ${
+                  isActive ? "text-primary" : "text-muted-foreground"
+                }`}
               >
                 {tab.count}
               </span>

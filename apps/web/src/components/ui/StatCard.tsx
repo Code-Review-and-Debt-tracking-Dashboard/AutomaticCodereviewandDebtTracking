@@ -9,11 +9,9 @@ import { InfoHint } from "./InfoHint";
  * STAT CARD — Dashboard statistic card
  * =========================================================
  *
- * Reusable card for displaying a single KPI with icon,
- * title, value, change text, and trend direction.
- *
- * Used across Dashboard (4), Findings (4), Analytics (4),
- * and Pull Requests (3) pages.
+ * One KPI per card: a mono label, the figure set in
+ * tabular monospace so it never jitters, and the icon
+ * tucked into the corner as a quiet marker.
  */
 
 const colorClasses: Record<string, string> = {
@@ -52,7 +50,8 @@ export function StatCard({
   delay = 0,
   className = "",
 }: StatCardProps) {
-  const resolvedIconColor = iconColor || (color ? colorClasses[color] : colorClasses.primary);
+  const resolvedIconColor =
+    iconColor || (color ? colorClasses[color] : colorClasses.primary);
 
   const trendColor =
     trend === "up"
@@ -63,51 +62,48 @@ export function StatCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
+      transition={{ delay, duration: 0.3 }}
       className={`
-        group rounded-2xl border border-border bg-card p-5
-        transition hover:-translate-y-1 hover:border-primary/60
-        hover:shadow-xl
+        group relative overflow-hidden rounded-lg border border-border
+        bg-card px-5 py-4 transition-colors hover:border-primary/50
         ${className}
       `}
     >
-      {/* Icon */}
-      <div
+      {/* Corner marker */}
+      <span
         className={`
-          flex h-11 w-11 items-center justify-center rounded-xl
-          ${resolvedIconColor}
+          absolute right-4 top-4 flex h-7 w-7 items-center justify-center
+          rounded-sm ${resolvedIconColor}
         `}
       >
-        <Icon size={20} />
-      </div>
+        <Icon size={15} />
+      </span>
 
-      {/* Label */}
-      <p className="mt-5 flex items-center gap-1.5 text-sm text-muted-foreground">
+      <p className="eyebrow flex items-center gap-1.5 pr-10">
         {title}
         {help && <InfoHint text={help} />}
       </p>
 
-      {/* Value + Change */}
-      <div className="mt-1 flex items-end justify-between gap-2">
-        <p className="text-3xl font-bold tracking-tight">
+      <div className="mt-3 flex items-baseline gap-2.5">
+        <p className="font-mono text-[28px] font-semibold leading-none tracking-tight">
           {value}
         </p>
 
         {change && (
-          <div
-            className={`
-              flex items-center gap-1 text-xs font-medium
-              ${trendColor}
-            `}
+          <span
+            className={`flex items-center gap-0.5 font-mono text-[11px] ${trendColor}`}
           >
-            {trend === "up" && <ArrowUpRight size={14} />}
-            {trend === "down" && <ArrowDownRight size={14} />}
+            {trend === "up" && <ArrowUpRight size={12} />}
+            {trend === "down" && <ArrowDownRight size={12} />}
             {change}
-          </div>
+          </span>
         )}
       </div>
+
+      {/* Baseline trace that lights up on hover */}
+      <span className="absolute inset-x-0 bottom-0 h-px bg-primary/0 transition-colors group-hover:bg-primary/60" />
     </motion.div>
   );
 }

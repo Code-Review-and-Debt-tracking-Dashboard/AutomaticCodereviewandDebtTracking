@@ -2,12 +2,11 @@ import type { ComponentType } from "react";
 
 /*
  * =========================================================
- * ICON BOX — Colored icon container
+ * ICON BOX — Tinted icon container
  * =========================================================
  *
- * Replaces the repeated pattern of a colored rounded
- * container holding a Lucide icon. Supports color variants
- * matching the design token palette.
+ * Squared tile holding a single icon, tinted to match the
+ * design token palette.
  */
 
 const colorClasses: Record<string, string> = {
@@ -21,9 +20,9 @@ const colorClasses: Record<string, string> = {
 };
 
 const sizeClasses: Record<string, { box: string; icon: number }> = {
-  sm: { box: "h-9 w-9 rounded-lg", icon: 16 },
-  md: { box: "h-11 w-11 rounded-xl", icon: 20 },
-  lg: { box: "h-12 w-12 rounded-xl", icon: 22 },
+  sm: { box: "h-8 w-8 rounded-sm", icon: 16 },
+  md: { box: "h-9 w-9 rounded-sm", icon: 18 },
+  lg: { box: "h-11 w-11 rounded-md", icon: 20 },
 };
 
 interface IconBoxProps {
