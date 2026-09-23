@@ -1,12 +1,10 @@
-import { Loader2 } from "lucide-react";
-
 interface LoadingStateProps {
   message?: string;
   className?: string;
 }
 
-/**
- * Step 59 (D-17): Loading state component across web pages
+/*
+ * Waiting state — three ticks drifting like a live readout.
  */
 export function LoadingState({
   message = "Loading data...",
@@ -15,14 +13,23 @@ export function LoadingState({
   return (
     <div
       className={`
-        flex flex-col items-center justify-center gap-3
-        rounded-2xl border border-border/70 bg-card/60
-        p-12 text-center backdrop-blur-sm
+        flex flex-col items-center justify-center gap-4
+        rounded-lg border border-border bg-card
+        px-6 py-14 text-center
         ${className}
       `}
     >
-      <Loader2 size={28} className="animate-spin text-primary" />
-      <p className="text-sm font-medium text-muted-foreground">{message}</p>
+      <span className="flex items-end gap-1">
+        {[0, 1, 2].map((index) => (
+          <span
+            key={index}
+            className="h-4 w-[3px] animate-pulse-soft bg-primary"
+            style={{ animationDelay: `${index * 0.18}s` }}
+          />
+        ))}
+      </span>
+
+      <p className="font-mono text-xs text-muted-foreground">{message}</p>
     </div>
   );
 }

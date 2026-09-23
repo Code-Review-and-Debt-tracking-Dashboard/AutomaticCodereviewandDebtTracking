@@ -30,13 +30,13 @@ export function BackLink({
       type="button"
       onClick={() => navigate(to)}
       className={`
-        mb-5 inline-flex items-center gap-2
-        text-sm text-muted-foreground
+        mb-4 inline-flex items-center gap-1.5
+        font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground
         transition-colors hover:text-foreground
         ${className}
       `}
     >
-      <ChevronLeft size={16} />
+      <ChevronLeft size={13} />
       {label}
     </button>
   );

@@ -1,4 +1,6 @@
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+
+import { AlertIcon } from "../icons";
 import { Button } from "./Button";
 
 interface ErrorStateProps {
@@ -8,9 +10,6 @@ interface ErrorStateProps {
   className?: string;
 }
 
-/**
- * Step 59 (D-17): Error state component across web pages
- */
 export function ErrorState({
   title = "Failed to load data",
   message = "An error occurred while fetching information. Please try again.",
@@ -21,26 +20,23 @@ export function ErrorState({
     <div
       className={`
         flex flex-col items-center justify-center gap-3
-        rounded-2xl border border-destructive/20 bg-destructive/5
-        p-12 text-center
+        rounded-lg border border-destructive/30 bg-destructive/5
+        px-6 py-12 text-center
         ${className}
       `}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
-        <AlertTriangle size={24} />
+      <AlertIcon size={24} className="text-destructive" />
+
+      <div>
+        <h3 className="font-display text-[15px] font-semibold">{title}</h3>
+        <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-muted-foreground">
+          {message}
+        </p>
       </div>
 
-      <h3 className="text-base font-semibold text-foreground">{title}</h3>
-      <p className="max-w-md text-xs text-muted-foreground">{message}</p>
-
       {onRetry && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onRetry}
-          className="mt-2 gap-2"
-        >
-          <RefreshCw size={14} />
+        <Button variant="secondary" size="sm" onClick={onRetry} className="mt-1">
+          <RefreshCw size={13} />
           Retry
         </Button>
       )}
