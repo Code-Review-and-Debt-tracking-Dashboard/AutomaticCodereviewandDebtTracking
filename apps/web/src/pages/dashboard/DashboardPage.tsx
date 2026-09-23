@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -7,6 +7,7 @@ import {
   Code2,
   ExternalLink,
   GitPullRequest,
+  Loader2,
   Plus,
   Search,
   ShieldAlert,
@@ -44,121 +45,103 @@ import {
   Select,
 } from "../../components/ui";
 
-
-/* =========================================================
-   HEALTH TREND DATA
-========================================================= */
-
-const healthTrend = [
-  { name: "Mon", score: 68 },
-  { name: "Tue", score: 71 },
-  { name: "Wed", score: 70 },
-  { name: "Thu", score: 76 },
-  { name: "Fri", score: 79 },
-  { name: "Sat", score: 82 },
-  { name: "Sun", score: 86 },
-];
+import { useAuth } from "../../contexts/AuthContext";
+import { useOrg } from "../../contexts/OrgContext";
+import { api } from "../../lib/apiClient";
 
 
 /* =========================================================
-   REPOSITORY DATA
+   API SHAPES
 ========================================================= */
 
-const repositories = [
-  {
-    name: "AutomaticCodeReview",
-    language: "TypeScript",
-    score: 86,
-    findings: 24,
-    debt: "4h 20m",
-    status: "Healthy",
-  },
-  {
-    name: "MobileDashboard",
-    language: "TypeScript",
-    score: 74,
-    findings: 47,
-    debt: "8h 45m",
-    status: "Needs attention",
-  },
-  {
-    name: "AnalysisWorker",
-    language: "Python",
-    score: 91,
-    findings: 12,
-    debt: "2h 10m",
-    status: "Excellent",
-  },
-];
+// health/findings/debt are null until the repo has been analysed
+interface ApiRepository {
+  id: string;
+  name: string;
+  fullName: string;
+  language: string | null;
+  healthScore: number | null;
+  openFindings: number | null;
+  debtMinutes: number | null;
+  lastAnalyzedAt: string | null;
+}
+
+interface ApiTrendPoint {
+  date: string;
+  healthScore: number;
+}
+
+interface ApiNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  createdAt: string;
+  repository: { id: string; name: string; fullName: string } | null;
+}
+
+interface DashboardRepo {
+  id: string;
+  name: string;
+  language: string;
+  score: number | null;
+  findings: number | null;
+  debtMinutes: number | null;
+  debt: string;
+  status: string;
+}
+
+function debtLabel(minutes: number | null): string {
+  if (minutes === null) return "—";
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+}
+
+function repoStatus(score: number | null): string {
+  if (score === null) return "Not analyzed";
+  if (score >= 85) return "Excellent";
+  if (score < 70) return "Needs attention";
+  return "Healthy";
+}
+
+// bucket every repo's snapshots by day, then average each day across repos
+function averageByDay(series: ApiTrendPoint[][]): { name: string; score: number }[] {
+  const byDay = new Map<string, number[]>();
+
+  for (const points of series) {
+    for (const point of points) {
+      const day = point.date.slice(0, 10);
+      const scores = byDay.get(day) ?? [];
+      scores.push(point.healthScore);
+      byDay.set(day, scores);
+    }
+  }
+
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, scores]) => ({
+      name: new Date(day).toLocaleDateString(undefined, { weekday: "short" }),
+      score: Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)),
+    }));
+}
+
+const ACTIVITY_ICON: Record<string, { icon: typeof CheckCircle2; color: string }> = {
+  ANALYSIS_COMPLETE: { icon: CheckCircle2, color: "text-success bg-success/10" },
+  PR_ANALYZED: { icon: GitPullRequest, color: "text-info bg-info/10" },
+  QUALITY_GATE_FAILED: { icon: ShieldAlert, color: "text-warning bg-warning/10" },
+};
+
+function relativeTime(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return `${Math.round(hrs / 24)} d ago`;
+}
 
 
-/* =========================================================
-   DASHBOARD STATISTICS
-========================================================= */
-
-const stats = [
-  {
-    title: "Repositories",
-    value: "12",
-    change: "+2 this month",
-    trend: "up" as const,
-    icon: Code2,
-    iconColor: "bg-primary/10 text-primary",
-  },
-  {
-    title: "Average Health",
-    value: "84.6",
-    change: "+8.2% this week",
-    trend: "up" as const,
-    icon: TrendingUp,
-    iconColor: "bg-success/10 text-success",
-  },
-  {
-    title: "Open Findings",
-    value: "183",
-    change: "-24 this week",
-    trend: "down" as const,
-    icon: ShieldAlert,
-    iconColor: "bg-warning/10 text-warning",
-  },
-  {
-    title: "Technical Debt",
-    value: "42h",
-    change: "-6h this week",
-    trend: "down" as const,
-    icon: Wrench,
-    iconColor: "bg-info/10 text-info",
-  },
-];
-
-
-/* =========================================================
-   RECENT ACTIVITY
-========================================================= */
-
-const recentActivity = [
-  {
-    icon: CheckCircle2,
-    title: "Analysis completed",
-    description: "AutomaticCodeReview passed quality analysis",
-    time: "8 min ago",
-    iconColor: "text-success bg-success/10",
-  },
-  {
-    icon: GitPullRequest,
-    title: "Pull request analyzed",
-    description: "PR #42 introduced 3 new findings",
-    time: "32 min ago",
-    iconColor: "text-info bg-info/10",
-  },
-  {
-    icon: ShieldAlert,
-    title: "Security finding detected",
-    description: "MobileDashboard flagged a new high severity issue",
-    time: "1 hr ago",
-    iconColor: "text-warning bg-warning/10",
-  },
-];
 
 
 /* =========================================================
@@ -168,12 +151,120 @@ const recentActivity = [
 export function DashboardPage() {
 
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { selectedOrg } = useOrg();
+
+  const [repositories, setRepositories] = useState<DashboardRepo[]>([]);
+  const [healthTrend, setHealthTrend] = useState<{ name: string; score: number }[]>([]);
+  const [recentActivity, setRecentActivity] = useState<ApiNotification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   /* Search + Filter State */
   const [searchQuery, setSearchQuery] = useState("");
   const [languageFilter, setLanguageFilter] = useState("All");
   const [scoreFilter, setScoreFilter] = useState("All");
 
+  const fetchDashboard = useCallback(async () => {
+    if (!selectedOrg) {
+      setRepositories([]);
+      setHealthTrend([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<{ data: ApiRepository[] }>(
+        `/api/orgs/${selectedOrg.id}/repos`
+      );
+      const apiList = res.data || [];
+
+      setRepositories(
+        apiList.map((item) => ({
+          id: item.id,
+          name: item.name,
+          language: item.language || "Unknown",
+          score: item.healthScore,
+          findings: item.openFindings,
+          debtMinutes: item.debtMinutes,
+          debt: debtLabel(item.debtMinutes),
+          status: repoStatus(item.healthScore),
+        }))
+      );
+
+      // one trend call per repo — no org-wide trend endpoint exists
+      const trends = await Promise.all(
+        apiList.map((item) =>
+          api
+            .get<{ dataPoints: ApiTrendPoint[] }>(`/api/repos/${item.id}/trend`, { days: 7 })
+            .then((t) => t.dataPoints || [])
+            .catch(() => [] as ApiTrendPoint[])
+        )
+      );
+      setHealthTrend(averageByDay(trends));
+
+      const notifications = await api
+        .get<{ data: ApiNotification[] }>("/api/notifications")
+        .then((n) => n.data || [])
+        .catch(() => [] as ApiNotification[]);
+      setRecentActivity(notifications.slice(0, 3));
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message || "Failed to load dashboard for this organization."
+      );
+      setRepositories([]);
+      setHealthTrend([]);
+      setRecentActivity([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedOrg]);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  /* Stat cards — averages skip repos that have never been analysed */
+  const stats = useMemo(() => {
+    const scored = repositories.filter((r) => r.score !== null);
+    const avgHealth =
+      scored.length > 0
+        ? (scored.reduce((acc, r) => acc + (r.score ?? 0), 0) / scored.length).toFixed(1)
+        : "—";
+    const totalFindings = repositories.reduce((acc, r) => acc + (r.findings ?? 0), 0);
+    const totalDebtMinutes = repositories.reduce((acc, r) => acc + (r.debtMinutes ?? 0), 0);
+
+    return [
+      {
+        title: "Repositories",
+        value: String(repositories.length),
+        icon: Code2,
+        iconColor: "bg-primary/10 text-primary",
+      },
+      {
+        title: "Average Health",
+        value: avgHealth,
+        icon: TrendingUp,
+        iconColor: "bg-success/10 text-success",
+      },
+      {
+        title: "Open Findings",
+        value: String(totalFindings),
+        icon: ShieldAlert,
+        iconColor: "bg-warning/10 text-warning",
+      },
+      {
+        title: "Technical Debt",
+        value: debtLabel(totalDebtMinutes),
+        icon: Wrench,
+        iconColor: "bg-info/10 text-info",
+      },
+    ];
+  }, [repositories]);
+
+  const latestTrendScore = healthTrend.length > 0 ? healthTrend[healthTrend.length - 1].score : null;
 
   /* Filter Repositories */
   const filteredRepositories = useMemo(() => {
@@ -187,12 +278,20 @@ export function DashboardPage() {
 
       const matchesScore =
         scoreFilter === "All" ||
-        (scoreFilter === "Excellent" && repo.score >= 85) ||
-        (scoreFilter === "Needs attention" && repo.score < 85);
+        (scoreFilter === "Excellent" && (repo.score ?? 0) >= 85) ||
+        (scoreFilter === "Needs attention" && (repo.score ?? 0) < 85);
 
       return matchesSearch && matchesLanguage && matchesScore;
     });
-  }, [searchQuery, languageFilter, scoreFilter]);
+  }, [repositories, searchQuery, languageFilter, scoreFilter]);
+
+  const languageOptions = useMemo(() => {
+    const langs = [...new Set(repositories.map((r) => r.language))].sort();
+    return [
+      { label: "All Languages", value: "All" },
+      ...langs.map((l) => ({ label: l, value: l })),
+    ];
+  }, [repositories]);
 
 
   return (
@@ -211,7 +310,7 @@ export function DashboardPage() {
             </PageHeaderBadge>
 
             <PageHeaderTitle>
-              Good evening, Nethmi
+              {user ? `Welcome back, ${user.username}` : "Welcome back"}
             </PageHeaderTitle>
 
             <PageHeaderDescription>
@@ -238,8 +337,6 @@ export function DashboardPage() {
               key={stat.title}
               title={stat.title}
               value={stat.value}
-              change={stat.change}
-              trend={stat.trend}
               icon={stat.icon}
               iconColor={stat.iconColor}
               delay={index * 0.08}
@@ -268,14 +365,25 @@ export function DashboardPage() {
                     Average repository health over the last 7 days
                   </CardDescription>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold">86</p>
-                  <p className="text-xs text-success">+18 points</p>
-                </div>
+                {latestTrendScore !== null && (
+                  <div className="text-right">
+                    <p className="text-2xl font-bold">{latestTrendScore}</p>
+                  </div>
+                )}
               </CardHeader>
 
               <CardContent>
                 <div className="h-[280px] w-full">
+                  {healthTrend.length === 0 ? (
+                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-center">
+                      <div>
+                        <p className="text-sm font-medium">No analysis history yet</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          The trend appears once a repository has been analyzed.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={healthTrend}>
                       <defs>
@@ -323,6 +431,7 @@ export function DashboardPage() {
                       />
                     </AreaChart>
                   </ResponsiveContainer>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -351,31 +460,38 @@ export function DashboardPage() {
 
               <CardContent>
                 <div className="space-y-5">
-                  {recentActivity.map((activity) => {
-                    const Icon = activity.icon;
+                  {recentActivity.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No activity yet.</p>
+                  ) : (
+                    recentActivity.map((activity) => {
+                      const style = ACTIVITY_ICON[activity.type] ?? {
+                        icon: CheckCircle2,
+                        color: "text-muted-foreground bg-muted",
+                      };
 
-                    return (
-                      <div key={activity.title} className="flex gap-3">
-                        <IconBox
-                          icon={Icon}
-                          size="sm"
-                          className={activity.iconColor}
-                        />
+                      return (
+                        <div key={activity.id} className="flex gap-3">
+                          <IconBox
+                            icon={style.icon}
+                            size="sm"
+                            className={style.color}
+                          />
 
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">
-                            {activity.title}
-                          </p>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">
-                            {activity.description}
-                          </p>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {activity.time}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">
+                              {activity.title}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {activity.body || activity.repository?.fullName || ""}
+                            </p>
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {relativeTime(activity.createdAt)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -419,11 +535,7 @@ export function DashboardPage() {
                 <Select
                   value={languageFilter}
                   onChange={setLanguageFilter}
-                  options={[
-                    { label: "All Languages", value: "All" },
-                    { label: "TypeScript", value: "TypeScript" },
-                    { label: "Python", value: "Python" },
-                  ]}
+                  options={languageOptions}
                 />
                 <Select
                   value={scoreFilter}
@@ -443,10 +555,21 @@ export function DashboardPage() {
 
               {/* Repository Rows */}
               <div className="grid gap-3">
-                {filteredRepositories.length > 0 ? (
+                {isLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="animate-spin text-muted-foreground" size={22} />
+                  </div>
+                ) : error ? (
+                  <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center">
+                    <p className="text-sm font-medium text-destructive">{error}</p>
+                    <Button size="sm" className="mt-3" onClick={fetchDashboard}>
+                      Retry
+                    </Button>
+                  </div>
+                ) : filteredRepositories.length > 0 ? (
                   filteredRepositories.map((repo) => (
                     <div
-                      key={repo.name}
+                      key={repo.id}
                       className="
                         group flex flex-col gap-4 rounded-xl border-2
                         border-border p-4 transition
@@ -473,8 +596,8 @@ export function DashboardPage() {
                           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                             Health
                           </p>
-                          <p className={`mt-1 text-lg font-bold ${repo.score >= 85 ? "text-success" : "text-warning"}`}>
-                            {repo.score}
+                          <p className={`mt-1 text-lg font-bold ${repo.score === null ? "text-muted-foreground" : repo.score >= 85 ? "text-success" : "text-warning"}`}>
+                            {repo.score ?? "—"}
                           </p>
                         </div>
 
@@ -483,7 +606,7 @@ export function DashboardPage() {
                             Findings
                           </p>
                           <p className="mt-1 text-sm font-semibold">
-                            {repo.findings}
+                            {repo.findings ?? "—"}
                           </p>
                         </div>
 
@@ -497,7 +620,7 @@ export function DashboardPage() {
                         </div>
 
                         <Badge
-                          variant={repo.score >= 85 ? "success" : "warning"}
+                          variant={repo.score === null ? "muted" : repo.score >= 85 ? "success" : "warning"}
                           size="md"
                         >
                           {repo.status}
@@ -520,10 +643,12 @@ export function DashboardPage() {
                 ) : (
                   <div className="rounded-xl border border-dashed border-border p-8 text-center">
                     <p className="text-sm font-medium">
-                      No repositories found
+                      {repositories.length === 0 ? "No repositories linked yet" : "No repositories found"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Try changing your search or filters.
+                      {repositories.length === 0
+                        ? "Link a repository to start tracking its health."
+                        : "Try changing your search or filters."}
                     </p>
                   </div>
                 )}
