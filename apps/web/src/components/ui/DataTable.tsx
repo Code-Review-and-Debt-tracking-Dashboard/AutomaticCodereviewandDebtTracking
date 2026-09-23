@@ -5,9 +5,8 @@ import type { ReactNode } from "react";
  * DATA TABLE — Styled table with headers and rows
  * =========================================================
  *
- * Provides a consistent table layout with headers,
- * hover rows, and dividers. Used on Analytics
- * (Repository Overview) and Findings list pages.
+ * Hairline dividers and mono column headers so long lists
+ * of findings stay scannable.
  */
 
 /* ---------- Table Root ---------- */
@@ -21,9 +20,7 @@ interface TableProps {
 export function DataTable({ children, className = "" }: TableProps) {
   return (
     <div className={`overflow-x-auto ${className}`}>
-      <table className="w-full text-sm">
-        {children}
-      </table>
+      <table className="w-full text-[13px]">{children}</table>
     </div>
   );
 }
@@ -35,9 +32,8 @@ export function DataTableHead({ children, className = "" }: TableProps) {
     <thead>
       <tr
         className={`
-          border-b border-border/60 text-left text-xs
-          font-semibold uppercase tracking-wider
-          text-muted-foreground
+          border-b border-border text-left font-mono text-[10px]
+          uppercase tracking-[0.12em] text-muted-foreground
           ${className}
         `}
       >
@@ -51,7 +47,7 @@ export function DataTableHead({ children, className = "" }: TableProps) {
 
 export function DataTableBody({ children, className = "" }: TableProps) {
   return (
-    <tbody className={`divide-y divide-border/50 ${className}`}>
+    <tbody className={`divide-y divide-border/60 ${className}`}>
       {children}
     </tbody>
   );
@@ -64,7 +60,7 @@ export function DataTableRow({ children, className = "", onClick }: TableProps) 
     <tr
       onClick={onClick}
       className={`
-        transition-colors hover:bg-muted/30
+        transition-colors hover:bg-accent/40
         ${onClick ? "cursor-pointer" : ""}
         ${className}
       `}
@@ -83,6 +79,14 @@ interface CellProps {
   colSpan?: number;
 }
 
+function alignClass(align: CellProps["align"]) {
+  return align === "right"
+    ? "text-right"
+    : align === "center"
+      ? "text-center"
+      : "text-left";
+}
+
 export function DataTableHeaderCell({
   children,
   className = "",
@@ -92,11 +96,7 @@ export function DataTableHeaderCell({
   return (
     <th
       colSpan={colSpan}
-      className={`
-        px-4 py-3
-        ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"}
-        ${className}
-      `}
+      className={`px-4 py-2.5 font-medium ${alignClass(align)} ${className}`}
     >
       {children}
     </th>
@@ -114,11 +114,7 @@ export function DataTableCell({
   return (
     <td
       colSpan={colSpan}
-      className={`
-        px-4 py-4
-        ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"}
-        ${className}
-      `}
+      className={`px-4 py-3 ${alignClass(align)} ${className}`}
     >
       {children}
     </td>

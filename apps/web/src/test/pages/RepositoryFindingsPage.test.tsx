@@ -57,9 +57,9 @@ function mockApi(data = findings) {
   });
 }
 
-function renderPage() {
+function renderPage(url = "/repositories/repo-1/findings") {
   return render(
-    <MemoryRouter initialEntries={["/repositories/repo-1/findings"]}>
+    <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="/repositories/:repoId/findings" element={<RepositoryFindingsPage />} />
       </Routes>
@@ -92,6 +92,13 @@ describe("RepositoryFindingsPage", () => {
 
     expect(screen.queryByText("eval with expression detected")).not.toBeInTheDocument();
     expect(screen.getByText("Unused variable detected")).toBeInTheDocument();
+  });
+
+  it("shows only one file's findings when opened from a hotspot", async () => {
+    renderPage("/repositories/repo-1/findings?file=src%2Fusers.js");
+
+    expect(await screen.findByText("Unused variable detected")).toBeInTheDocument();
+    expect(screen.queryByText("eval with expression detected")).not.toBeInTheDocument();
   });
 
   it("says so when the analysis found nothing, rather than showing invented findings", async () => {

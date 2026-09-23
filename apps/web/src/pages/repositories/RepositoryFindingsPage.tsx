@@ -8,7 +8,14 @@ import {
   ShieldAlert,
   Wrench,
 } from "lucide-react";
-import { useParams } from "react-router-dom";
+
+import {
+  AlertIcon,
+  FindingsIcon,
+  HotspotIcon,
+  RepositoriesIcon,
+} from "../../components/icons";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
@@ -83,8 +90,10 @@ const categoryIcons: Record<string, React.ElementType> = {
 
 export function RepositoryFindingsPage() {
   const { repoId } = useParams();
+  const [searchParams] = useSearchParams();
 
-  const [search, setSearch] = useState("");
+  // hotspot rows link here with ?file= so only that file shows
+  const [search, setSearch] = useState(searchParams.get("file") ?? "");
   const [severity, setSeverity] = useState("All");
   const [result, setResult] = useState<FindingsResponse | null>(null);
   const [repoName, setRepoName] = useState("");
@@ -138,174 +147,172 @@ export function RepositoryFindingsPage() {
   const summary = result?.summary;
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
+    <>
 
-        <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
+      <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
 
-        <PageHeader>
-          <div>
-            <PageHeaderBadge className="border-danger/20 bg-danger/10 text-danger">
-              <ShieldAlert size={13} />
-              Code quality findings
-            </PageHeaderBadge>
+      <PageHeader>
+        <div>
+          <PageHeaderBadge>
+            <ShieldAlert size={13} />
+            Code quality findings
+          </PageHeaderBadge>
 
-            <PageHeaderTitle>Findings</PageHeaderTitle>
+          <PageHeaderTitle>Findings</PageHeaderTitle>
 
-            <PageHeaderDescription>
-              Review and manage detected code quality, security, and maintainability issues.
-            </PageHeaderDescription>
-          </div>
+          <PageHeaderDescription>
+            Review and manage detected code quality, security, and maintainability issues.
+          </PageHeaderDescription>
+        </div>
 
-          <div className="rounded-2xl border border-border/70 bg-card px-5 py-4">
-            <p className="text-xs text-muted-foreground">Repository</p>
-            <p className="mt-1 font-semibold">{repoName || "—"}</p>
-          </div>
-        </PageHeader>
+        <div className="rounded-2xl border border-border/70 bg-card px-5 py-4">
+          <p className="text-xs text-muted-foreground">Repository</p>
+          <p className="mt-1 font-semibold">{repoName || "—"}</p>
+        </div>
+      </PageHeader>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            title="Total Findings"
-            value={String(summary?.total ?? 0)}
-            help={METRIC_HELP.openFindings}
-            icon={ShieldAlert}
-            color="danger"
-          />
-          <StatCard
-            title="Critical"
-            value={String(summary?.bySeverity?.critical ?? 0)}
-            help="The most serious problems found. These should be dealt with first."
-            icon={AlertTriangle}
-            color="danger"
-          />
-          <StatCard
-            title="High Severity"
-            value={String(summary?.bySeverity?.high ?? 0)}
-            help="Serious problems, though less urgent than critical ones."
-            icon={Bug}
-            color="warning"
-          />
-          <StatCard
-            title="New in this analysis"
-            value={String(summary?.new ?? 0)}
-            help="Problems that were not present in the previous analysis of this repository."
-            icon={Code2}
-            color="info"
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Total Findings"
+          value={String(summary?.total ?? 0)}
+          help={METRIC_HELP.openFindings}
+          icon={FindingsIcon}
+          color="danger"
+        />
+        <StatCard
+          title="Critical"
+          value={String(summary?.bySeverity?.critical ?? 0)}
+          help="The most serious problems found. These should be dealt with first."
+          icon={AlertIcon}
+          color="danger"
+        />
+        <StatCard
+          title="High Severity"
+          value={String(summary?.bySeverity?.high ?? 0)}
+          help="Serious problems, though less urgent than critical ones."
+          icon={HotspotIcon}
+          color="warning"
+        />
+        <StatCard
+          title="New in this analysis"
+          value={String(summary?.new ?? 0)}
+          help="Problems that were not present in the previous analysis of this repository."
+          icon={RepositoriesIcon}
+          color="info"
+        />
+      </div>
+
+      <Card className="mt-6">
+        <div className="border-b border-border/70 p-5">
+          <FilterBar
+            searchPlaceholder="Search findings..."
+            searchValue={search}
+            onSearchChange={setSearch}
+            filters={[
+              {
+                value: severity,
+                onChange: setSeverity,
+                options: ["All", "Critical", "High", "Medium", "Low"],
+              },
+            ]}
           />
         </div>
 
-        <Card className="mt-6">
-          <div className="border-b border-border/70 p-5">
-            <FilterBar
-              searchPlaceholder="Search findings..."
-              searchValue={search}
-              onSearchChange={setSearch}
-              filters={[
-                {
-                  value: severity,
-                  onChange: setSeverity,
-                  options: ["All", "Critical", "High", "Medium", "Low"],
-                },
-              ]}
-            />
-          </div>
+        <DataTable>
+          <DataTableHead>
+            <DataTableRow>
+              <DataTableHeaderCell>Finding</DataTableHeaderCell>
+              <DataTableHeaderCell>Category</DataTableHeaderCell>
+              <DataTableHeaderCell>Severity</DataTableHeaderCell>
+              <DataTableHeaderCell>Location</DataTableHeaderCell>
+              <DataTableHeaderCell>Tool</DataTableHeaderCell>
+              <DataTableHeaderCell>Status</DataTableHeaderCell>
+            </DataTableRow>
+          </DataTableHead>
+          <DataTableBody>
+            {filteredFindings.map((finding) => {
+              const category = titleCase(finding.category);
+              const sev = titleCase(finding.severity);
+              const CategoryIcon = categoryIcons[category] ?? Code2;
 
-          <DataTable>
-            <DataTableHead>
-              <DataTableRow>
-                <DataTableHeaderCell>Finding</DataTableHeaderCell>
-                <DataTableHeaderCell>Category</DataTableHeaderCell>
-                <DataTableHeaderCell>Severity</DataTableHeaderCell>
-                <DataTableHeaderCell>Location</DataTableHeaderCell>
-                <DataTableHeaderCell>Tool</DataTableHeaderCell>
-                <DataTableHeaderCell>Status</DataTableHeaderCell>
-              </DataTableRow>
-            </DataTableHead>
-            <DataTableBody>
-              {filteredFindings.map((finding) => {
-                const category = titleCase(finding.category);
-                const sev = titleCase(finding.severity);
-                const CategoryIcon = categoryIcons[category] ?? Code2;
+              return (
+                <DataTableRow key={finding.id} className="hover:bg-muted/30">
+                  <DataTableCell>
+                    <div>
+                      <p className="max-w-[360px] font-medium">{finding.message}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{finding.rule}</p>
+                    </div>
+                  </DataTableCell>
 
-                return (
-                  <DataTableRow key={finding.id} className="hover:bg-muted/30">
-                    <DataTableCell>
-                      <div>
-                        <p className="max-w-[360px] font-medium">{finding.message}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{finding.rule}</p>
-                      </div>
-                    </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CategoryIcon size={15} className="text-primary" />
+                      {category}
+                    </div>
+                  </DataTableCell>
 
-                    <DataTableCell>
-                      <div className="flex items-center gap-2 text-sm">
-                        <CategoryIcon size={15} className="text-primary" />
-                        {category}
-                      </div>
-                    </DataTableCell>
+                  <DataTableCell>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                        severityStyles[sev] ?? severityStyles.Low
+                      }`}
+                    >
+                      {sev}
+                    </span>
+                  </DataTableCell>
 
-                    <DataTableCell>
-                      <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                          severityStyles[sev] ?? severityStyles.Low
-                        }`}
-                      >
-                        {sev}
-                      </span>
-                    </DataTableCell>
+                  <DataTableCell>
+                    <p className="font-mono text-xs">{finding.file ?? "—"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {finding.line !== null ? `Line ${finding.line}` : ""}
+                    </p>
+                  </DataTableCell>
 
-                    <DataTableCell>
-                      <p className="font-mono text-xs">{finding.file ?? "—"}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {finding.line !== null ? `Line ${finding.line}` : ""}
-                      </p>
-                    </DataTableCell>
+                  <DataTableCell>
+                    <span className="text-sm text-muted-foreground">
+                      {finding.tool}
+                    </span>
+                  </DataTableCell>
 
-                    <DataTableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {finding.tool}
-                      </span>
-                    </DataTableCell>
-
-                    <DataTableCell>
-                      <Badge
-                        variant="muted"
-                        className={
-                          finding.isNew
-                            ? "bg-warning/10 text-warning"
-                            : "bg-muted text-muted-foreground"
-                        }
-                      >
-                        {finding.isNew ? "New" : "Carried over"}
-                      </Badge>
-                    </DataTableCell>
-                  </DataTableRow>
-                );
-              })}
-              
-              {filteredFindings.length === 0 && (
-                <DataTableRow>
-                  <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    {isLoading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 size={16} className="animate-spin" />
-                        Loading findings…
-                      </span>
-                    ) : error ? (
-                      <span className="text-destructive">{error}</span>
-                    ) : !result ? (
-                      "This repository has not been analyzed yet."
-                    ) : findings.length === 0 ? (
-                      "No findings — this analysis came back clean."
-                    ) : (
-                      "No findings match your search."
-                    )}
+                  <DataTableCell>
+                    <Badge
+                      variant="muted"
+                      className={
+                        finding.isNew
+                          ? "bg-warning/10 text-warning"
+                          : "bg-muted text-muted-foreground"
+                      }
+                    >
+                      {finding.isNew ? "New" : "Carried over"}
+                    </Badge>
                   </DataTableCell>
                 </DataTableRow>
-              )}
-            </DataTableBody>
-          </DataTable>
-        </Card>
-      </div>
-    </main>
+              );
+            })}
+            
+            {filteredFindings.length === 0 && (
+              <DataTableRow>
+                <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                  {isLoading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 size={16} className="animate-spin" />
+                      Loading findings…
+                    </span>
+                  ) : error ? (
+                    <span className="text-destructive">{error}</span>
+                  ) : !result ? (
+                    "This repository has not been analyzed yet."
+                  ) : findings.length === 0 ? (
+                    "No findings — this analysis came back clean."
+                  ) : (
+                    "No findings match your search."
+                  )}
+                </DataTableCell>
+              </DataTableRow>
+            )}
+          </DataTableBody>
+        </DataTable>
+      </Card>
+    </>
   );
 }

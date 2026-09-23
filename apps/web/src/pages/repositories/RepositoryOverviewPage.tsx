@@ -1,24 +1,16 @@
 
 import {
-  AlertTriangle,
+  ArrowRight,
   Calendar,
-  CheckCircle2,
-  Clock3,
   Code2,
   ExternalLink,
   GitBranch,
-  GitPullRequest,
-  ShieldAlert,
-  Sparkles,
-  TrendingUp,
-  Wrench,
 } from "lucide-react";
 import {
   Area,
   AreaChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -26,6 +18,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+import {
+  AlertIcon,
+  CheckIcon,
+  DebtIcon,
+  FindingsIcon,
+  HealthIcon,
+  PullRequestIcon,
+  TrendIcon,
+} from "../../components/icons";
+
+import { CHART_TICK, CHART_TOOLTIP } from "../../lib/chartStyle";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HotspotTable, type HotspotFile } from "../../components/hotspots/HotspotTable";
@@ -74,10 +78,10 @@ interface ApiNotification {
   repository: { id: string } | null;
 }
 
-const ACTIVITY_ICON: Record<string, { icon: typeof CheckCircle2; iconClass: string }> = {
-  ANALYSIS_COMPLETE: { icon: CheckCircle2, iconClass: "bg-success/10 text-success" },
-  PR_ANALYZED: { icon: GitPullRequest, iconClass: "bg-info/10 text-info" },
-  QUALITY_GATE_FAILED: { icon: ShieldAlert, iconClass: "bg-danger/10 text-danger" },
+const ACTIVITY_ICON: Record<string, { icon: typeof CheckIcon; iconClass: string }> = {
+  ANALYSIS_COMPLETE: { icon: CheckIcon, iconClass: "bg-success/10 text-success" },
+  PR_ANALYZED: { icon: PullRequestIcon, iconClass: "bg-info/10 text-info" },
+  QUALITY_GATE_FAILED: { icon: FindingsIcon, iconClass: "bg-danger/10 text-danger" },
 };
 
 function relativeTime(iso: string): string {
@@ -211,7 +215,7 @@ export function RepositoryOverviewPage() {
       value: String(debtBreakdown?.code_smell.count ?? 0),
       description: "Detected issues",
       help: METRIC_HELP.codeSmells,
-      icon: AlertTriangle,
+      icon: AlertIcon,
       iconClass: "bg-warning/10 text-warning",
     },
     {
@@ -219,7 +223,7 @@ export function RepositoryOverviewPage() {
       value: String(debtBreakdown?.complexity.count ?? 0),
       description: "High complexity areas",
       help: METRIC_HELP.complexity,
-      icon: TrendingUp,
+      icon: TrendIcon,
       iconClass: "bg-info/10 text-info",
     },
     {
@@ -227,7 +231,7 @@ export function RepositoryOverviewPage() {
       value: String(debtBreakdown?.vulnerability.count ?? 0),
       description: "Security findings",
       help: METRIC_HELP.vulnerabilities,
-      icon: ShieldAlert,
+      icon: FindingsIcon,
       iconClass: "bg-danger/10 text-danger",
     },
     {
@@ -235,368 +239,342 @@ export function RepositoryOverviewPage() {
       value: repository.technicalDebt,
       description: "Estimated remediation",
       help: METRIC_HELP.technicalDebt,
-      icon: Wrench,
+      icon: DebtIcon,
       iconClass: "bg-primary/10 text-primary",
     },
   ];
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 size={32} className="animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
+        <Loader2 size={30} className="animate-spin text-primary" />
         <p className="text-sm">Loading repository overview…</p>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-        
-        <PageHeader>
-          <div>
-            <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Repositories</span>
-              <span>/</span>
-              <span className="text-foreground">{repository.name}</span>
-            </div>
+    <>
+      
+      <PageHeader>
+        <div>
+          <PageHeaderBadge>
+            / repositories / {repository.name}
+          </PageHeaderBadge>
 
-            <PageHeaderBadge className="border-primary/20 bg-primary/10 text-primary">
-              <Sparkles size={13} />
-              Repository intelligence
-            </PageHeaderBadge>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <PageHeaderTitle>{repository.name}</PageHeaderTitle>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${healthLabel.cls}`}>
-                {healthLabel.text}
-              </span>
-            </div>
-
-            <PageHeaderDescription>
-              {repository.fullName}
-            </PageHeaderDescription>
-
-            <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <Code2 size={14} />
-                {repository.language}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <GitBranch size={14} />
-                {repository.defaultBranch}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Clock3 size={14} />
-                Last analyzed 8 minutes ago
-              </span>
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <PageHeaderTitle>{repository.name}</PageHeaderTitle>
+            <span
+              className={`rounded-sm px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] ${healthLabel.cls}`}
+            >
+              {healthLabel.text}
+            </span>
           </div>
 
-          <PageHeaderActions>
-            <Button variant="outline">
-              <TrendingUp size={17} className="mr-2" />
-              Run analysis
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => window.open(repository.githubUrl, "_blank", "noreferrer")}
-            >
-              <ExternalLink size={17} className="mr-2" />
-              GitHub
-            </Button>
-          </PageHeaderActions>
-        </PageHeader>
+          <PageHeaderDescription>
+            {repository.fullName}
+          </PageHeaderDescription>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            title="Health Score"
-            value={repository.healthScore === null ? "—" : String(repository.healthScore)}
-            help={METRIC_HELP.healthScore}
-            icon={CheckCircle2}
-            color="success"
-          />
-
-          <StatCard
-            title="Open Findings"
-            value={`${repository.totalFindings}`}
-            icon={ShieldAlert}
-            color="warning"
-          />
-
-          <StatCard
-            title="Technical Debt"
-            value={repository.technicalDebt}
-            help={METRIC_HELP.technicalDebt}
-            icon={Wrench}
-            color="primary"
-          />
-
+          <div className="mt-3.5 flex flex-wrap items-center gap-4 font-mono text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Code2 size={13} />
+              {repository.language}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <GitBranch size={13} />
+              {repository.defaultBranch}
+            </span>
+          </div>
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-          <Card className="p-5 sm:p-6">
-            <div className="mb-6 flex items-start justify-between">
-              <div>
-                <p className="text-sm font-semibold">
-                  Health Score Trend
+        <PageHeaderActions>
+          <Button variant="outline" onClick={() => navigate(`/repositories/${repository.id}/analyze`)}>
+            <HealthIcon size={16} />
+            Run analysis
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => window.open(repository.githubUrl, "_blank", "noreferrer")}
+          >
+            <ExternalLink size={15} />
+            GitHub
+          </Button>
+        </PageHeaderActions>
+      </PageHeader>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Health Score"
+          value={repository.healthScore === null ? "—" : String(repository.healthScore)}
+          help={METRIC_HELP.healthScore}
+          icon={HealthIcon}
+          color="success"
+        />
+
+        <StatCard
+          title="Open Findings"
+          value={`${repository.totalFindings}`}
+          icon={FindingsIcon}
+          color="warning"
+        />
+
+        <StatCard
+          title="Technical Debt"
+          value={repository.technicalDebt}
+          help={METRIC_HELP.technicalDebt}
+          icon={DebtIcon}
+          color="primary"
+        />
+
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+        <Card className="p-5">
+          <div className="mb-5 flex items-start justify-between">
+            <div>
+              <h3 className="font-display text-[15px] font-semibold tracking-tight">
+                Health score trend
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Repository health over the last 30 days
+              </p>
+            </div>
+
+            <p className="font-mono text-2xl font-semibold text-primary">
+              {repository.healthScore === null ? "—" : repository.healthScore}
+            </p>
+          </div>
+
+          <div className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartTrend}>
+                <defs>
+                  <linearGradient
+                    id="repositoryHealthGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0.35}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+
+                <CartesianGrid
+                  stroke="hsl(var(--border))"
+                  vertical={false}
+                />
+
+                <XAxis
+                  dataKey="date"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={CHART_TICK}
+                />
+
+                <YAxis
+                  domain={[0, 100]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={CHART_TICK}
+                />
+
+                <Tooltip
+                  contentStyle={CHART_TOOLTIP}
+                />
+
+                <Area
+                  type="monotone"
+                  dataKey="score"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={1.75}
+                  fill="url(#repositoryHealthGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="p-5 sm:p-6">
+          <div className="mb-6">
+            <p className="text-sm font-semibold">
+              Recent Activity
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Latest repository events
+            </p>
+          </div>
+
+          <div className="space-y-5">
+            {activity.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No activity for this repository yet.</p>
+            ) : (
+              activity.map((item) => {
+                const style = ACTIVITY_ICON[item.type] ?? {
+                  icon: CheckIcon,
+                  iconClass: "bg-muted text-muted-foreground",
+                };
+                const Icon = style.icon;
+                return (
+                  <div key={item.id} className="flex gap-3">
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${style.iconClass}`}
+                    >
+                      <Icon size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {item.title}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {item.body}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {relativeTime(item.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <Card className="mt-6 p-5 sm:p-6">
+        <div className="mb-6">
+          <p className="text-sm font-semibold">
+            Quality Metrics
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Latest static analysis results
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => {
+            const Icon = metric.icon;
+            return (
+              <div
+                key={metric.title}
+                className="rounded-2xl border border-border/60 bg-background/40 p-4 transition hover:border-primary/30 hover:bg-muted/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${metric.iconClass}`}
+                  >
+                    <Icon size={18} />
+                  </div>
+                </div>
+                <p className="mt-4 flex items-center gap-1.5 text-sm font-semibold">
+                  {metric.title}
+                  <InfoHint text={metric.help} />
+                </p>
+                <p className="mt-1 text-2xl font-bold">
+                  {metric.value}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Repository health over the last 30 days
+                  {metric.description}
                 </p>
               </div>
+            );
+          })}
+        </div>
+      </Card>
 
-              <div className="text-right">
-                <p className="text-2xl font-bold">
-                  {repository.healthScore === null ? "—" : repository.healthScore}
-                </p>
-              </div>
-            </div>
-
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartTrend}>
-                  <defs>
-                    <linearGradient
-                      id="repositoryHealthGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="0%"
-                        stopColor="hsl(var(--primary))"
-                        stopOpacity={0.35}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="hsl(var(--primary))"
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                  </defs>
-
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    vertical={false}
-                  />
-
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{
-                      fill: "hsl(var(--muted-foreground))",
-                      fontSize: 11,
-                    }}
-                  />
-
-                  <YAxis
-                    domain={[0, 100]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{
-                      fill: "hsl(var(--muted-foreground))",
-                      fontSize: 11,
-                    }}
-                  />
-
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "12px",
-                    }}
-                  />
-
-                  <Area
-                    type="monotone"
-                    dataKey="score"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={3}
-                    fill="url(#repositoryHealthGradient)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          <Card className="p-5 sm:p-6">
-            <div className="mb-6">
-              <p className="text-sm font-semibold">
-                Recent Activity
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Latest repository events
-              </p>
-            </div>
-
-            <div className="space-y-5">
-              {activity.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No activity for this repository yet.</p>
-              ) : (
-                activity.map((item) => {
-                  const style = ACTIVITY_ICON[item.type] ?? {
-                    icon: CheckCircle2,
-                    iconClass: "bg-muted text-muted-foreground",
-                  };
-                  const Icon = style.icon;
-                  return (
-                    <div key={item.id} className="flex gap-3">
-                      <div
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${style.iconClass}`}
-                      >
-                        <Icon size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">
-                          {item.title}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {item.body}
-                        </p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {relativeTime(item.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Card>
+      <Card className="mt-6 p-5 sm:p-6">
+        <div className="mb-6">
+          <p className="text-sm font-semibold">
+            Debt Breakdown
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Estimated remediation effort by category
+          </p>
         </div>
 
-        <Card className="mt-6 p-5 sm:p-6">
-          <div className="mb-6">
-            <p className="text-sm font-semibold">
-              Quality Metrics
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Latest static analysis results
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {metrics.map((metric) => {
-              const Icon = metric.icon;
-              return (
-                <div
-                  key={metric.title}
-                  className="rounded-2xl border border-border/60 bg-background/40 p-4 transition hover:border-primary/30 hover:bg-muted/30"
-                >
-                  <div className="flex items-center justify-between">
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${metric.iconClass}`}
-                    >
-                      <Icon size={18} />
-                    </div>
-                  </div>
-                  <p className="mt-4 flex items-center gap-1.5 text-sm font-semibold">
-                    {metric.title}
-                    <InfoHint text={metric.help} />
-                  </p>
-                  <p className="mt-1 text-2xl font-bold">
-                    {metric.value}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {metric.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <Card className="mt-6 p-5 sm:p-6">
-          <div className="mb-6">
-            <p className="text-sm font-semibold">
-              Debt Breakdown
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Estimated remediation effort by category
-            </p>
-          </div>
-
-          {hasDebtBreakdown ? (
-            <div className="grid gap-6 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-center">
-              <div className="relative h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={debtChartData}
-                      dataKey="value"
-                      nameKey="label"
-                      innerRadius={70}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      strokeWidth={0}
-                    >
-                      {debtChartData.map((entry) => (
-                        <Cell key={entry.key} fill={entry.color} />
-                      ))}
-                    </Pie>
-
-                    <Tooltip
-                      formatter={(value: any, name: any) => [
-                        `${Math.floor(Number(value || 0) / 60)}h ${Math.round(Number(value || 0) % 60)}m`,
-                        name,
-                      ]}
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "12px",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xl font-bold">
-                    {repository.technicalDebt}
-                  </p>
-
-                  <p className="text-xs text-muted-foreground">
-                    Total debt
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {debtChartData.map((entry) => (
-                  <div
-                    key={entry.key}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 p-3"
+        {hasDebtBreakdown ? (
+          <div className="grid gap-6 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-center">
+            <div className="relative h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={debtChartData}
+                    dataKey="value"
+                    nameKey="label"
+                    innerRadius={70}
+                    outerRadius={100}
+                    paddingAngle={2}
+                    strokeWidth={0}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: entry.color }}
-                      />
+                    {debtChartData.map((entry) => (
+                      <Cell key={entry.key} fill={entry.color} />
+                    ))}
+                  </Pie>
 
-                      <span className="text-sm font-medium">
-                        {entry.label}
-                      </span>
-                    </div>
+                  <Tooltip
+                    formatter={(value: any, name: any) => [
+                      `${Math.floor(Number(value || 0) / 60)}h ${Math.round(Number(value || 0) % 60)}m`,
+                      name,
+                    ]}
+                    contentStyle={CHART_TOOLTIP}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
 
-                    <span className="text-xs text-muted-foreground">
-                      {Math.floor(entry.value / 60)}h {Math.round(entry.value % 60)}m
-                    </span>
-                  </div>
-                ))}
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <p className="text-xl font-bold">
+                  {repository.technicalDebt}
+                </p>
+
+                <p className="text-xs text-muted-foreground">
+                  Total debt
+                </p>
               </div>
             </div>
-          ) : (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              No debt data available yet. Run an analysis to see the breakdown.
-            </p>
-          )}
-        </Card>
 
-        <Card className="mt-6 p-5 sm:p-6">
-          <div className="mb-6">
+            <div className="space-y-3">
+              {debtChartData.map((entry) => (
+                <div
+                  key={entry.key}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 p-3"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: entry.color }}
+                    />
+
+                    <span className="text-sm font-medium">
+                      {entry.label}
+                    </span>
+                  </div>
+
+                  <span className="text-xs text-muted-foreground">
+                    {Math.floor(entry.value / 60)}h {Math.round(entry.value % 60)}m
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            No debt data available yet. Run an analysis to see the breakdown.
+          </p>
+        )}
+      </Card>
+
+      <Card className="mt-6 p-5 sm:p-6">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
             <p className="text-sm font-semibold">
               Hotspots
             </p>
@@ -604,43 +582,50 @@ export function RepositoryOverviewPage() {
               Files with the most findings in the latest analysis
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/repositories/${repoId}/findings`)}
+            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            All findings <ArrowRight size={12} />
+          </button>
+        </div>
 
-          <HotspotTable
-            files={hotspots}
-            onRowClick={(file) =>
-              navigate(`/repositories/${repoId}/findings?file=${encodeURIComponent(file)}`)
-            }
-          />
-        </Card>
+        <HotspotTable
+          files={hotspots}
+          onRowClick={(file) =>
+            navigate(`/repositories/${repoId}/findings?file=${encodeURIComponent(file)}`)
+          }
+        />
+      </Card>
 
-        <Card className="mt-6 p-5 sm:p-6">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <p className="text-sm font-semibold">
-                Latest Analysis
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {repository.lastAnalyzedAt
-                  ? `Last analysis ${relativeTime(repository.lastAnalyzedAt)}`
-                  : "Not analyzed yet"}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar size={14} />
+      <Card className="mt-6 p-5 sm:p-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm font-semibold">
+              Latest Analysis
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
               {repository.lastAnalyzedAt
-                ? new Date(repository.lastAnalyzedAt).toLocaleDateString()
-                : "—"}
-            </div>
+                ? `Last analysis ${relativeTime(repository.lastAnalyzedAt)}`
+                : "Not analyzed yet"}
+            </p>
           </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Calendar size={14} />
+            {repository.lastAnalyzedAt
+              ? new Date(repository.lastAnalyzedAt).toLocaleDateString()
+              : "—"}
+          </div>
+        </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <AnalysisInfo label="Open findings" value={String(repository.totalFindings)} />
-            <AnalysisInfo label="Technical debt" value={repository.technicalDebt} />
-            <AnalysisInfo label="Default branch" value={repository.defaultBranch} />
-          </div>
-        </Card>
-      </div>
-    </main>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <AnalysisInfo label="Open findings" value={String(repository.totalFindings)} />
+          <AnalysisInfo label="Technical debt" value={repository.technicalDebt} />
+          <AnalysisInfo label="Default branch" value={repository.defaultBranch} />
+        </div>
+      </Card>
+    </>
   );
 }
 

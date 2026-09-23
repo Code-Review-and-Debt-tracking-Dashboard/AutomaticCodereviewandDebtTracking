@@ -12,6 +12,16 @@ vi.mock("../../contexts/AuthContext", () => ({
   }),
 }));
 
+// jsdom has neither, and the pulse line measures the layout with both
+vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    observe() {}
+    disconnect() {}
+  },
+);
+
 describe("LoginPage", () => {
   it("renders welcome header and GitHub login button", () => {
     render(
@@ -22,7 +32,7 @@ describe("LoginPage", () => {
 
     expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Continue with GitHub/i })).toBeInTheDocument();
-    expect(screen.getByText("No password stored by the dashboard")).toBeInTheDocument();
+    expect(screen.getByText("First-pass review on every pull request")).toBeInTheDocument();
   });
 
   it("redirects window.location on GitHub login click", async () => {

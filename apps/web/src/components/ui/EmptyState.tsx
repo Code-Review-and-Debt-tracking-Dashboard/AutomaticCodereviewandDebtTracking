@@ -1,16 +1,18 @@
 import type { ComponentType, ReactNode } from "react";
 
+import { FlatlineIllustration } from "../icons";
+
 /*
  * =========================================================
- * EMPTY STATE — Centered empty-list placeholder
+ * EMPTY STATE — "no signal yet" placeholder
  * =========================================================
  *
- * Displays a centered icon + message + optional action
- * button when a list or section has no data.
+ * A flat trace instead of a boxed icon: nothing has come
+ * through for this list yet.
  */
 
 interface EmptyStateProps {
-  icon: ComponentType<{ size?: number; className?: string }>;
+  icon?: ComponentType<{ size?: number; className?: string }>;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -27,31 +29,33 @@ export function EmptyState({
   return (
     <div
       className={`
-        flex flex-col items-center justify-center gap-3
-        rounded-2xl border border-border/70 bg-card
-        p-12 text-center
+        flex flex-col items-center justify-center gap-4
+        rounded-lg border border-dashed border-border bg-card/40
+        px-6 py-14 text-center
         ${className}
       `}
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-        <Icon size={24} className="text-muted-foreground" />
+      <span className="relative flex items-center justify-center">
+        <FlatlineIllustration className="text-muted-foreground" />
+
+        {Icon && (
+          <span className="absolute flex h-9 w-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground">
+            <Icon size={17} />
+          </span>
+        )}
+      </span>
+
+      <div>
+        <p className="font-display text-[15px] font-semibold">{title}</p>
+
+        {description && (
+          <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-muted-foreground">
+            {description}
+          </p>
+        )}
       </div>
 
-      <p className="text-sm font-semibold">
-        {title}
-      </p>
-
-      {description && (
-        <p className="max-w-sm text-xs text-muted-foreground">
-          {description}
-        </p>
-      )}
-
-      {action && (
-        <div className="mt-2">
-          {action}
-        </div>
-      )}
+      {action}
     </div>
   );
 }

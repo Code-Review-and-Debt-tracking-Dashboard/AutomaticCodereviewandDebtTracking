@@ -1,4 +1,8 @@
-import { Bell, Moon, Settings, Shield, SlidersHorizontal } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
+
+import {
+  NotificationIcon,
+} from "../../components/icons";
 
 import {
   Card,
@@ -10,28 +14,7 @@ import {
   PageHeaderDescription,
 } from "../../components/ui";
 
-
-/* =========================================================
-   SETTINGS DATA
-========================================================= */
-
-const settingsCards = [
-  {
-    title: "Theme",
-    description: "Use the dark dashboard palette",
-    icon: Moon,
-  },
-  {
-    title: "Notifications",
-    description: "Show analysis and gate alerts",
-    icon: Bell,
-  },
-  {
-    title: "Privacy",
-    description: "Keep tenant data scoped to the selected org",
-    icon: Shield,
-  },
-];
+import { usePreference } from "../../lib/usePreference";
 
 
 /* =========================================================
@@ -39,80 +22,116 @@ const settingsCards = [
 ========================================================= */
 
 export function SettingsPage() {
+  const [theme, setTheme] = usePreference<"dark" | "light">("theme", "dark");
+  const [badge, setBadge] = usePreference<"on" | "off">("notificationBadge", "on");
+
+  const themeOptions = [
+    { id: "light", label: "Light", icon: Sun },
+    { id: "dark", label: "Dark", icon: Moon },
+  ] as const;
+
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
+    <>
 
-        {/* Header */}
-        <PageHeader>
-          <div>
-            <PageHeaderTitle>Settings</PageHeaderTitle>
-            <PageHeaderDescription>
-              Basic workspace controls for the dashboard.
-            </PageHeaderDescription>
-          </div>
-        </PageHeader>
+      {/* Header */}
+      <PageHeader>
+        <div>
+          <PageHeaderTitle>Settings</PageHeaderTitle>
+          <PageHeaderDescription>
+            Saved in this browser only.
+          </PageHeaderDescription>
+        </div>
+      </PageHeader>
 
 
-        {/* Settings Grid */}
-        <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+      <div className="grid max-w-2xl gap-4">
 
-          {/* Preferences */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal size={16} className="text-primary" />
-                <CardTitle>Preferences</CardTitle>
+        {/* Appearance */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Moon size={16} className="text-primary" />
+              <CardTitle>Appearance</CardTitle>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Theme</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Switch between the light and dark dashboard.
+                </p>
               </div>
-            </CardHeader>
 
-            <CardContent>
-              <div className="space-y-3">
-                {settingsCards.map((item) => {
-                  const Icon = item.icon;
+              <div className="flex rounded-md border border-border p-0.5">
+                {themeOptions.map((option) => {
+                  const Icon = option.icon;
+                  const active = theme === option.id;
 
                   return (
-                    <article
-                      key={item.title}
-                      className="
-                        rounded-xl border border-border/70 bg-background p-4
-                        transition hover:border-primary/30 hover:bg-muted/30
-                      "
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setTheme(option.id)}
+                      className={`
+                        flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs transition
+                        ${active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}
+                      `}
                     >
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Icon size={14} className="text-primary" />
-                        {item.title}
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {item.description}
-                      </p>
-                    </article>
+                      <Icon size={13} />
+                      {option.label}
+                    </button>
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
 
-          {/* Workspace Controls */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Settings size={16} className="text-primary" />
-                <CardTitle>Workspace controls</CardTitle>
+        {/* Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <NotificationIcon size={16} className="text-primary" />
+              <CardTitle>Notifications</CardTitle>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Show unread count</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The number next to the bell and in the sidebar.
+                </p>
               </div>
-            </CardHeader>
 
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                These settings are intentionally lightweight for the current
-                project stage.
-              </p>
-            </CardContent>
-          </Card>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={badge === "on"}
+                aria-label="Show unread count"
+                onClick={() => setBadge(badge === "on" ? "off" : "on")}
+                className={`
+                  relative h-5 w-9 shrink-0 rounded-full transition
+                  ${badge === "on" ? "bg-primary" : "bg-muted-foreground/30"}
+                `}
+              >
+                <span
+                  className={`
+                    absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-card transition-transform
+                    ${badge === "on" ? "translate-x-4" : ""}
+                  `}
+                />
+              </button>
+            </div>
+          </CardContent>
+        </Card>
 
-        </div>
       </div>
-    </main>
+    </>
   );
 }

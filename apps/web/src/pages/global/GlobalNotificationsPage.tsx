@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
-  Bell,
   CheckCircle2,
-  GitPullRequest,
   Loader2,
-  ShieldCheck,
   Trash2,
 } from "lucide-react";
+
+import {
+  AlertIcon,
+  CheckIcon,
+  NotificationIcon,
+  PullRequestIcon,
+  QualityGateIcon,
+} from "../../components/icons";
 
 import { api } from "../../lib/apiClient";
 
@@ -49,14 +53,14 @@ interface NotificationData {
 
 function getNotificationIcon(n: NotificationData) {
   if (n.severity === "critical" || n.severity === "high")
-    return { icon: AlertTriangle, color: "bg-warning/10 text-warning" };
+    return { icon: AlertIcon, color: "bg-warning/10 text-warning" };
   if (n.type === "quality-gate" || n.type === "analysis")
-    return { icon: CheckCircle2, color: "bg-success/10 text-success" };
+    return { icon: CheckIcon, color: "bg-success/10 text-success" };
   if (n.type === "pr-scan")
-    return { icon: GitPullRequest, color: "bg-info/10 text-info" };
+    return { icon: PullRequestIcon, color: "bg-info/10 text-info" };
   if (n.type === "security")
-    return { icon: ShieldCheck, color: "bg-destructive/10 text-destructive" };
-  return { icon: Bell, color: "bg-muted text-muted-foreground" };
+    return { icon: QualityGateIcon, color: "bg-destructive/10 text-destructive" };
+  return { icon: NotificationIcon, color: "bg-muted text-muted-foreground" };
 }
 
 function timeAgo(dateString: string): string {
@@ -189,130 +193,128 @@ export function GlobalNotificationsPage() {
 
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
+    <>
 
-        {/* Header */}
-        <PageHeader>
-          <div>
-            <PageHeaderTitle>Notifications</PageHeaderTitle>
-            <PageHeaderDescription>
-              Real-time updates regarding analysis builds, quality gate triggers, and security alerts.
-            </PageHeaderDescription>
-          </div>
-
-          <PageHeaderActions>
-            <Button variant="secondary" onClick={markAllRead}>
-              <CheckCircle2 size={16} />
-              Mark all as read
-            </Button>
-            <Button variant="destructive" onClick={clearAll}>
-              <Trash2 size={16} />
-              Clear all
-            </Button>
-          </PageHeaderActions>
-        </PageHeader>
-
-
-        {/* Tabs + Filters Row */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <TabGroup
-            tabs={[
-              { id: "all", label: "All", count: totalCount },
-              { id: "unread", label: "Unread", count: unreadCount },
-              { id: "critical", label: "Critical", count: criticalCount },
-            ]}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
-
-          <div className="flex items-center gap-2">
-            <Select
-              value={repoFilter}
-              onChange={setRepoFilter}
-              options={repoOptions}
-            />
-            <Select
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={[
-                { label: "Type: All", value: "All" },
-                { label: "Analysis", value: "analysis" },
-                { label: "Security", value: "security" },
-                { label: "PR Scan", value: "pr-scan" },
-                { label: "Quality Gate", value: "quality-gate" },
-              ]}
-            />
-          </div>
+      {/* Header */}
+      <PageHeader>
+        <div>
+          <PageHeaderTitle>Notifications</PageHeaderTitle>
+          <PageHeaderDescription>
+            Real-time updates regarding analysis builds, quality gate triggers, and security alerts.
+          </PageHeaderDescription>
         </div>
 
+        <PageHeaderActions>
+          <Button variant="secondary" onClick={markAllRead}>
+            <CheckCircle2 size={16} />
+            Mark all as read
+          </Button>
+          <Button variant="destructive" onClick={clearAll}>
+            <Trash2 size={16} />
+            Clear all
+          </Button>
+        </PageHeaderActions>
+      </PageHeader>
 
-        {/* Error */}
-        {error && (
-          <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
-        )}
 
+      {/* Tabs + Filters Row */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <TabGroup
+          tabs={[
+            { id: "all", label: "All", count: totalCount },
+            { id: "unread", label: "Unread", count: unreadCount },
+            { id: "critical", label: "Critical", count: criticalCount },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
 
-        {/* Content */}
-        {isLoading ? (
-          <Card className="flex items-center justify-center p-12 text-muted-foreground">
-            <Loader2 className="mr-2 animate-spin" size={18} />
-            Loading notifications…
-          </Card>
-        ) : filteredNotifications.length === 0 ? (
-          <EmptyState
-            icon={Bell}
-            title={notifications.length === 0 ? "No notifications" : "Nothing matches these filters"}
-            description={
-              notifications.length === 0
-                ? "You are alerted when a quality gate fails, a health score drops sharply, or a new critical vulnerability appears. A healthy repository stays quiet."
-                : "Try a different tab, repository, or type."
-            }
+        <div className="flex items-center gap-2">
+          <Select
+            value={repoFilter}
+            onChange={setRepoFilter}
+            options={repoOptions}
           />
-        ) : (
-          <div className="space-y-6">
-            {grouped.map((group) => (
-              <div key={group.label}>
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  {group.label}
-                </p>
-
-                <div className="space-y-3">
-                  {group.items.map((n) => {
-                    const { icon, color } = getNotificationIcon(n);
-
-                    return (
-                      <NotificationItem
-                        key={n.id}
-                        icon={icon}
-                        iconColor={color}
-                        title={n.title}
-                        description={n.body}
-                        time={timeAgo(n.createdAt)}
-                        repoName={n.repoName}
-                        unread={!n.readAt}
-                        severity={n.severity}
-                        onMarkRead={() => markOneRead(n.id)}
-                        onDelete={() => deleteOne(n.id)}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            {/* Load Earlier */}
-            <div className="pt-2 text-center">
-              <button className="text-xs font-medium text-primary hover:underline">
-                Load 6 earlier notifications
-              </button>
-            </div>
-          </div>
-        )}
-
+          <Select
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={[
+              { label: "Type: All", value: "All" },
+              { label: "Analysis", value: "analysis" },
+              { label: "Security", value: "security" },
+              { label: "PR Scan", value: "pr-scan" },
+              { label: "Quality Gate", value: "quality-gate" },
+            ]}
+          />
+        </div>
       </div>
-    </main>
+
+
+      {/* Error */}
+      {error && (
+        <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+
+      {/* Content */}
+      {isLoading ? (
+        <Card className="flex items-center justify-center p-12 text-muted-foreground">
+          <Loader2 className="mr-2 animate-spin" size={18} />
+          Loading notifications…
+        </Card>
+      ) : filteredNotifications.length === 0 ? (
+        <EmptyState
+          icon={NotificationIcon}
+          title={notifications.length === 0 ? "No notifications" : "Nothing matches these filters"}
+          description={
+            notifications.length === 0
+              ? "You are alerted when a quality gate fails, a health score drops sharply, or a new critical vulnerability appears. A healthy repository stays quiet."
+              : "Try a different tab, repository, or type."
+          }
+        />
+      ) : (
+        <div className="space-y-6">
+          {grouped.map((group) => (
+            <div key={group.label}>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {group.label}
+              </p>
+
+              <div className="space-y-3">
+                {group.items.map((n) => {
+                  const { icon, color } = getNotificationIcon(n);
+
+                  return (
+                    <NotificationItem
+                      key={n.id}
+                      icon={icon}
+                      iconColor={color}
+                      title={n.title}
+                      description={n.body}
+                      time={timeAgo(n.createdAt)}
+                      repoName={n.repoName}
+                      unread={!n.readAt}
+                      severity={n.severity}
+                      onMarkRead={() => markOneRead(n.id)}
+                      onDelete={() => deleteOne(n.id)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Load Earlier */}
+          <div className="pt-2 text-center">
+            <button className="text-xs font-medium text-primary hover:underline">
+              Load 6 earlier notifications
+            </button>
+          </div>
+        </div>
+      )}
+
+    </>
   );
 }
