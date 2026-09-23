@@ -6,6 +6,7 @@ import type {
   InternalAxiosRequestConfig,
 } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 import { emitAuthLost, getAccessToken, setAccessToken } from './authTokenStore';
 
@@ -29,11 +30,21 @@ const refreshClient: AxiosInstance = axios.create({
 
 const REFRESH_TOKEN_KEY = 'ch_refresh_token';
 
+// expo-secure-store has no web implementation, so Expo web falls back to
+// localStorage (dev preview only — not a secure store).
+const isWeb = Platform.OS === 'web';
+
 export async function getStoredRefreshToken(): Promise<string | null> {
+  if (isWeb) return globalThis.localStorage?.getItem(REFRESH_TOKEN_KEY) ?? null;
   return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
 }
 
 export async function setStoredRefreshToken(token: string | null): Promise<void> {
+  if (isWeb) {
+    if (token) globalThis.localStorage?.setItem(REFRESH_TOKEN_KEY, token);
+    else globalThis.localStorage?.removeItem(REFRESH_TOKEN_KEY);
+    return;
+  }
   if (token) {
     await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
   } else {
