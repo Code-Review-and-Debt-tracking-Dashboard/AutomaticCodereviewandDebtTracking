@@ -4,6 +4,7 @@ import { NavLink } from "react-router-dom";
 
 import { Logo } from "../brand/Logo";
 import { useUnreadNotifications } from "../../lib/useUnreadNotifications";
+import { usePreference } from "../../lib/usePreference";
 import { managementItems, workspaceItems, type NavItem } from "./navItems";
 
 interface SidebarProps {
@@ -70,6 +71,7 @@ interface NavSectionProps {
 
 function NavSection({ title, items, collapsed }: NavSectionProps) {
   const unreadCount = useUnreadNotifications();
+  const [badge] = usePreference<"on" | "off">("notificationBadge", "on");
 
   return (
     <div>
@@ -111,6 +113,7 @@ function NavSection({ title, items, collapsed }: NavSectionProps) {
 
                   {!collapsed &&
                     item.label === "Notifications" &&
+                    badge === "on" &&
                     unreadCount > 0 && (
                       <span className="ml-auto font-mono text-[11px] text-primary">
                         {unreadCount}

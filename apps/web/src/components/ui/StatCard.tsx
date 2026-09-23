@@ -66,7 +66,7 @@ export function StatCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
       className={`
-        group relative overflow-hidden rounded-lg border border-border
+        group relative rounded-lg border border-border
         bg-card px-5 py-4 transition-colors hover:border-primary/50
         ${className}
       `}
@@ -103,7 +103,7 @@ export function StatCard({
       </div>
 
       {/* Baseline trace that lights up on hover */}
-      <span className="absolute inset-x-0 bottom-0 h-px bg-primary/0 transition-colors group-hover:bg-primary/60" />
+      <span className="absolute inset-x-0 bottom-0 h-px rounded-b-lg bg-primary/0 transition-colors group-hover:bg-primary/60" />
     </motion.div>
   );
 }

@@ -21,6 +21,8 @@ import { useOrg } from "../../contexts/OrgContext";
 
 import { api } from "../../lib/apiClient";
 
+import { usePreference } from "../../lib/usePreference";
+
 import { NotificationIcon } from "../icons";
 
 interface NotificationItem {
@@ -53,15 +55,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
   const notificationRef = useRef<HTMLDivElement>(null);
 
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem("theme");
+  const [theme, setTheme] = usePreference<"dark" | "light">("theme", "dark");
 
-    if (saved) {
-      return saved === "dark";
-    }
+  const darkMode = theme === "dark";
 
-    return true;
-  });
+  const [badge] = usePreference<"on" | "off">("notificationBadge", "on");
 
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -99,8 +97,6 @@ THEME
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
-
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   /*
@@ -224,7 +220,7 @@ OUTSIDE CLICK HANDLER
   }, []);
 
   const toggleTheme = () => {
-    setDarkMode((previous) => !previous);
+    setTheme(darkMode ? "light" : "dark");
   };
 
   const handleLogout = async () => {
@@ -432,7 +428,7 @@ OUTSIDE CLICK HANDLER
           >
             <NotificationIcon size={17} />
 
-            {unreadCount > 0 && (
+            {badge === "on" && unreadCount > 0 && (
               <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[9px] font-semibold text-primary-foreground">
                 {unreadCount}
               </span>
