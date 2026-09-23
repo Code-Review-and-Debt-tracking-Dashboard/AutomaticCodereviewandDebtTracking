@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
+import { useUnreadNotifications } from "../../lib/useUnreadNotifications";
+
 interface MobileSidebarProps {
   open: boolean;
   onClose: () => void;
@@ -201,6 +203,8 @@ function MobileNavigationSection({
   items,
   onClose,
 }: MobileNavigationSectionProps) {
+  const unreadCount = useUnreadNotifications();
+
   return (
     <div>
       <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -229,9 +233,9 @@ function MobileNavigationSection({
 
               <span>{item.label}</span>
 
-              {item.label === "Notifications" && (
+              {item.label === "Notifications" && unreadCount > 0 && (
                 <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
-                  3
+                  {unreadCount}
                 </span>
               )}
             </NavLink>

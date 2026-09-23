@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,30 +19,46 @@ vi.mock("../../contexts/OrgContext", () => ({
 
 const mockedApi = vi.mocked(api);
 
+// The shape the API actually returns — flat, not nested under `user`.
+const members = [
+  { id: "m1", userId: "u1", username: "nethmib", avatarUrl: null, role: "OWNER", status: "ACTIVE" },
+  { id: "m2", userId: "u2", username: "rumeshp", avatarUrl: null, role: "MEMBER", status: "ACTIVE" },
+];
+
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <GlobalMembersPage />
+    </MemoryRouter>,
+  );
+}
+
 describe("GlobalMembersPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedApi.get.mockResolvedValue({ data: members } as any);
   });
 
-  it("fetches and renders organization members from the API", async () => {
-    mockedApi.get.mockResolvedValue({
-      data: [
-        { id: "m1", user: { name: "Nethmi Bhagya", email: "nethmi@acme.com" }, role: "OWNER" },
-        { id: "m2", user: { name: "Rumesh Perera", email: "rumesh@acme.com" }, role: "MEMBER" },
-      ],
-    });
-
-    render(
-      <MemoryRouter>
-        <GlobalMembersPage />
-      </MemoryRouter>,
-    );
+  it("renders members using the fields the API returns", async () => {
+    renderPage();
 
     expect(await screen.findByRole("heading", { name: "Members" })).toBeInTheDocument();
+    expect(await screen.findByText("nethmib")).toBeInTheDocument();
+    expect(screen.getByText("rumeshp")).toBeInTheDocument();
+    expect(mockedApi.get).toHaveBeenCalledWith("/api/orgs/org-1/members");
+  });
 
-    await waitFor(() => {
-      expect(screen.getByText("Nethmi Bhagya")).toBeInTheDocument();
-      expect(screen.getByText("Rumesh Perera")).toBeInTheDocument();
-    });
+  // membership comes from GitHub, so the page must not imply it can be edited here
+  it("explains that membership is synced from GitHub", async () => {
+    renderPage();
+
+    expect(await screen.findByText(/synced from\s+GitHub/i)).toBeInTheDocument();
+  });
+
+  it("shows an empty state rather than a blank grid", async () => {
+    mockedApi.get.mockResolvedValue({ data: [] } as any);
+    renderPage();
+
+    expect(await screen.findByText(/No members found for this organization/i)).toBeInTheDocument();
   });
 });

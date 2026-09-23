@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useUnreadNotifications } from "../../lib/useUnreadNotifications";
 import { Badge } from "../ui/Badge";
 
 interface SidebarProps {
@@ -211,6 +212,8 @@ function NavigationSection({
   items,
   collapsed,
 }: NavigationSectionProps) {
+  const unreadCount = useUnreadNotifications();
+
   return (
     <div>
       {!collapsed && (
@@ -261,9 +264,10 @@ function NavigationSection({
                   )}
 
                   {!collapsed &&
-                    item.label === "Notifications" && (
+                    item.label === "Notifications" &&
+                    unreadCount > 0 && (
                       <Badge variant="default" size="sm" className="ml-auto">
-                        3
+                        {unreadCount}
                       </Badge>
                     )}
                 </>
