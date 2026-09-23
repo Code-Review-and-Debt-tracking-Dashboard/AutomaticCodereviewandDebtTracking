@@ -50,9 +50,9 @@ interface ApiRepository {
   defaultBranch: string;
   isActive: boolean;
   orgId: string;
-  healthScore?: number;
-  openFindings?: number;
-  debtMinutes?: number;
+  healthScore?: number | null;
+  openFindings?: number | null;
+  debtMinutes?: number | null;
   lastAnalyzedAt?: string | null;
   private?: boolean;
 }
@@ -69,6 +69,8 @@ type Repository = {
   branch: string;
   lastAnalyzed: string;
   isPrivate: boolean;
+  // false until the repo has a snapshot — score/findings/debt are placeholders
+  isAnalyzed: boolean;
 };
 
 const languages = [
@@ -121,12 +123,14 @@ export function RepositoriesPage() {
 
       // Map backend schema to UI Repository shape
       const mapped: Repository[] = apiList.map((item) => {
-        const score = item.healthScore ?? 80;
+        const isAnalyzed = item.healthScore !== null && item.healthScore !== undefined;
+        const score = item.healthScore ?? 0;
         let status: RepositoryStatus = "Healthy";
-        if (score >= 85) status = "Excellent";
+        if (!isAnalyzed) status = "Needs attention";
+        else if (score >= 85) status = "Excellent";
         else if (score < 70) status = "Needs attention";
 
-        const minutes = item.debtMinutes ?? 120;
+        const minutes = item.debtMinutes ?? 0;
         const hrs = Math.floor(minutes / 60);
         const mins = minutes % 60;
         const debtStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
@@ -143,8 +147,9 @@ export function RepositoriesPage() {
           branch: item.defaultBranch || "main",
           lastAnalyzed: item.lastAnalyzedAt
             ? new Date(item.lastAnalyzedAt).toLocaleDateString()
-            : "Recently",
+            : "Never",
           isPrivate: item.private ?? false,
+          isAnalyzed,
         };
       });
 
@@ -199,11 +204,12 @@ export function RepositoriesPage() {
 
   const stats = useMemo(() => {
     const total = repositories.length;
+    const analyzed = repositories.filter((r) => r.isAnalyzed);
     const avgHealth =
-      total > 0
-        ? (repositories.reduce((acc, r) => acc + r.score, 0) / total).toFixed(1)
-        : "0.0";
-    const healthyCount = repositories.filter((r) => r.score >= 70).length;
+      analyzed.length > 0
+        ? (analyzed.reduce((acc, r) => acc + r.score, 0) / analyzed.length).toFixed(1)
+        : "—";
+    const healthyCount = analyzed.filter((r) => r.score >= 70).length;
     const totalFindings = repositories.reduce((acc, r) => acc + r.findings, 0);
 
     return {
@@ -434,7 +440,7 @@ function RepositoryCard({
   index: number;
   onSelect: () => void;
 }) {
-  const isHealthy = repository.score >= 85;
+  const isHealthy = repository.isAnalyzed && repository.score >= 85;
 
   return (
     <Card
@@ -473,7 +479,7 @@ function RepositoryCard({
                 isHealthy ? "text-success" : "text-warning"
               }`}
             >
-              {repository.score}
+              {repository.isAnalyzed ? repository.score : "—"}
             </p>
           </div>
 
@@ -481,14 +487,18 @@ function RepositoryCard({
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Findings
             </p>
-            <p className="mt-1 text-2xl font-bold">{repository.findings}</p>
+            <p className="mt-1 text-2xl font-bold">
+              {repository.isAnalyzed ? repository.findings : "—"}
+            </p>
           </div>
 
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Debt
             </p>
-            <p className="mt-1 text-lg font-bold">{repository.debt}</p>
+            <p className="mt-1 text-lg font-bold">
+              {repository.isAnalyzed ? repository.debt : "—"}
+            </p>
           </div>
         </div>
 
@@ -496,7 +506,11 @@ function RepositoryCard({
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Health score</span>
             <span className="text-xs font-medium text-success">
-              {repository.score >= 85 ? "Excellent" : "Needs improvement"}
+              {!repository.isAnalyzed
+                ? "Not analyzed yet"
+                : repository.score >= 85
+                  ? "Excellent"
+                  : "Needs improvement"}
             </span>
           </div>
 

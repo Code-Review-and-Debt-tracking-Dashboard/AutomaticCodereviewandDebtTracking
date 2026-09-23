@@ -226,9 +226,11 @@ export async function listOrgRepositories(orgId: string, userId: string) {
       private: repo.private,
       isActive: repo.isActive,
       orgId: repo.orgId,
-      healthScore: latest?.healthScore ?? 88,
-      openFindings: latest?.totalIssues ?? 3,
-      debtMinutes: latest?.debtMinutes ?? 95,
+      // null until the repo has been analysed — callers show "not analysed"
+      // rather than a number nothing measured.
+      healthScore: latest?.healthScore ?? null,
+      openFindings: latest?.totalIssues ?? null,
+      debtMinutes: latest?.debtMinutes ?? null,
       lastAnalyzedAt: latest?.calculatedAt ? latest.calculatedAt.toISOString() : null,
     };
   });
