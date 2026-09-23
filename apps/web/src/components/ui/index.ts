@@ -25,6 +25,7 @@ export { Button } from "./Button";
 
 export { IconBox } from "./IconBox";
 
+export { InfoHint } from "./InfoHint";
 export { StatCard } from "./StatCard";
 
 export {

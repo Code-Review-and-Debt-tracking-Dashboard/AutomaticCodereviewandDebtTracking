@@ -2,6 +2,8 @@ import type { ComponentType } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 
+import { InfoHint } from "./InfoHint";
+
 /*
  * =========================================================
  * STAT CARD — Dashboard statistic card
@@ -32,6 +34,8 @@ interface StatCardProps {
   icon: ComponentType<{ size?: number; className?: string }>;
   iconColor?: string;
   color?: keyof typeof colorClasses;
+  /** Plain-English explanation, shown on hover next to the label. */
+  help?: string;
   delay?: number;
   className?: string;
 }
@@ -44,6 +48,7 @@ export function StatCard({
   icon: Icon,
   iconColor,
   color,
+  help,
   delay = 0,
   className = "",
 }: StatCardProps) {
@@ -79,8 +84,9 @@ export function StatCard({
       </div>
 
       {/* Label */}
-      <p className="mt-5 text-sm text-muted-foreground">
+      <p className="mt-5 flex items-center gap-1.5 text-sm text-muted-foreground">
         {title}
+        {help && <InfoHint text={help} />}
       </p>
 
       {/* Value + Change */}

@@ -22,6 +22,7 @@ import {
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/apiClient";
+import { METRIC_HELP } from "../../lib/healthBand";
 
 
 import {
@@ -113,6 +114,7 @@ export function RepositoryTrendsPage() {
 
   const summaryCards = [
     {
+      help: METRIC_HELP.healthScore,
       title: "Current Health",
       value: latest ? String(latest.healthScore) : "—",
       description: `Across ${raw.length} ${raw.length === 1 ? "analysis" : "analyses"}`,
@@ -120,6 +122,7 @@ export function RepositoryTrendsPage() {
       color: "success" as const,
     },
     {
+      help: METRIC_HELP.openFindings,
       title: "Open Findings",
       value: latest ? String(latest.totalIssues ?? 0) : "—",
       description: "In the latest analysis",
@@ -127,6 +130,7 @@ export function RepositoryTrendsPage() {
       color: "warning" as const,
     },
     {
+      help: METRIC_HELP.technicalDebt,
       title: "Technical Debt",
       value: latest ? formatMinutes(latest.debtMinutes ?? 0) : "—",
       description: "Estimated remediation",
@@ -134,6 +138,7 @@ export function RepositoryTrendsPage() {
       color: "info" as const,
     },
     {
+      help: "How many times this repository has been analyzed in the selected period.",
       title: "Analyses",
       value: String(raw.length),
       description: `In the last ${days} days`,
@@ -186,6 +191,7 @@ export function RepositoryTrendsPage() {
                 key={card.title}
                 title={card.title}
                 value={card.value}
+                help={card.help}
                 icon={Icon}
                 color={card.color}
               />

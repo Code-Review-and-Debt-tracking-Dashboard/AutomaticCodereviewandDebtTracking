@@ -46,7 +46,7 @@ import {
 } from "../../components/ui";
 
 import { useAuth } from "../../contexts/AuthContext";
-import { healthBand } from "../../lib/healthBand";
+import { healthBand, METRIC_HELP } from "../../lib/healthBand";
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
 
@@ -236,24 +236,28 @@ export function DashboardPage() {
       {
         title: "Repositories",
         value: String(repositories.length),
+        help: "How many repositories are connected to CodeHealth in this organization.",
         icon: Code2,
         iconColor: "bg-primary/10 text-primary",
       },
       {
         title: "Average Health",
         value: avgHealth,
+        help: METRIC_HELP.healthScore,
         icon: TrendingUp,
         iconColor: "bg-success/10 text-success",
       },
       {
         title: "Open Findings",
         value: String(totalFindings),
+        help: METRIC_HELP.openFindings,
         icon: ShieldAlert,
         iconColor: "bg-warning/10 text-warning",
       },
       {
         title: "Technical Debt",
         value: debtLabel(totalDebtMinutes),
+        help: METRIC_HELP.technicalDebt,
         icon: Wrench,
         iconColor: "bg-info/10 text-info",
       },
@@ -333,6 +337,7 @@ export function DashboardPage() {
               key={stat.title}
               title={stat.title}
               value={stat.value}
+              help={stat.help}
               icon={stat.icon}
               iconColor={stat.iconColor}
               delay={index * 0.08}

@@ -12,6 +12,7 @@ import { useParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
+import { METRIC_HELP } from "../../lib/healthBand";
 
 import {
   BackLink,
@@ -166,24 +167,28 @@ export function RepositoryFindingsPage() {
           <StatCard
             title="Total Findings"
             value={String(summary?.total ?? 0)}
+            help={METRIC_HELP.openFindings}
             icon={ShieldAlert}
             color="danger"
           />
           <StatCard
             title="Critical"
             value={String(summary?.bySeverity?.critical ?? 0)}
+            help="The most serious problems found. These should be dealt with first."
             icon={AlertTriangle}
             color="danger"
           />
           <StatCard
             title="High Severity"
             value={String(summary?.bySeverity?.high ?? 0)}
+            help="Serious problems, though less urgent than critical ones."
             icon={Bug}
             color="warning"
           />
           <StatCard
             title="New in this analysis"
             value={String(summary?.new ?? 0)}
+            help="Problems that were not present in the previous analysis of this repository."
             icon={Code2}
             color="info"
           />
