@@ -21,7 +21,9 @@ async function loadAgentJob(req: Request, jobId: string) {
   const { orgId } = (req as any).agent;
 
   const job = await prisma.analysisJob.findFirst({
-    where: { id: jobId, repository: { orgId } },
+    // a platform agent (no orgId) services every org; an org-scoped one is
+    // still limited to its own, so a leaked per-org token stays contained
+    where: { id: jobId, ...(orgId ? { repository: { orgId } } : {}) },
   });
 
   if (!job) {

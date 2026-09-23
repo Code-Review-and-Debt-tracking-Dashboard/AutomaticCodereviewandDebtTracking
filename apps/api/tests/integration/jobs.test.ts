@@ -30,6 +30,13 @@ async function createAgent(org: Organization, token: string, revoked = false) {
   return { authorization: `Bearer ${token}` };
 }
 
+// orgId null — one worker holds one token, so this is how it services every org.
+async function createPlatformAgent(token: string) {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  await prisma.agent.create({ data: { tokenHash, orgId: null } });
+  return { authorization: `Bearer ${token}` };
+}
+
 function results(analysisId: string, overrides: Partial<AnalysisResultsPayload> = {}): AnalysisResultsPayload {
   return {
     analysisId,
@@ -119,6 +126,34 @@ describe('agent job endpoints', () => {
       expect(row.status).toBe('RUNNING');
       expect(row.startedAt).not.toBeNull();
       expect(row.leaseExpiresAt!.getTime()).toBeGreaterThan(Date.now());
+    });
+  });
+
+  describe('agent org scoping', () => {
+    it("an org-scoped agent cannot reach another org's job", async () => {
+      const otherOwner = await createUser();
+      const otherOrg = await createOrg();
+      const otherRepo = await createRepo(otherOrg, otherOwner);
+      const otherJob = await createAnalysisJob(otherRepo, { status: 'PENDING', commitSha: 'HEAD' });
+
+      const res = await api().post(`/jobs/${otherJob.id}/start`).set(auth);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('a platform agent can reach jobs in any org', async () => {
+      const platform = await createPlatformAgent('platform-token-1');
+
+      const otherOwner = await createUser();
+      const otherOrg = await createOrg();
+      const otherRepo = await createRepo(otherOrg, otherOwner);
+      const otherJob = await createAnalysisJob(otherRepo, { status: 'PENDING', commitSha: 'HEAD' });
+
+      const mine = await api().post(`/jobs/${job.id}/start`).set(platform);
+      const theirs = await api().post(`/jobs/${otherJob.id}/start`).set(platform);
+
+      expect(mine.status).toBe(204);
+      expect(theirs.status).toBe(204);
     });
   });
 

@@ -76,10 +76,12 @@ model Organization {
 // instead of a user session, so a deployment can be revoked on its own
 // without touching anything else.
 model Agent {
-  id           String       @id @default(cuid())
-  tokenHash    String       @unique
-  orgId        String
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  id           String        @id @default(cuid())
+  tokenHash    String        @unique
+  /// null means the agent is platform-wide and can service every org. A worker
+  /// holds one token, so a per-org agent can only ever analyse that one org.
+  orgId        String?
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Restrict)
   lastSeenAt   DateTime?
   revokedAt    DateTime?
   createdAt    DateTime     @default(now())
