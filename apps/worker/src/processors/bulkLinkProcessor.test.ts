@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import type { BulkLinkRepoResult, BulkLinkStatus } from '@codehealth/shared';
 
-import { summarize } from './bulkLinkProcessor';
+import { credentialFailureResults, summarize } from './bulkLinkProcessor';
 
 function result(status: BulkLinkStatus, githubRepoId = 1): BulkLinkRepoResult {
   return { githubRepoId, status };
@@ -17,6 +17,7 @@ describe('summarize', () => {
       NOT_IN_ORG: 0,
       NOT_FOUND: 0,
       NO_CREDENTIAL: 0,
+      CREDENTIAL_DECRYPT_FAILED: 0,
       GITHUB_ERROR: 0,
     });
   });
@@ -44,8 +45,19 @@ describe('summarize', () => {
       NOT_IN_ORG: 0,
       NOT_FOUND: 0,
       NO_CREDENTIAL: 0,
+      CREDENTIAL_DECRYPT_FAILED: 0,
       GITHUB_ERROR: 1,
     });
+  });
+
+  it('keeps a decrypt failure out of the missing-credential bucket', () => {
+    const results = credentialFailureResults([1, 2], 'CREDENTIAL_DECRYPT_FAILED');
+    const summary = summarize(results);
+
+    expect(summary.CREDENTIAL_DECRYPT_FAILED).toBe(2);
+    expect(summary.NO_CREDENTIAL).toBe(0);
+    // the whole point: this one must not tell the user to sign in again
+    expect(results[0].message).not.toMatch(/sign in/i);
   });
 
   it('totals back to the number of repos submitted', () => {

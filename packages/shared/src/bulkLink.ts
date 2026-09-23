@@ -10,8 +10,9 @@ export interface BulkLinkJobData {
   githubRepoIds: number[];
 }
 
-// NO_CREDENTIAL is the job giving up early — the user's GitHub token is gone,
-// so every remaining repo would fail the same way.
+// NO_CREDENTIAL and CREDENTIAL_DECRYPT_FAILED are the job giving up early —
+// every remaining repo would fail the same way. They're kept apart because one
+// is fixed by signing in again and the other only by fixing the server key.
 export type BulkLinkStatus =
   | 'LINKED'
   | 'ALREADY_LINKED'
@@ -19,6 +20,7 @@ export type BulkLinkStatus =
   | 'NOT_IN_ORG'
   | 'NOT_FOUND'
   | 'NO_CREDENTIAL'
+  | 'CREDENTIAL_DECRYPT_FAILED'
   | 'GITHUB_ERROR';
 
 export interface BulkLinkRepoResult {
