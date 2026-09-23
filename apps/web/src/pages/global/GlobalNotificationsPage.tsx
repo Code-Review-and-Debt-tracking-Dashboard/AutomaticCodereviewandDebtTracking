@@ -41,68 +41,6 @@ interface NotificationData {
 }
 
 
-/* =========================================================
-   DEMO DATA (fallback when API is unavailable)
-========================================================= */
-
-const demoNotifications: NotificationData[] = [
-  {
-    id: "n-001",
-    title: "Analysis completed successfully",
-    body: "AutomaticCodeReview repository static scan finished with a health score of 86 (+4).",
-    readAt: null,
-    createdAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-    repoName: "AutomaticCodeReview",
-    type: "analysis",
-  },
-  {
-    id: "n-002",
-    title: "Critical vulnerability detected",
-    body: "High risk SQL injection vulnerability found in src/api/users.ts:42",
-    readAt: null,
-    createdAt: new Date(Date.now() - 32 * 60 * 1000).toISOString(),
-    repoName: "AutomaticCodeReview",
-    severity: "critical",
-    type: "security",
-  },
-  {
-    id: "n-003",
-    title: "Pull request passed quality gate",
-    body: "PR #42 'Add repository health scoring' passed all strict gate checks.",
-    readAt: null,
-    createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    repoName: "AutomaticCodeReview",
-    type: "quality-gate",
-  },
-  {
-    id: "n-004",
-    title: "High complexity function warning",
-    body: "Function processAsPayload in MobileDashboard exceeds the recommended complexity threshold.",
-    readAt: null,
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    repoName: "MobileDashboard",
-    severity: "high",
-    type: "analysis",
-  },
-  {
-    id: "n-005",
-    title: "Pull request analyzed",
-    body: "PR #41 'Fix login redirect bug' scanned — 2 new findings, 4 fixed.",
-    readAt: "2026-01-01T00:00:00Z",
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    repoName: "AutomaticCodeReview",
-    type: "pr-scan",
-  },
-  {
-    id: "n-006",
-    title: "Analysis completed successfully",
-    body: "AnalysisWorker repository static scan finished with a health score of 91 (+1).",
-    readAt: "2026-01-01T00:00:00Z",
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    repoName: "AnalysisWorker",
-    type: "analysis",
-  },
-];
 
 
 /* =========================================================
@@ -156,10 +94,10 @@ export function GlobalNotificationsPage() {
 
       try {
         const response = await api.get<{ data: NotificationData[] }>("/api/notifications");
-        const data = response.data || [];
-        setNotifications(data.length > 0 ? data : demoNotifications);
-      } catch {
-        setNotifications(demoNotifications);
+        setNotifications(response.data || []);
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Failed to load notifications.");
+        setNotifications([]);
       } finally {
         setIsLoading(false);
       }
@@ -326,8 +264,12 @@ export function GlobalNotificationsPage() {
         ) : filteredNotifications.length === 0 ? (
           <EmptyState
             icon={Bell}
-            title="No notifications"
-            description="You're all caught up! New notifications will appear here."
+            title={notifications.length === 0 ? "No notifications" : "Nothing matches these filters"}
+            description={
+              notifications.length === 0
+                ? "You are alerted when a quality gate fails, a health score drops sharply, or a new critical vulnerability appears. A healthy repository stays quiet."
+                : "Try a different tab, repository, or type."
+            }
           />
         ) : (
           <div className="space-y-6">

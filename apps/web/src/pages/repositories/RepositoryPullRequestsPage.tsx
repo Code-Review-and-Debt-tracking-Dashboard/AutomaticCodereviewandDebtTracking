@@ -44,30 +44,6 @@ interface PullItem {
   time: string;
 }
 
-const fallbackPullRequests: PullItem[] = [
-  {
-    id: 42,
-    title: "Improve repository health dashboard",
-    author: "seed-developer",
-    branch: "feature/health-dashboard",
-    score: 91,
-    findings: 3,
-    debtDelta: -15,
-    status: "Passed",
-    time: "2 hours ago",
-  },
-  {
-    id: 41,
-    title: "Improve analysis worker performance",
-    author: "Kasun Perera",
-    branch: "perf/worker-optimization",
-    score: 78,
-    findings: 8,
-    debtDelta: 25,
-    status: "Needs attention",
-    time: "Yesterday",
-  },
-];
 
 
 /* =========================================================
@@ -79,7 +55,8 @@ export function RepositoryPullRequestsPage() {
   const navigate = useNavigate();
   
   const [prs, setPrs] = useState<PullItem[]>([]);
-  const [_isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -87,15 +64,13 @@ export function RepositoryPullRequestsPage() {
 
     const fetchPulls = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const res = await api.get<{ data: PullItem[] }>(`/api/repos/${repoId}/pulls`);
-        if (res?.data && res.data.length > 0) {
-          setPrs(res.data);
-        } else {
-          setPrs(fallbackPullRequests);
-        }
-      } catch {
-        setPrs(fallbackPullRequests);
+        setPrs(res?.data ?? []);
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Failed to load pull requests.");
+        setPrs([]);
       } finally {
         setIsLoading(false);
       }
@@ -104,7 +79,7 @@ export function RepositoryPullRequestsPage() {
     fetchPulls();
   }, [repoId]);
 
-  const pullRequests = prs.length > 0 ? prs : fallbackPullRequests;
+  const pullRequests = prs;
 
   const filteredPRs = pullRequests.filter((pr) => {
     const matchesSearch =
@@ -258,7 +233,13 @@ export function RepositoryPullRequestsPage() {
               {filteredPRs.length === 0 && (
                 <DataTableRow>
                   <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    No pull requests found.
+                    {isLoading
+                      ? "Loading pull requests…"
+                      : error
+                        ? error
+                        : prs.length === 0
+                          ? "No pull requests analyzed for this repository yet."
+                          : "No pull requests match your filters."}
                   </DataTableCell>
                 </DataTableRow>
               )}
