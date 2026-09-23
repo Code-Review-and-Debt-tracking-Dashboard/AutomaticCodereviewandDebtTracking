@@ -24,22 +24,46 @@ interface AvailableRepo {
   isAlreadyLinked?: boolean;
 }
 
+type BulkLinkResultStatus =
+  | "LINKED"
+  | "ALREADY_LINKED"
+  | "NO_ADMIN"
+  | "NOT_IN_ORG"
+  | "NOT_FOUND"
+  | "NO_CREDENTIAL"
+  | "CREDENTIAL_DECRYPT_FAILED"
+  | "GITHUB_ERROR";
+
+// what the user sees instead of the raw status string
+const STATUS_LABEL: Record<BulkLinkResultStatus, string> = {
+  LINKED: "Linked",
+  ALREADY_LINKED: "Already linked",
+  NO_ADMIN: "Needs admin access on GitHub",
+  NOT_IN_ORG: "Not in this organization",
+  NOT_FOUND: "Not found on GitHub",
+  NO_CREDENTIAL: "Sign in to GitHub again",
+  CREDENTIAL_DECRYPT_FAILED: "Server could not read your GitHub token",
+  GITHUB_ERROR: "GitHub error",
+};
+
+// everything that isn't a success counts as an error in the summary tile
+function errorCount(summary: Record<BulkLinkResultStatus, number>): number {
+  return (Object.keys(STATUS_LABEL) as BulkLinkResultStatus[])
+    .filter((s) => s !== "LINKED" && s !== "ALREADY_LINKED" && s !== "NO_ADMIN")
+    .reduce((total, s) => total + (summary[s] ?? 0), 0);
+}
+
 interface BulkLinkStatus {
   jobId: string;
   state: string;
   progress: { done: number; total: number };
   results?: {
-    [githubRepoId: string]: {
-      status: "LINKED" | "ALREADY_LINKED" | "NO_ADMIN" | "NOT_IN_ORG" | "NOT_FOUND" | "GITHUB_ERROR";
-      message?: string;
-    };
-  };
-  summary?: {
-    linked: number;
-    alreadyLinked: number;
-    noAdmin: number;
-    error: number;
-  };
+    githubRepoId: number;
+    status: BulkLinkResultStatus;
+    fullName?: string;
+    message?: string;
+  }[];
+  summary?: Record<BulkLinkResultStatus, number>;
   failedReason?: string;
 }
 
@@ -348,19 +372,19 @@ export function LinkRepositoryModal({
               {bulkStatus?.summary && (
                 <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                   <div className="bg-success/10 text-success rounded-lg p-3">
-                    <div className="text-xl font-bold">{bulkStatus.summary.linked}</div>
+                    <div className="text-xl font-bold">{bulkStatus.summary.LINKED}</div>
                     <div className="text-xs mt-1 font-medium">Linked</div>
                   </div>
                   <div className="bg-info/10 text-info rounded-lg p-3">
-                    <div className="text-xl font-bold">{bulkStatus.summary.alreadyLinked}</div>
+                    <div className="text-xl font-bold">{bulkStatus.summary.ALREADY_LINKED}</div>
                     <div className="text-xs mt-1 font-medium">Already Linked</div>
                   </div>
                   <div className="bg-warning/10 text-warning rounded-lg p-3">
-                    <div className="text-xl font-bold">{bulkStatus.summary.noAdmin}</div>
+                    <div className="text-xl font-bold">{bulkStatus.summary.NO_ADMIN}</div>
                     <div className="text-xs mt-1 font-medium">No Admin</div>
                   </div>
                   <div className="bg-destructive/10 text-destructive rounded-lg p-3">
-                    <div className="text-xl font-bold">{bulkStatus.summary.error}</div>
+                    <div className="text-xl font-bold">{errorCount(bulkStatus.summary)}</div>
                     <div className="text-xs mt-1 font-medium">Errors</div>
                   </div>
                 </div>
@@ -369,13 +393,19 @@ export function LinkRepositoryModal({
               {/* Per-repo error list if finished and there are errors */}
               {!isLinking && bulkStatus?.results && (
                 <div className="mt-6 max-h-32 overflow-y-auto space-y-2 border-t border-border/50 pt-4">
-                  {Object.entries(bulkStatus.results).map(([id, result]) => {
+                  {bulkStatus.results.map((result) => {
                     if (result.status === "LINKED" || result.status === "ALREADY_LINKED") return null;
+                    const id = String(result.githubRepoId);
                     const repo = availableRepos.find((r) => r.githubRepoId === id);
                     return (
-                      <div key={id} className="text-xs text-destructive flex justify-between p-2 bg-destructive/5 rounded-md">
-                        <span className="font-semibold truncate mr-2">{repo?.fullName || id}</span>
-                        <span className="shrink-0">{result.status}</span>
+                      <div key={id} className="text-xs text-destructive p-2 bg-destructive/5 rounded-md">
+                        <div className="flex justify-between">
+                          <span className="font-semibold truncate mr-2">
+                            {result.fullName || repo?.fullName || id}
+                          </span>
+                          <span className="shrink-0">{STATUS_LABEL[result.status]}</span>
+                        </div>
+                        {result.message && <div className="mt-1 opacity-80">{result.message}</div>}
                       </div>
                     );
                   })}
