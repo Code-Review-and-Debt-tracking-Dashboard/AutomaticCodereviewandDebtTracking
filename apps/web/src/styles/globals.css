@@ -38,109 +38,133 @@
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
+
+  /* Each theme swaps the display face, so keep these as live references. */
+  --font-sans: var(--font-ui);
+  --font-display: var(--font-heading);
+  --font-mono: var(--font-code);
+
+  /* Tight corners everywhere — nothing here is a pill. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+  --radius-xl: 9px;
+  --radius-2xl: 10px;
+  --radius-3xl: 12px;
+
+  /* Shadows are reserved for things that float above the page. */
+  --shadow-2xs: none;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: 0 2px 6px hsl(var(--shadow-tint) / 0.1);
+  --shadow-lg: 0 8px 20px -6px hsl(var(--shadow-tint) / 0.18);
+  --shadow-xl: 0 14px 34px -10px hsl(var(--shadow-tint) / 0.24);
+  --shadow-2xl: 0 20px 44px -12px hsl(var(--shadow-tint) / 0.32);
 }
 
 /* ==========================================================
-   LIGHT THEME
+   LIGHT — editorial paper
 ========================================================== */
 
 :root {
+  --font-ui: "Schibsted Grotesk", ui-sans-serif, sans-serif;
+  --font-heading: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-code: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --background: 120 20% 98%;
-  --foreground: 155 20% 10%;
+  --background: 48 31% 94%;
+  --foreground: 156 30% 12%;
 
-  --card: 0 0% 100%;
-  --card-foreground: 155 20% 10%;
+  --card: 48 40% 98%;
+  --card-foreground: 156 30% 12%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 155 20% 10%;
+  --popover: 48 40% 98%;
+  --popover-foreground: 156 30% 12%;
 
-  --primary: 161 95% 42%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 151 52% 24%;
+  --primary-foreground: 48 40% 98%;
 
-  --secondary: 150 18% 96%;
-  --secondary-foreground: 155 20% 10%;
+  --secondary: 48 24% 91%;
+  --secondary-foreground: 156 30% 12%;
 
-  --muted: 150 18% 96%;
-  --muted-foreground: 155 10% 45%;
+  --muted: 48 24% 91%;
+  --muted-foreground: 150 10% 38%;
 
-  --accent: 160 65% 94%;
-  --accent-foreground: 161 95% 32%;
+  --accent: 151 28% 88%;
+  --accent-foreground: 151 52% 22%;
 
-  --success: 145 75% 42%;
-  --warning: 42 95% 52%;
-  --destructive: 0 82% 60%;
-  --info: 175 90% 46%;
+  --success: 151 55% 30%;
+  --warning: 32 78% 38%;
+  --destructive: 4 64% 45%;
+  --info: 196 58% 34%;
+  --destructive-foreground: 48 40% 98%;
 
-  --border: 150 18% 88%;
-  --input: 150 18% 88%;
-  --ring: 161 95% 42%;
+  --border: 44 18% 84%;
+  --input: 44 18% 84%;
+  --ring: 151 52% 24%;
 
-  --sidebar: 0 0% 100%;
-  --sidebar-foreground: 155 20% 10%;
-  --sidebar-border: 150 18% 88%;
+  --sidebar: 48 28% 92%;
+  --sidebar-foreground: 156 30% 12%;
+  --sidebar-border: 44 18% 84%;
 
-  --radius: 1rem;
+  --shadow-tint: 150 30% 15%;
+
+  /* Paper grain */
+  --app-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.12'/%3E%3C/svg%3E");
+  --app-texture-size: 140px 140px;
 }
 
 /* ==========================================================
-   DARK THEME
+   DARK — instrument panel
 ========================================================== */
 
 .dark {
+  --font-heading: "Schibsted Grotesk", ui-sans-serif, sans-serif;
 
-  /* Background */
+  --background: 152 22% 6%;
+  --foreground: 150 12% 92%;
 
-  --background: 150 18% 7%;
+  --card: 152 18% 9%;
+  --card-foreground: 150 12% 92%;
 
-  --foreground: 150 18% 94%;
+  --popover: 152 20% 11%;
+  --popover-foreground: 150 12% 92%;
 
-  /* Cards */
+  --primary: 152 65% 54%;
+  --primary-foreground: 152 40% 7%;
 
-  --card: 150 15% 10%;
-  --card-foreground: 150 18% 94%;
+  --secondary: 152 12% 14%;
+  --secondary-foreground: 150 12% 92%;
 
-  /* Popovers */
+  --muted: 152 12% 13%;
+  --muted-foreground: 150 8% 60%;
 
-  --popover: 150 15% 10%;
-  --popover-foreground: 150 18% 94%;
+  --accent: 152 14% 16%;
+  --accent-foreground: 152 65% 64%;
 
-  /* Neon Mint */
+  --success: 152 58% 50%;
+  --warning: 38 92% 58%;
+  --destructive: 4 78% 64%;
+  --info: 190 68% 56%;
+  --destructive-foreground: 152 40% 7%;
 
-  --primary: 162 100% 53%;
-  --primary-foreground: 150 20% 8%;
+  --border: 152 12% 17%;
+  --input: 152 12% 17%;
+  --ring: 152 65% 54%;
 
-  /* Panels */
+  --sidebar: 152 24% 5%;
+  --sidebar-foreground: 150 12% 92%;
+  --sidebar-border: 152 12% 15%;
 
-  --secondary: 150 14% 14%;
-  --secondary-foreground: 150 18% 94%;
+  --shadow-tint: 152 60% 2%;
 
-  --muted: 150 14% 14%;
-  --muted-foreground: 150 8% 66%;
-
-  /* Hover */
-
-  --accent: 150 18% 18%;
-  --accent-foreground: 162 100% 70%;
-
-  /* Status */
-
-  --success: 145 78% 46%;
-  --warning: 82 85% 55%;
-  --destructive: 4 84% 72%;
-  --info: 176 100% 56%;
-
-  /* Borders */
-
-  --border: 150 18% 18%;
-  --input: 150 18% 18%;
-  --ring: 162 100% 53%;
-
-  /* Sidebar */
-
-  --sidebar: 150 20% 8%;
-  --sidebar-foreground: 150 18% 94%;
-  --sidebar-border: 150 18% 18%;
+  /* Faint measurement grid */
+  --app-texture: radial-gradient(
+    circle at center,
+    hsl(150 12% 92% / 0.05) 1px,
+    transparent 1px
+  );
+  --app-texture-size: 22px 22px;
 }
 
 /* ==========================================================
@@ -151,44 +175,47 @@
   border-color: hsl(var(--border));
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
-
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
 
-  background: hsl(var(--background));
+  background-color: hsl(var(--background));
+  background-image: var(--app-texture);
+  background-size: var(--app-texture-size);
+  background-attachment: fixed;
+
   color: hsl(var(--foreground));
-
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font-family: var(--font-ui);
 
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* ==========================================================
-   Selection
-========================================================== */
-
-::selection {
-  background: hsl(var(--primary)/0.25);
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
 }
 
-/* ==========================================================
-   Scrollbar
-========================================================== */
+/* Figures should never jitter as they update. */
+.font-mono,
+code,
+kbd {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.28);
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -196,235 +223,99 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-
-  background: hsl(var(--primary)/0.25);
-
+  background: hsl(var(--border));
+  border: 3px solid transparent;
+  background-clip: content-box;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-
-  background: hsl(var(--primary)/0.55);
-
+  background: hsl(var(--muted-foreground) / 0.5);
+  background-clip: content-box;
 }
 
 /* ==========================================================
-   Focus
+   HOUSE DETAILS
 ========================================================== */
 
-:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
+/* Ruler rule that sits under every page title. */
+.rule-ticks {
+  height: 5px;
+  background-image:
+    linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px),
+    repeating-linear-gradient(
+      to right,
+      hsl(var(--border)) 0 1px,
+      transparent 1px 11px
+    );
+  background-size:
+    100% 1px,
+    100% 5px;
+  background-repeat: no-repeat, repeat-x;
+  mask-image: linear-gradient(to right, #000 0, #000 45%, transparent 100%);
+}
+
+/* Small mono label used above titles and on stat cards. */
+.eyebrow {
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
 }
 
 /* ==========================================================
-   Glass
+   ANIMATIONS
 ========================================================== */
 
-.glass{
-
-  background:hsl(var(--card)/0.78);
-
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
-
-  border:1px solid hsl(var(--border));
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-/* ==========================================================
-   Background
-========================================================== */
-
-.gradient-background{
-
-background:
-
-radial-gradient(circle at top left,
-hsl(var(--primary)/0.10),
-transparent 32%),
-
-radial-gradient(circle at bottom right,
-hsl(var(--info)/0.08),
-transparent 30%),
-
-hsl(var(--background));
-
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* ==========================================================
-   Primary Gradient
-========================================================== */
-
-.gradient-primary{
-
-background:linear-gradient(
-135deg,
-hsl(var(--primary)),
-hsl(175 100% 52%)
-);
-
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }
 
-/* ==========================================================
-   Card Glow
-========================================================== */
-
-.card-glow{
-
-box-shadow:
-
-0 0 12px hsl(var(--primary)/0.08),
-
-0 0 30px hsl(var(--primary)/0.05);
-
-transition:.3s;
-
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out both;
 }
 
-.card-glow:hover{
-
-box-shadow:
-
-0 0 18px hsl(var(--primary)/0.20),
-
-0 0 45px hsl(var(--primary)/0.12);
-
+.animate-slide-up {
+  animation: slide-up 0.45s ease-out both;
 }
 
-/* ==========================================================
-   Neon Utilities
-========================================================== */
-
-.neon-text{
-color:hsl(var(--primary));
+.animate-pulse-soft {
+  animation: pulse-soft 2s infinite;
 }
 
-.neon-border{
-
-border:1px solid hsl(var(--primary)/0.18);
-
-}
-
-.neon-ring{
-
-box-shadow:
-
-inset 0 0 0 1px hsl(var(--primary)/0.18),
-
-0 0 25px hsl(var(--primary)/0.08);
-
-}
-
-.neon-glow{
-
-text-shadow:
-
-0 0 6px hsl(var(--primary)/0.35),
-
-0 0 14px hsl(var(--primary)/0.18);
-
-}
-
-.border-glow{
-
-border:1px solid hsl(var(--primary)/0.22);
-
-}
-
-.bg-panel{
-
-background:hsl(var(--card));
-
-}
-
-.bg-panel-hover:hover{
-
-background:hsl(var(--accent));
-
-}
-
-.text-dim{
-
-color:hsl(var(--muted-foreground));
-
-}
-
-/* ==========================================================
-   Animations
-========================================================== */
-
-@keyframes fade-in{
-from{opacity:0;}
-to{opacity:1;}
-}
-
-@keyframes slide-up{
-from{
-opacity:0;
-transform:translateY(10px);
-}
-to{
-opacity:1;
-transform:translateY(0);
-}
-}
-
-@keyframes pulse-soft{
-0%,100%{
-opacity:1;
-}
-50%{
-opacity:.7;
-}
-}
-
-.animate-fade-in{
-animation:fade-in .35s ease-out both;
-}
-
-.animate-slide-up{
-animation:slide-up .45s ease-out both;
-}
-
-.animate-pulse-soft{
-animation:pulse-soft 2s infinite;
-}
-
-/* ==========================================================
-   Cyber Grid Background
-========================================================== */
-
-.cyber-grid{
-
-background-image:
-
-linear-gradient(
-rgba(0,255,180,.03) 1px,
-transparent 1px),
-
-linear-gradient(
-90deg,
-rgba(0,255,180,.03) 1px,
-transparent 1px);
-
-background-size:32px 32px;
-
-}
-
-/* ==========================================================
-   Reduced Motion
-========================================================== */
-
-@media (prefers-reduced-motion: reduce){
-
-*,
-*::before,
-*::after{
-
-animation:none !important;
-transition:none !important;
-scroll-behavior:auto !important;
-
-}
-
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
