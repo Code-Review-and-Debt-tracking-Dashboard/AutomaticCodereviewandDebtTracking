@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   TrendingUp,
+  Unlink,
   X,
   Loader2,
 } from "lucide-react";
@@ -105,6 +106,9 @@ export function RepositoriesPage() {
   const [sortBy, setSortBy] = useState<SortOption>("health");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<Repository | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
 
   const fetchRepos = useCallback(async () => {
     if (!selectedOrg) {
@@ -167,6 +171,23 @@ export function RepositoriesPage() {
   useEffect(() => {
     fetchRepos();
   }, [fetchRepos]);
+
+  // Removes the GitHub webhook too, so it has to be confirmed first.
+  const confirmUnlink = async () => {
+    if (!unlinkTarget) return;
+
+    setIsUnlinking(true);
+    setUnlinkError(null);
+    try {
+      await api.delete(`/api/repos/${unlinkTarget.id}`);
+      setUnlinkTarget(null);
+      await fetchRepos();
+    } catch (err: any) {
+      setUnlinkError(err?.response?.data?.message || "Failed to unlink this repository.");
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
 
   const filteredRepositories = useMemo(() => {
     let result = [...repositories];
@@ -416,6 +437,7 @@ export function RepositoriesPage() {
                 repository={repository}
                 index={index}
                 onSelect={() => navigate(`/repositories/${repository.id}`)}
+                onUnlink={() => setUnlinkTarget(repository)}
               />
             ))}
           </div>
@@ -427,6 +449,48 @@ export function RepositoriesPage() {
         onClose={() => setIsLinkModalOpen(false)}
         onRepoLinked={fetchRepos}
       />
+
+      {unlinkTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <h2 className="text-lg font-bold">Unlink repository</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This removes the CodeHealth webhook from{" "}
+              <span className="font-semibold text-foreground">{unlinkTarget.fullName}</span> on
+              GitHub, so it stops being analysed. Past analyses are kept and will come back if you
+              link it again.
+            </p>
+
+            {unlinkError && (
+              <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                {unlinkError}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isUnlinking}
+                onClick={() => {
+                  setUnlinkTarget(null);
+                  setUnlinkError(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive-solid"
+                size="sm"
+                disabled={isUnlinking}
+                onClick={confirmUnlink}
+              >
+                {isUnlinking ? "Unlinking…" : "Unlink"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -435,12 +499,15 @@ function RepositoryCard({
   repository,
   index,
   onSelect,
+  onUnlink,
 }: {
   repository: Repository;
   index: number;
   onSelect: () => void;
+  onUnlink: () => void;
 }) {
   const isHealthy = repository.isAnalyzed && repository.score >= 85;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <Card
@@ -461,12 +528,46 @@ function RepositoryCard({
             </div>
           </div>
 
-          <button
-            type="button"
-            className="rounded-lg p-2 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
-          >
-            <MoreHorizontal size={18} />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Repository actions"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((open) => !open);
+              }}
+              className="rounded-lg p-2 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+
+            {menuOpen && (
+              <>
+                {/* click-away catcher */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                  }}
+                />
+                <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      onUnlink();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-destructive transition hover:bg-destructive/10"
+                  >
+                    <Unlink size={14} />
+                    Unlink repository
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 grid grid-cols-3 gap-4">

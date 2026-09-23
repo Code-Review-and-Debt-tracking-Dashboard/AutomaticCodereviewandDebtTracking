@@ -18,7 +18,7 @@ const { selectedOrg } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../lib/apiClient", () => ({ api: { get: vi.fn(), post: vi.fn() } }));
+vi.mock("../../lib/apiClient", () => ({ api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
 
 vi.mock("../../contexts/OrgContext", () => ({
   useOrg: () => ({ selectedOrg: selectedOrg }),
@@ -104,5 +104,42 @@ describe("RepositoriesPage", () => {
       expect(screen.queryByText("code-health")).not.toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "No repositories found" })).toBeInTheDocument();
     });
+  });
+
+  it("unlinks a repository from the card menu after confirming", async () => {
+    const user = userEvent.setup();
+    mockedApi.get.mockResolvedValue({ data: [repository] });
+    mockedApi.delete.mockResolvedValue(undefined as never);
+    renderPage();
+
+    expect(await screen.findByText("code-health")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /repository actions/i }));
+    await user.click(screen.getByRole("button", { name: /unlink repository/i }));
+
+    // confirmation first — the webhook is removed from GitHub
+    expect(screen.getByRole("heading", { name: /unlink repository/i })).toBeInTheDocument();
+    expect(mockedApi.delete).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /^unlink$/i }));
+
+    await waitFor(() => {
+      expect(mockedApi.delete).toHaveBeenCalledWith("/api/repos/repo-1");
+    });
+  });
+
+  it("does not unlink when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    mockedApi.get.mockResolvedValue({ data: [repository] });
+    mockedApi.delete.mockResolvedValue(undefined as never);
+    renderPage();
+
+    expect(await screen.findByText("code-health")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /repository actions/i }));
+    await user.click(screen.getByRole("button", { name: /unlink repository/i }));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(mockedApi.delete).not.toHaveBeenCalled();
   });
 });

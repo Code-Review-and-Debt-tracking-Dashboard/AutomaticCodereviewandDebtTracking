@@ -1,8 +1,6 @@
 
 import {
   AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
   Calendar,
   CheckCircle2,
   Clock3,
@@ -56,80 +54,38 @@ interface RepoDetail {
   healthScore?: number;
   openFindings?: number;
   debtMinutes?: number;
+  lastAnalyzedAt?: string | null;
 }
 
-const healthTrend = [
-  { date: "Jun 01", score: 68 },
-  { date: "Jun 05", score: 71 },
-  { date: "Jun 10", score: 70 },
-  { date: "Jun 15", score: 76 },
-  { date: "Jun 20", score: 79 },
-  { date: "Jun 25", score: 82 },
-  { date: "Jun 30", score: 86 },
-];
+function formatMinutes(minutes: number): string {
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+}
 
-const metrics = [
-  {
-    title: "Code Smells",
-    value: "12",
-    change: "-8%",
-    description: "Detected issues",
-    icon: AlertTriangle,
-    iconClass: "bg-warning/10 text-warning",
-    trend: "down",
-  },
-  {
-    title: "Complexity",
-    value: "18",
-    change: "+3%",
-    description: "High complexity areas",
-    icon: TrendingUp,
-    iconClass: "bg-info/10 text-info",
-    trend: "up",
-  },
-  {
-    title: "Security",
-    value: "2",
-    change: "-50%",
-    description: "Security findings",
-    icon: ShieldAlert,
-    iconClass: "bg-danger/10 text-danger",
-    trend: "down",
-  },
-  {
-    title: "Technical Debt",
-    value: "4h 20m",
-    change: "-6h",
-    description: "Estimated remediation",
-    icon: Wrench,
-    iconClass: "bg-primary/10 text-primary",
-    trend: "down",
-  },
-];
+interface ApiNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  createdAt: string;
+  repository: { id: string } | null;
+}
 
-const recentActivity = [
-  {
-    title: "Analysis completed",
-    description: "Latest analysis completed successfully",
-    time: "8 minutes ago",
-    icon: CheckCircle2,
-    iconClass: "bg-success/10 text-success",
-  },
-  {
-    title: "Pull request analyzed",
-    description: "PR #42 introduced 3 new findings",
-    time: "32 minutes ago",
-    icon: GitPullRequest,
-    iconClass: "bg-info/10 text-info",
-  },
-  {
-    title: "Security finding detected",
-    description: "Potential security issue found in API service",
-    time: "1 hour ago",
-    icon: ShieldAlert,
-    iconClass: "bg-danger/10 text-danger",
-  },
-];
+const ACTIVITY_ICON: Record<string, { icon: typeof CheckCircle2; iconClass: string }> = {
+  ANALYSIS_COMPLETE: { icon: CheckCircle2, iconClass: "bg-success/10 text-success" },
+  PR_ANALYZED: { icon: GitPullRequest, iconClass: "bg-info/10 text-info" },
+  QUALITY_GATE_FAILED: { icon: ShieldAlert, iconClass: "bg-danger/10 text-danger" },
+};
+
+function relativeTime(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} minutes ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hours ago`;
+  return `${Math.round(hrs / 24)} days ago`;
+}
 
 export function RepositoryOverviewPage() {
   const { repoId } = useParams<{ repoId: string }>();
@@ -145,6 +101,7 @@ export function RepositoryOverviewPage() {
     >;
   } | null>(null);
   const [hotspots, setHotspots] = useState<HotspotFile[]>([]);
+  const [activity, setActivity] = useState<ApiNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
 
@@ -154,7 +111,7 @@ export function RepositoryOverviewPage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [repoRes, trendRes, debtRes, hotspotsRes] = await Promise.allSettled([
+        const [repoRes, trendRes, debtRes, hotspotsRes, notifRes] = await Promise.allSettled([
           api.get<RepoDetail>(`/api/repos/${repoId}`),
           api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
           api.get<{
@@ -166,6 +123,7 @@ export function RepositoryOverviewPage() {
             >;
           }>(`/api/repos/${repoId}/debt`),
           api.get<{ snapshotId: string; files: HotspotFile[] }>(`/api/repos/${repoId}/hotspots`),
+          api.get<{ data: ApiNotification[] }>(`/api/notifications`),
         ]);
 
         if (repoRes.status === "fulfilled") {
@@ -185,6 +143,12 @@ export function RepositoryOverviewPage() {
         if (hotspotsRes.status === "fulfilled") {
           setHotspots(hotspotsRes.value.files);
         }
+        // notifications aren't repo-scoped on the server, so filter here
+        if (notifRes.status === "fulfilled") {
+          setActivity(
+            (notifRes.value.data || []).filter((n) => n.repository?.id === repoId).slice(0, 3)
+          );
+        }
       } catch (err: any) {
         setError(err?.response?.data?.message || "Failed to load repository data.");
       } finally {
@@ -197,22 +161,31 @@ export function RepositoryOverviewPage() {
 
   const repository = {
     id: repoDetail?.id || repoId || "repo-001",
-    name: repoDetail?.name || "code-health-demo",
-    fullName: repoDetail?.fullName || "seed-acme/code-health-demo",
-    owner: repoDetail?.fullName ? repoDetail.fullName.split("/")[0] : "seed-acme",
-    language: repoDetail?.language || "TypeScript",
+    name: repoDetail?.name || "",
+    fullName: repoDetail?.fullName || "",
+    owner: repoDetail?.fullName ? repoDetail.fullName.split("/")[0] : "",
+    language: repoDetail?.language || "Unknown",
     defaultBranch: repoDetail?.defaultBranch || "main",
     githubUrl: repoDetail?.htmlUrl || "https://github.com",
     isPrivate: repoDetail?.private ?? false,
-    healthScore: repoDetail?.healthScore ?? 88,
-    totalFindings: repoDetail?.openFindings ?? 5,
-    technicalDebt: debtData?.totalDebtMinutes
-      ? `${Math.floor(debtData.totalDebtMinutes / 60)}h ${debtData.totalDebtMinutes % 60}m`
-      : "1h 35m",
-    debtDelta: debtData?.debtDelta ?? -5,
+    healthScore: repoDetail?.healthScore ?? null,
+    totalFindings: repoDetail?.openFindings ?? 0,
+    // 0 minutes is a real answer, so don't treat it as missing
+    technicalDebt: debtData ? formatMinutes(debtData.totalDebtMinutes) : "—",
+    debtDelta: debtData?.debtDelta ?? 0,
+    lastAnalyzedAt: repoDetail?.lastAnalyzedAt ?? null,
   };
 
-  const chartTrend = trendPoints.length > 0 ? trendPoints : healthTrend;
+  const healthLabel =
+    repository.healthScore === null
+      ? { text: "Not analyzed", cls: "bg-muted text-muted-foreground" }
+      : repository.healthScore >= 85
+        ? { text: "Excellent", cls: "bg-success/10 text-success" }
+        : repository.healthScore >= 70
+          ? { text: "Healthy", cls: "bg-success/10 text-success" }
+          : { text: "Needs attention", cls: "bg-warning/10 text-warning" };
+
+  const chartTrend = trendPoints;
 
   const debtBreakdown = debtData?.breakdown;
   const debtChartData = [
@@ -223,6 +196,37 @@ export function RepositoryOverviewPage() {
     { key: "maintainability", label: "Maintainability", value: debtBreakdown?.maintainability.debtMinutes ?? 0, color: "hsl(var(--success))" },
   ];
   const hasDebtBreakdown = debtChartData.some((d) => d.value > 0);
+
+  const metrics = [
+    {
+      title: "Code Smells",
+      value: String(debtBreakdown?.code_smell.count ?? 0),
+      description: "Detected issues",
+      icon: AlertTriangle,
+      iconClass: "bg-warning/10 text-warning",
+    },
+    {
+      title: "Complexity",
+      value: String(debtBreakdown?.complexity.count ?? 0),
+      description: "High complexity areas",
+      icon: TrendingUp,
+      iconClass: "bg-info/10 text-info",
+    },
+    {
+      title: "Security",
+      value: String(debtBreakdown?.vulnerability.count ?? 0),
+      description: "Security findings",
+      icon: ShieldAlert,
+      iconClass: "bg-danger/10 text-danger",
+    },
+    {
+      title: "Technical Debt",
+      value: repository.technicalDebt,
+      description: "Estimated remediation",
+      icon: Wrench,
+      iconClass: "bg-primary/10 text-primary",
+    },
+  ];
 
   if (isLoading) {
     return (
@@ -252,8 +256,8 @@ export function RepositoryOverviewPage() {
 
             <div className="flex flex-wrap items-center gap-3">
               <PageHeaderTitle>{repository.name}</PageHeaderTitle>
-              <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-                Healthy
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${healthLabel.cls}`}>
+                {healthLabel.text}
               </span>
             </div>
 
@@ -295,7 +299,7 @@ export function RepositoryOverviewPage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Health Score"
-            value={`${repository.healthScore}`}
+            value={repository.healthScore === null ? "—" : String(repository.healthScore)}
             icon={CheckCircle2}
             color="success"
           />
@@ -314,12 +318,6 @@ export function RepositoryOverviewPage() {
             color="primary"
           />
 
-          <StatCard
-            title="Pull Requests"
-            value="42"
-            icon={GitPullRequest}
-            color="info"
-          />
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
@@ -336,11 +334,7 @@ export function RepositoryOverviewPage() {
 
               <div className="text-right">
                 <p className="text-2xl font-bold">
-                  {repository.healthScore}
-                </p>
-                <p className="flex items-center justify-end gap-1 text-xs text-success">
-                  <ArrowUpRight size={14} />
-                  +18 points
+                  {repository.healthScore === null ? "—" : repository.healthScore}
                 </p>
               </div>
             </div>
@@ -426,32 +420,37 @@ export function RepositoryOverviewPage() {
             </div>
 
             <div className="space-y-5">
-              {recentActivity.map((activity) => {
-                const Icon = activity.icon;
-                return (
-                  <div
-                    key={activity.title}
-                    className="flex gap-3"
-                  >
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${activity.iconClass}`}
-                    >
-                      <Icon size={16} />
+              {activity.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No activity for this repository yet.</p>
+              ) : (
+                activity.map((item) => {
+                  const style = ACTIVITY_ICON[item.type] ?? {
+                    icon: CheckCircle2,
+                    iconClass: "bg-muted text-muted-foreground",
+                  };
+                  const Icon = style.icon;
+                  return (
+                    <div key={item.id} className="flex gap-3">
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${style.iconClass}`}
+                      >
+                        <Icon size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {item.title}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {item.body}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {relativeTime(item.createdAt)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">
-                        {activity.title}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {activity.description}
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </Card>
         </div>
@@ -480,10 +479,6 @@ export function RepositoryOverviewPage() {
                     >
                       <Icon size={18} />
                     </div>
-                    <span className="flex items-center gap-1 text-xs font-medium text-success">
-                      <ArrowDownRight size={13} />
-                      {metric.change}
-                    </span>
                   </div>
                   <p className="mt-4 text-sm font-semibold">
                     {metric.title}
@@ -610,19 +605,23 @@ export function RepositoryOverviewPage() {
                 Latest Analysis
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Analysis completed successfully 8 minutes ago
+                {repository.lastAnalyzedAt
+                  ? `Last analysis ${relativeTime(repository.lastAnalyzedAt)}`
+                  : "Not analyzed yet"}
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Calendar size={14} />
-              June 30, 2026
+              {repository.lastAnalyzedAt
+                ? new Date(repository.lastAnalyzedAt).toLocaleDateString()
+                : "—"}
             </div>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <AnalysisInfo label="Files analyzed" value="248" />
-            <AnalysisInfo label="Lines of code" value="42,891" />
-            <AnalysisInfo label="Analysis duration" value="2m 34s" />
+            <AnalysisInfo label="Open findings" value={String(repository.totalFindings)} />
+            <AnalysisInfo label="Technical debt" value={repository.technicalDebt} />
+            <AnalysisInfo label="Default branch" value={repository.defaultBranch} />
           </div>
         </Card>
       </div>
