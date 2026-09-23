@@ -52,33 +52,34 @@ export function NotificationItem({
   return (
     <div
       className={`
-        group flex items-start gap-4 rounded-2xl border
-        p-4 transition-colors
-        ${compact ? "p-3" : "p-4 sm:p-5"}
-        ${
-          unread
-            ? "border-primary/15 bg-primary/[0.03]"
-            : "border-border/70 bg-card"
-        }
+        group relative flex items-start gap-3.5 rounded-lg border
+        transition-colors
+        ${compact ? "p-3" : "p-4"}
+        ${unread ? "border-primary/25 bg-primary/[0.04]" : "border-border bg-card"}
         ${className}
       `}
     >
+      {/* Unread marker on the edge */}
+      {unread && (
+        <span className="absolute inset-y-2 left-0 w-[2px] bg-primary" />
+      )}
+
       {/* Icon */}
       {Icon && (
         <div
           className={`
-            flex h-10 w-10 shrink-0 items-center justify-center
-            rounded-xl ${iconColor}
+            flex h-9 w-9 shrink-0 items-center justify-center
+            rounded-sm ${iconColor}
           `}
         >
-          <Icon size={18} />
+          <Icon size={17} />
         </div>
       )}
 
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
-          <p className="text-sm font-semibold leading-snug">
+          <p className="text-[13px] font-semibold leading-snug">
             {title}
           </p>
 
@@ -90,17 +91,13 @@ export function NotificationItem({
               {severity.toUpperCase()}
             </Badge>
           )}
-
-          {unread && (
-            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
-          )}
         </div>
 
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">
           {description}
         </p>
 
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div className="mt-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
           <span>{time}</span>
 
           {repoName && (

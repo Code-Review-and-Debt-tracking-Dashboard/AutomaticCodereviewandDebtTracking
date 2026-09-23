@@ -23,11 +23,9 @@ import { RepositoryAnalyzePage } from "../pages/repositories/RepositoryAnalyzePa
 import { PRFindingDrilldownPage } from "../pages/repositories/PRFindingDrilldownPage";
 
 import { GlobalPullRequestsPage } from "../pages/global/GlobalPullRequestsPage";
-import { GlobalFindingsPage } from "../pages/global/GlobalFindingsPage";
 import { GlobalAnalyticsPage } from "../pages/global/GlobalAnalyticsPage";
 import { GlobalNotificationsPage } from "../pages/global/GlobalNotificationsPage";
 import { GlobalMembersPage } from "../pages/global/GlobalMembersPage";
-import { AiCopilotPage } from "../pages/global/AiCopilotPage";
 import { SettingsPage } from "../pages/global/SettingsPage";
 import { ProfilePage } from "../pages/global/ProfilePage";
 
@@ -74,11 +72,6 @@ export function AppRoutes() {
             />
 
             <Route
-              path="/findings"
-              element={<GlobalFindingsPage />}
-            />
-
-            <Route
               path="/analytics"
               element={<GlobalAnalyticsPage />}
             />
@@ -91,11 +84,6 @@ export function AppRoutes() {
             <Route
               path="/members"
               element={<GlobalMembersPage />}
-            />
-
-            <Route
-              path="/ai-copilot"
-              element={<AiCopilotPage />}
             />
 
             <Route

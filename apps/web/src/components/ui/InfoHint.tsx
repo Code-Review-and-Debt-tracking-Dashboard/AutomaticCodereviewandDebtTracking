@@ -21,7 +21,7 @@ export function InfoHint({ text, className = "" }: InfoHintProps) {
   const id = useId();
 
   return (
-    <span className={`group relative inline-flex ${className}`}>
+    <span className={`group/hint relative inline-flex ${className}`}>
       <button
         type="button"
         aria-label="What does this mean?"
@@ -35,10 +35,10 @@ export function InfoHint({ text, className = "" }: InfoHintProps) {
         id={id}
         role="tooltip"
         className="
-          pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2
-          rounded-xl border border-border bg-card p-3 text-left text-xs font-normal
-          leading-5 text-muted-foreground opacity-0 shadow-xl transition
-          group-hover:opacity-100 group-focus-within:opacity-100
+          pointer-events-none absolute top-full left-1/2 z-50 mt-2 w-56 -translate-x-1/2
+          rounded-md border border-border bg-popover p-3 text-left font-sans text-xs font-normal
+          normal-case tracking-normal leading-5 text-muted-foreground opacity-0 shadow-lg transition
+          group-hover/hint:opacity-100 group-focus-within/hint:opacity-100
         "
       >
         {text}

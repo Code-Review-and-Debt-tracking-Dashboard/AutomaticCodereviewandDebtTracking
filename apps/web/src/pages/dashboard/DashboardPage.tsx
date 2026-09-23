@@ -2,19 +2,16 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ArrowRight, ExternalLink, Plus } from "lucide-react";
+
 import {
-  CheckCircle2,
-  Code2,
-  ExternalLink,
-  GitPullRequest,
-  Loader2,
-  Plus,
-  Search,
-  ShieldAlert,
-  Sparkles,
-  TrendingUp,
-  Wrench,
-} from "lucide-react";
+  CheckIcon,
+  DebtIcon,
+  FindingsIcon,
+  HealthIcon,
+  PullRequestIcon,
+  RepositoriesIcon,
+} from "../../components/icons";
 
 import {
   Area,
@@ -43,9 +40,13 @@ import {
   PageHeaderActions,
   FilterBar,
   Select,
+  EmptyState,
+  ErrorState,
+  LoadingState,
 } from "../../components/ui";
 
 import { useAuth } from "../../contexts/AuthContext";
+import { CHART_CURSOR, CHART_TICK, CHART_TOOLTIP } from "../../lib/chartStyle";
 import { healthBand, METRIC_HELP } from "../../lib/healthBand";
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
@@ -122,10 +123,10 @@ function averageByDay(series: ApiTrendPoint[][]): { name: string; score: number 
     }));
 }
 
-const ACTIVITY_ICON: Record<string, { icon: typeof CheckCircle2; color: string }> = {
-  ANALYSIS_COMPLETE: { icon: CheckCircle2, color: "text-success bg-success/10" },
-  PR_ANALYZED: { icon: GitPullRequest, color: "text-info bg-info/10" },
-  QUALITY_GATE_FAILED: { icon: ShieldAlert, color: "text-warning bg-warning/10" },
+const ACTIVITY_ICON: Record<string, { icon: typeof CheckIcon; color: string }> = {
+  ANALYSIS_COMPLETE: { icon: CheckIcon, color: "text-success bg-success/10" },
+  PR_ANALYZED: { icon: PullRequestIcon, color: "text-info bg-info/10" },
+  QUALITY_GATE_FAILED: { icon: FindingsIcon, color: "text-warning bg-warning/10" },
 };
 
 function relativeTime(iso: string): string {
@@ -236,29 +237,29 @@ export function DashboardPage() {
       {
         title: "Repositories",
         value: String(repositories.length),
-        help: "How many repositories are connected to CodeHealth in this organization.",
-        icon: Code2,
+        help: "How many repositories are connected to CodePulse in this organization.",
+        icon: RepositoriesIcon,
         iconColor: "bg-primary/10 text-primary",
       },
       {
         title: "Average Health",
         value: avgHealth,
         help: METRIC_HELP.healthScore,
-        icon: TrendingUp,
+        icon: HealthIcon,
         iconColor: "bg-success/10 text-success",
       },
       {
         title: "Open Findings",
         value: String(totalFindings),
         help: METRIC_HELP.openFindings,
-        icon: ShieldAlert,
+        icon: FindingsIcon,
         iconColor: "bg-warning/10 text-warning",
       },
       {
         title: "Technical Debt",
         value: debtLabel(totalDebtMinutes),
         help: METRIC_HELP.technicalDebt,
-        icon: Wrench,
+        icon: DebtIcon,
         iconColor: "bg-info/10 text-info",
       },
     ];
@@ -295,363 +296,127 @@ export function DashboardPage() {
 
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
+    <>
 
-        {/* =====================================================
-            PAGE HEADER
-        ====================================================== */}
+      {/* =====================================================
+          PAGE HEADER
+      ====================================================== */}
 
-        <PageHeader>
-          <div>
-            <PageHeaderBadge>
-              <Sparkles size={13} />
-              Repository intelligence
-            </PageHeaderBadge>
+      <PageHeader>
+        <div>
+          <PageHeaderBadge>
+            {selectedOrg?.login ? `/ ${selectedOrg.login}` : "/ workspace"}
+          </PageHeaderBadge>
 
-            <PageHeaderTitle>
-              {user ? `Welcome back, ${user.username}` : "Welcome back"}
-            </PageHeaderTitle>
+          <PageHeaderTitle>Overview</PageHeaderTitle>
 
-            <PageHeaderDescription>
-              Here is the latest overview of your code quality and technical debt.
-            </PageHeaderDescription>
-          </div>
-
-          <PageHeaderActions>
-            <Button onClick={() => navigate("/repositories")}>
-              <Code2 size={17} />
-              Add repository
-            </Button>
-          </PageHeaderActions>
-        </PageHeader>
-
-
-        {/* =====================================================
-            STAT CARDS
-        ====================================================== */}
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {stats.map((stat, index) => (
-            <StatCard
-              key={stat.title}
-              title={stat.title}
-              value={stat.value}
-              help={stat.help}
-              icon={stat.icon}
-              iconColor={stat.iconColor}
-              delay={index * 0.08}
-            />
-          ))}
+          <PageHeaderDescription>
+            {user ? `${user.username} — here is` : "Here is"} the latest
+            overview of your code quality and technical debt.
+          </PageHeaderDescription>
         </div>
 
-
-        {/* =====================================================
-            HEALTH TREND + RECENT ACTIVITY
-        ====================================================== */}
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-
-          {/* Health Score Trend */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>Health Score Trend</CardTitle>
-                  <CardDescription>
-                    Average repository health over the last 7 days
-                  </CardDescription>
-                </div>
-                {latestTrendScore !== null && (
-                  <div className="text-right">
-                    <p className="text-2xl font-bold">{latestTrendScore}</p>
-                  </div>
-                )}
-              </CardHeader>
-
-              <CardContent>
-                <div className="h-[280px] w-full">
-                  {healthTrend.length === 0 ? (
-                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-center">
-                      <div>
-                        <p className="text-sm font-medium">No analysis history yet</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          The trend appears once a repository has been analyzed.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={healthTrend}>
-                      <defs>
-                        <linearGradient id="healthGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="hsl(var(--border))"
-                        vertical={false}
-                      />
-
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      />
-
-                      <YAxis
-                        domain={[0, 100]}
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      />
-
-                      <Tooltip
-                        contentStyle={{
-                          background: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "12px",
-                          color: "hsl(var(--foreground))",
-                        }}
-                      />
-
-                      <Area
-                        type="monotone"
-                        dataKey="score"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={3}
-                        fill="url(#healthGradient)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+        <PageHeaderActions>
+          <Button onClick={() => navigate("/repositories")}>
+            <Plus size={15} />
+            Add repository
+          </Button>
+        </PageHeaderActions>
+      </PageHeader>
 
 
-          {/* Recent Activity */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.45 }}
-          >
-            <Card className="h-full">
-              <CardHeader>
-                <div>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest repository events</CardDescription>
-                </div>
-                <button
-                  onClick={() => navigate("/notifications")}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View all
-                </button>
-              </CardHeader>
+      {/* =====================================================
+          STAT CARDS
+      ====================================================== */}
 
-              <CardContent>
-                <div className="space-y-5">
-                  {recentActivity.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No activity yet.</p>
-                  ) : (
-                    recentActivity.map((activity) => {
-                      const style = ACTIVITY_ICON[activity.type] ?? {
-                        icon: CheckCircle2,
-                        color: "text-muted-foreground bg-muted",
-                      };
-
-                      return (
-                        <div key={activity.id} className="flex gap-3">
-                          <IconBox
-                            icon={style.icon}
-                            size="sm"
-                            className={style.color}
-                          />
-
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">
-                              {activity.title}
-                            </p>
-                            <p className="mt-1 truncate text-xs text-muted-foreground">
-                              {activity.body || activity.repository?.fullName || ""}
-                            </p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              {relativeTime(activity.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat, index) => (
+          <StatCard
+            key={stat.title}
+            title={stat.title}
+            value={stat.value}
+            help={stat.help}
+            icon={stat.icon}
+            iconColor={stat.iconColor}
+            delay={index * 0.08}
+          />
+        ))}
+      </div>
 
 
-        {/* =====================================================
-            REPOSITORY HEALTH
-        ====================================================== */}
+      {/* =====================================================
+          HEALTH TREND + RECENT ACTIVITY
+      ====================================================== */}
 
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+
+        {/* Health Score Trend */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55 }}
-          className="mt-6"
+          transition={{ delay: 0.35 }}
         >
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Repository Health</CardTitle>
-                <CardDescription>Monitor your connected repositories</CardDescription>
+                <CardTitle>Health score trend</CardTitle>
+                <CardDescription>
+                  Average repository health over the last 7 days
+                </CardDescription>
               </div>
-              <button
-                onClick={() => navigate("/repositories")}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                View repositories
-              </button>
+              {latestTrendScore !== null && (
+                <p className="font-mono text-2xl font-semibold text-primary">
+                  {latestTrendScore}
+                </p>
+              )}
             </CardHeader>
 
             <CardContent>
-              {/* Search + Filters */}
-              <FilterBar
-                placeholder="Search repositories..."
-                searchValue={searchQuery}
-                onSearchChange={setSearchQuery}
-                className="mb-6"
-              >
-                <Select
-                  value={languageFilter}
-                  onChange={setLanguageFilter}
-                  options={languageOptions}
-                />
-                <Select
-                  value={scoreFilter}
-                  onChange={setScoreFilter}
-                  options={[
-                    { label: "All Scores", value: "All" },
-                    { label: "Excellent", value: "Excellent" },
-                    { label: "Needs attention", value: "Needs attention" },
-                  ]}
-                />
-                <Button size="sm" onClick={() => navigate("/repositories")}>
-                  <Plus size={16} />
-                  Link Repository
-                </Button>
-              </FilterBar>
-
-
-              {/* Repository Rows */}
-              <div className="grid gap-3">
-                {isLoading ? (
-                  <div className="flex items-center justify-center p-8">
-                    <Loader2 className="animate-spin text-muted-foreground" size={22} />
+              <div className="h-[260px] w-full">
+                {healthTrend.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-center">
+                    <p className="text-[13px] font-medium">No analysis history yet</p>
+                    <p className="text-xs text-muted-foreground">
+                      The trend appears once a repository has been analyzed.
+                    </p>
                   </div>
-                ) : error ? (
-                  <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center">
-                    <p className="text-sm font-medium text-destructive">{error}</p>
-                    <Button size="sm" className="mt-3" onClick={fetchDashboard}>
-                      Retry
-                    </Button>
-                  </div>
-                ) : filteredRepositories.length > 0 ? (
-                  filteredRepositories.map((repo) => (
-                    <div
-                      key={repo.id}
-                      className="
-                        group flex flex-col gap-4 rounded-xl border-2
-                        border-border p-4 transition
-                        hover:border-primary/70 hover:bg-muted/60
-                        sm:flex-row sm:items-center
-                      "
-                    >
-                      {/* Repo Info */}
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <IconBox icon={Code2} color="primary" size="sm" />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
-                            {repo.name}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {repo.language}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Metrics */}
-                      <div className="flex items-center gap-6">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Health
-                          </p>
-                          <p className={`mt-1 text-lg font-bold ${healthBand(repo.score).textClass}`}>
-                            {repo.score ?? "—"}
-                          </p>
-                        </div>
-
-                        <div className="hidden sm:block">
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Findings
-                          </p>
-                          <p className="mt-1 text-sm font-semibold">
-                            {repo.findings ?? "—"}
-                          </p>
-                        </div>
-
-                        <div className="hidden md:block">
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Debt
-                          </p>
-                          <p className="mt-1 text-sm font-semibold">
-                            {repo.debt}
-                          </p>
-                        </div>
-
-                        <Badge
-                          variant={healthBand(repo.score).tone === "destructive" ? "destructive" : healthBand(repo.score).tone}
-                          size="md"
-                        >
-                          {repo.status}
-                        </Badge>
-
-                        <div className="hidden items-center gap-2 lg:flex">
-                          <button className="text-xs text-muted-foreground hover:text-primary">
-                            <Search size={14} />
-                          </button>
-                          <button
-                            onClick={() => navigate("/repositories")}
-                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
-                          >
-                            View <ExternalLink size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border p-8 text-center">
-                    <p className="text-sm font-medium">
-                      {repositories.length === 0 ? "No repositories linked yet" : "No repositories found"}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {repositories.length === 0
-                        ? "Link a repository to start tracking its health."
-                        : "Try changing your search or filters."}
-                    </p>
-                  </div>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={healthTrend} margin={{ top: 8, right: 4, bottom: 0, left: -18 }}>
+                    <defs>
+                      <linearGradient id="healthGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.18} />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+
+                    <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
+
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={CHART_TICK}
+                    />
+
+                    <YAxis
+                      domain={[0, 100]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={CHART_TICK}
+                    />
+
+                    <Tooltip contentStyle={CHART_TOOLTIP} cursor={CHART_CURSOR} />
+
+                    <Area
+                      type="monotone"
+                      dataKey="score"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={1.75}
+                      fill="url(#healthGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
                 )}
               </div>
             </CardContent>
@@ -659,15 +424,217 @@ export function DashboardPage() {
         </motion.div>
 
 
-        {/* =====================================================
-            FOOTER
-        ====================================================== */}
+        {/* Recent Activity */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+        >
+          <Card className="h-full">
+            <CardHeader>
+              <div>
+                <CardTitle>Recent activity</CardTitle>
+                <CardDescription>Latest repository events</CardDescription>
+              </div>
+              <button
+                onClick={() => navigate("/notifications")}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                View all
+                <ArrowRight size={12} />
+              </button>
+            </CardHeader>
 
-        <footer className="mt-10 py-6 text-center text-xs text-muted-foreground">
-          © 2025 CodeHealth · v1.0
-        </footer>
+            <CardContent>
+              <div className="space-y-4">
+                {recentActivity.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No activity yet.</p>
+                ) : (
+                  recentActivity.map((activity) => {
+                    const style = ACTIVITY_ICON[activity.type] ?? {
+                      icon: CheckIcon,
+                      color: "text-muted-foreground bg-muted",
+                    };
+
+                    return (
+                      <div key={activity.id} className="flex gap-3">
+                        <IconBox
+                          icon={style.icon}
+                          size="sm"
+                          className={style.color}
+                        />
+
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-medium">
+                            {activity.title}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {activity.body || activity.repository?.fullName || ""}
+                          </p>
+                          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                            {relativeTime(activity.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
       </div>
-    </main>
+
+
+      {/* =====================================================
+          REPOSITORY HEALTH
+      ====================================================== */}
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.55 }}
+        className="mt-6"
+      >
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Repository health</CardTitle>
+              <CardDescription>Monitor your connected repositories</CardDescription>
+            </div>
+            <button
+              onClick={() => navigate("/repositories")}
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              View repositories
+              <ArrowRight size={12} />
+            </button>
+          </CardHeader>
+
+          <CardContent>
+            {/* Search + Filters */}
+            <FilterBar
+              placeholder="Search repositories..."
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              className="mb-5"
+            >
+              <Select
+                value={languageFilter}
+                onChange={setLanguageFilter}
+                options={languageOptions}
+              />
+              <Select
+                value={scoreFilter}
+                onChange={setScoreFilter}
+                options={[
+                  { label: "All Scores", value: "All" },
+                  { label: "Excellent", value: "Excellent" },
+                  { label: "Needs attention", value: "Needs attention" },
+                ]}
+              />
+              <Button size="sm" onClick={() => navigate("/repositories")}>
+                <Plus size={15} />
+                Link Repository
+              </Button>
+            </FilterBar>
+
+
+            {/* Repository Rows */}
+            <div className="grid gap-2">
+              {isLoading ? (
+                <LoadingState message="Loading repositories..." className="border-0" />
+              ) : error ? (
+                <ErrorState message={error} onRetry={fetchDashboard} />
+              ) : filteredRepositories.length > 0 ? (
+                filteredRepositories.map((repo) => (
+                  <div
+                    key={repo.id}
+                    className="
+                      group flex flex-col gap-3 rounded-md border border-border
+                      px-4 py-3 transition-colors
+                      hover:border-primary/50 hover:bg-accent/40
+                      sm:flex-row sm:items-center
+                    "
+                  >
+                    {/* Repo Info */}
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <IconBox icon={RepositoriesIcon} color="primary" size="sm" />
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-medium">
+                          {repo.name}
+                        </p>
+                        <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+                          {repo.language}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Metrics */}
+                    <div className="flex items-center gap-5 sm:gap-7">
+                      <Metric label="Health">
+                        <span className={`font-mono text-base font-semibold ${healthBand(repo.score).textClass}`}>
+                          {repo.score ?? "—"}
+                        </span>
+                      </Metric>
+
+                      <Metric label="Findings" className="hidden sm:block">
+                        <span className="font-mono text-base">{repo.findings ?? "—"}</span>
+                      </Metric>
+
+                      <Metric label="Debt" className="hidden md:block">
+                        <span className="font-mono text-base">{repo.debt}</span>
+                      </Metric>
+
+                      <Badge
+                        variant={healthBand(repo.score).tone === "destructive" ? "destructive" : healthBand(repo.score).tone}
+                        size="md"
+                      >
+                        {repo.status}
+                      </Badge>
+
+                      <button
+                        onClick={() => navigate(`/repositories/${repo.id}`)}
+                        className="hidden items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary lg:inline-flex"
+                      >
+                        View <ExternalLink size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyState
+                  title={repositories.length === 0 ? "No repositories linked yet" : "No repositories found"}
+                  description={
+                    repositories.length === 0
+                      ? "Link a repository to start tracking its health."
+                      : "Try changing your search or filters."
+                  }
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </>
+  );
+}
+
+/* Small label + figure pair used in the repository rows. */
+function Metric({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="eyebrow text-[10px]">{label}</p>
+      <p className="mt-0.5 leading-none">{children}</p>
+    </div>
   );
 }

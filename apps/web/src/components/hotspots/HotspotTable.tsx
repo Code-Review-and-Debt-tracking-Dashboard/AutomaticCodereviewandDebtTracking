@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Flame } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronsUpDown, Flame } from "lucide-react";
 
 import {
   DataTable,
@@ -96,6 +96,7 @@ export function HotspotTable({ files, onRowClick }: HotspotTableProps) {
             Debt <SortIcon column="debtMinutes" />
           </button>
         </DataTableHeaderCell>
+        {onRowClick && <DataTableHeaderCell />}
       </DataTableHead>
       <DataTableBody>
         {sorted.map((f, i) => (
@@ -115,6 +116,13 @@ export function HotspotTable({ files, onRowClick }: HotspotTableProps) {
               )}
             </DataTableCell>
             <DataTableCell align="right">{formatDebt(f.debtMinutes)}</DataTableCell>
+            {onRowClick && (
+              <DataTableCell align="right">
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                  Findings <ArrowRight size={12} />
+                </span>
+              </DataTableCell>
+            )}
           </DataTableRow>
         ))}
       </DataTableBody>
