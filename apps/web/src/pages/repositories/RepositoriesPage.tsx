@@ -4,17 +4,20 @@ import {
   ExternalLink,
   Filter,
   GitBranch,
-  GitFork,
   MoreHorizontal,
   Plus,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
-  TrendingUp,
   Unlink,
   X,
   Loader2,
 } from "lucide-react";
+
+import {
+  QualityGateIcon,
+  RepositoriesIcon,
+  TrendIcon,
+} from "../../components/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -241,207 +244,205 @@ export function RepositoriesPage() {
   }, [repositories]);
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-        
-        <PageHeader>
-          <div>
-            <PageHeaderBadge className="border-primary/20 bg-primary/10 text-primary">
-              <GitBranch size={13} />
-              Organization: {selectedOrg?.name || selectedOrg?.login || "Select Org"}
-            </PageHeaderBadge>
+    <>
+      
+      <PageHeader>
+        <div>
+          <PageHeaderBadge>
+            <GitBranch size={13} />
+            Organization: {selectedOrg?.name || selectedOrg?.login || "Select Org"}
+          </PageHeaderBadge>
 
-            <PageHeaderTitle>Repositories</PageHeaderTitle>
+          <PageHeaderTitle>Repositories</PageHeaderTitle>
 
-            <PageHeaderDescription>
-              Monitor code health and technical debt for repositories in this organization.
-            </PageHeaderDescription>
-          </div>
-
-          <PageHeaderActions>
-            <Button
-              onClick={() => setIsLinkModalOpen(true)}
-              variant="primary"
-            >
-              <Plus size={17} className="mr-2" />
-              Add repository
-            </Button>
-          </PageHeaderActions>
-        </PageHeader>
-
-        {/* SUMMARY CARDS */}
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            icon={Code2}
-            title="Total repositories"
-            value={String(stats.total)}
-            color="primary"
-          />
-
-          <StatCard
-            icon={TrendingUp}
-            title="Average health"
-            value={String(stats.avgHealth)}
-            color="success"
-          />
-
-          <StatCard
-            icon={ShieldCheck}
-            title="Healthy repositories"
-            value={String(stats.healthyCount)}
-            color="info"
-          />
-
-          <StatCard
-            icon={GitFork}
-            title="Total findings"
-            value={String(stats.totalFindings)}
-            color="warning"
-          />
+          <PageHeaderDescription>
+            Monitor code health and technical debt for repositories in this organization.
+          </PageHeaderDescription>
         </div>
 
-        {/* SEARCH & FILTERS */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-6 rounded-2xl border border-border/70 bg-card p-4 sm:p-5"
-        >
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="flex flex-1 items-center gap-2 rounded-xl border border-border/70 bg-background px-3 py-2.5 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
-              <Search size={17} className="shrink-0 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                type="text"
-                placeholder="Search repositories..."
-                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            <Button
-              onClick={() => setFiltersOpen((prev) => !prev)}
-              variant="outline"
-              className="lg:hidden"
-            >
-              <Filter size={16} className="mr-2" />
-              Filters
-            </Button>
-
-            <div className="hidden items-center gap-3 lg:flex">
-              <Select
-                value={language}
-                onChange={setLanguage}
-                options={languages}
-              />
-
-              <Select
-                value={scoreFilter}
-                onChange={setScoreFilter}
-                options={scoreFilters}
-              />
-
-              <Select
-                value={sortBy}
-                onChange={(val) => setSortBy(val as SortOption)}
-                options={["health", "findings", "debt", "recent"]}
-              />
-            </div>
-          </div>
-
-          {filtersOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3 lg:hidden"
-            >
-              <Select
-                value={language}
-                onChange={setLanguage}
-                options={languages}
-              />
-
-              <Select
-                value={scoreFilter}
-                onChange={setScoreFilter}
-                options={scoreFilters}
-              />
-
-              <Select
-                value={sortBy}
-                onChange={(val) => setSortBy(val as SortOption)}
-                options={["health", "findings", "debt", "recent"]}
-              />
-            </motion.div>
-          )}
-        </motion.section>
-
-        {/* RESULTS HEADER */}
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold">Your repositories</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {filteredRepositories.length} repositories found
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="hidden items-center gap-2 text-xs font-medium text-muted-foreground transition hover:text-primary sm:flex"
+        <PageHeaderActions>
+          <Button
+            onClick={() => setIsLinkModalOpen(true)}
+            variant="primary"
           >
-            <SlidersHorizontal size={14} />
-            Customize view
-          </button>
+            <Plus size={17} className="mr-2" />
+            Add repository
+          </Button>
+        </PageHeaderActions>
+      </PageHeader>
+
+      {/* SUMMARY CARDS */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={RepositoriesIcon}
+          title="Total repositories"
+          value={String(stats.total)}
+          color="primary"
+        />
+
+        <StatCard
+          icon={TrendIcon}
+          title="Average health"
+          value={String(stats.avgHealth)}
+          color="success"
+        />
+
+        <StatCard
+          icon={QualityGateIcon}
+          title="Healthy repositories"
+          value={String(stats.healthyCount)}
+          color="info"
+        />
+
+        <StatCard
+          icon={RepositoriesIcon}
+          title="Total findings"
+          value={String(stats.totalFindings)}
+          color="warning"
+        />
+      </div>
+
+      {/* SEARCH & FILTERS */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="mb-6 rounded-2xl border border-border/70 bg-card p-4 sm:p-5"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-1 items-center gap-2 rounded-xl border border-border/70 bg-background px-3 py-2.5 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
+            <Search size={17} className="shrink-0 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              type="text"
+              placeholder="Search repositories..."
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          <Button
+            onClick={() => setFiltersOpen((prev) => !prev)}
+            variant="outline"
+            className="lg:hidden"
+          >
+            <Filter size={16} className="mr-2" />
+            Filters
+          </Button>
+
+          <div className="hidden items-center gap-3 lg:flex">
+            <Select
+              value={language}
+              onChange={setLanguage}
+              options={languages}
+            />
+
+            <Select
+              value={scoreFilter}
+              onChange={setScoreFilter}
+              options={scoreFilters}
+            />
+
+            <Select
+              value={sortBy}
+              onChange={(val) => setSortBy(val as SortOption)}
+              options={["health", "findings", "debt", "recent"]}
+            />
+          </div>
         </div>
 
-        {/* CONTENT STATES */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-            <Loader2 size={32} className="animate-spin text-primary" />
-            <p className="text-sm">Loading repositories from Postgres…</p>
-          </div>
-        ) : error ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
-            <p className="text-sm font-semibold">{error}</p>
-            <Button
-              onClick={fetchRepos}
-              variant="destructive"
-              className="mt-4"
-            >
-              Retry
-            </Button>
-          </div>
-        ) : filteredRepositories.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-12 text-center">
-            <Search size={32} className="mx-auto text-muted-foreground" />
-            <h3 className="mt-4 text-sm font-semibold">No repositories found</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              No repositories match your current search or organization selection.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {filteredRepositories.map((repository, index) => (
-              <RepositoryCard
-                key={repository.id}
-                repository={repository}
-                index={index}
-                onSelect={() => navigate(`/repositories/${repository.id}`)}
-                onUnlink={() => setUnlinkTarget(repository)}
-              />
-            ))}
-          </div>
+        {filtersOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3 lg:hidden"
+          >
+            <Select
+              value={language}
+              onChange={setLanguage}
+              options={languages}
+            />
+
+            <Select
+              value={scoreFilter}
+              onChange={setScoreFilter}
+              options={scoreFilters}
+            />
+
+            <Select
+              value={sortBy}
+              onChange={(val) => setSortBy(val as SortOption)}
+              options={["health", "findings", "debt", "recent"]}
+            />
+          </motion.div>
         )}
+      </motion.section>
+
+      {/* RESULTS HEADER */}
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">Your repositories</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {filteredRepositories.length} repositories found
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="hidden items-center gap-2 text-xs font-medium text-muted-foreground transition hover:text-primary sm:flex"
+        >
+          <SlidersHorizontal size={14} />
+          Customize view
+        </button>
       </div>
+
+      {/* CONTENT STATES */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+          <Loader2 size={32} className="animate-spin text-primary" />
+          <p className="text-sm">Loading repositories from Postgres…</p>
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
+          <p className="text-sm font-semibold">{error}</p>
+          <Button
+            onClick={fetchRepos}
+            variant="destructive"
+            className="mt-4"
+          >
+            Retry
+          </Button>
+        </div>
+      ) : filteredRepositories.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-12 text-center">
+          <Search size={32} className="mx-auto text-muted-foreground" />
+          <h3 className="mt-4 text-sm font-semibold">No repositories found</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            No repositories match your current search or organization selection.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filteredRepositories.map((repository, index) => (
+            <RepositoryCard
+              key={repository.id}
+              repository={repository}
+              index={index}
+              onSelect={() => navigate(`/repositories/${repository.id}`)}
+              onUnlink={() => setUnlinkTarget(repository)}
+            />
+          ))}
+        </div>
+      )}
 
       <LinkRepositoryModal
         isOpen={isLinkModalOpen}
@@ -454,7 +455,7 @@ export function RepositoriesPage() {
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
             <h2 className="text-lg font-bold">Unlink repository</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              This removes the CodeHealth webhook from{" "}
+              This removes the CodePulse webhook from{" "}
               <span className="font-semibold text-foreground">{unlinkTarget.fullName}</span> on
               GitHub, so it stops being analysed. Past analyses are kept and will come back if you
               link it again.
@@ -490,7 +491,7 @@ export function RepositoriesPage() {
           </div>
         </div>
       )}
-    </main>
+    </>
   );
 }
 
@@ -510,7 +511,7 @@ function RepositoryCard({
 
   return (
     <Card
-      className="group cursor-pointer transition hover:border-primary/30 hover:shadow-xl sm:p-2"
+      className="group cursor-pointer transition hover:border-primary/30 sm:p-2"
     >
       <div className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4">

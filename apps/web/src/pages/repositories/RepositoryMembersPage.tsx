@@ -2,12 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Crown,
   Eye,
-  ShieldCheck,
   Trash2,
   UserPlus,
   Users,
-  Wrench,
 } from "lucide-react";
+
+import {
+  DebtIcon,
+  QualityGateIcon,
+} from "../../components/icons";
 import { useParams } from "react-router-dom";
 
 import { api } from "../../lib/apiClient";
@@ -44,13 +47,13 @@ const ROLES = [
   {
     value: "TEAM_LEAD",
     label: "Team lead",
-    icon: ShieldCheck,
+    icon: QualityGateIcon,
     help: "Can view everything and make changes, including running an analysis and managing members.",
   },
   {
     value: "DEVELOPER",
     label: "Developer",
-    icon: Wrench,
+    icon: DebtIcon,
     help: "Can view everything about this repository.",
   },
   {
@@ -129,141 +132,139 @@ export function RepositoryMembersPage() {
   };
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
+    <>
 
-        <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
+      <BackLink to={`/repositories/${repoId}`} label="Back to repository" />
 
-        <PageHeader>
-          <div>
-            <PageHeaderBadge>
-              <Users size={13} />
-              Access
-            </PageHeaderBadge>
+      <PageHeader>
+        <div>
+          <PageHeaderBadge>
+            <Users size={13} />
+            Access
+          </PageHeaderBadge>
 
-            <PageHeaderTitle>Members</PageHeaderTitle>
+          <PageHeaderTitle>Members</PageHeaderTitle>
 
-            <PageHeaderDescription>
-              People who can see this repository in CodeHealth. They must already belong to the
-              organization on GitHub.
-            </PageHeaderDescription>
+          <PageHeaderDescription>
+            People who can see this repository in CodePulse. They must already belong to the
+            organization on GitHub.
+          </PageHeaderDescription>
+        </div>
+
+        <PageHeaderActions>
+          <Button onClick={() => setIsAdding((open) => !open)}>
+            <UserPlus size={17} />
+            Add member
+          </Button>
+        </PageHeaderActions>
+      </PageHeader>
+
+      {isAdding && (
+        <Card className="mt-6 p-5">
+          <p className="text-sm font-semibold">Add someone to this repository</p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="GitHub username"
+              aria-label="GitHub username"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none sm:max-w-xs"
+            />
+            <Select
+              value={role}
+              onChange={setRole}
+              options={ROLES.map((r) => ({ label: r.label, value: r.value }))}
+            />
+            <Button size="sm" disabled={isSubmitting || !username.trim()} onClick={submitMember}>
+              {isSubmitting ? "Adding…" : "Add"}
+            </Button>
           </div>
 
-          <PageHeaderActions>
-            <Button onClick={() => setIsAdding((open) => !open)}>
-              <UserPlus size={17} />
-              Add member
-            </Button>
-          </PageHeaderActions>
-        </PageHeader>
+          <p className="mt-3 text-xs text-muted-foreground">{roleMeta(role)?.help}</p>
 
-        {isAdding && (
-          <Card className="mt-6 p-5">
-            <p className="text-sm font-semibold">Add someone to this repository</p>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="GitHub username"
-                aria-label="GitHub username"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none sm:max-w-xs"
-              />
-              <Select
-                value={role}
-                onChange={setRole}
-                options={ROLES.map((r) => ({ label: r.label, value: r.value }))}
-              />
-              <Button size="sm" disabled={isSubmitting || !username.trim()} onClick={submitMember}>
-                {isSubmitting ? "Adding…" : "Add"}
-              </Button>
-            </div>
+          {addError && (
+            <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+              {addError}
+            </p>
+          )}
+        </Card>
+      )}
 
-            <p className="mt-3 text-xs text-muted-foreground">{roleMeta(role)?.help}</p>
+      <Card className="mt-6">
+        <CardHeader>
+          <div>
+            <CardTitle>Repository Members</CardTitle>
+            <CardDescription>
+              {isLoading
+                ? "Loading…"
+                : `${members.length} ${members.length === 1 ? "person has" : "people have"} access.`}
+            </CardDescription>
+          </div>
+        </CardHeader>
 
-            {addError && (
-              <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-                {addError}
-              </p>
-            )}
-          </Card>
-        )}
+        <div className="divide-y divide-border/60">
+          {!isLoading &&
+            members.map((member) => {
+              const meta = roleMeta(member.role);
+              const RoleIcon = meta?.icon ?? Crown;
 
-        <Card className="mt-6">
-          <CardHeader>
-            <div>
-              <CardTitle>Repository Members</CardTitle>
-              <CardDescription>
-                {isLoading
-                  ? "Loading…"
-                  : `${members.length} ${members.length === 1 ? "person has" : "people have"} access.`}
-              </CardDescription>
-            </div>
-          </CardHeader>
-
-          <div className="divide-y divide-border/60">
-            {!isLoading &&
-              members.map((member) => {
-                const meta = roleMeta(member.role);
-                const RoleIcon = meta?.icon ?? Crown;
-
-                return (
-                  <div
-                    key={member.id}
-                    className="flex flex-col gap-4 p-5 transition hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex items-center gap-4">
-                      {member.avatarUrl ? (
-                        <img
-                          src={member.avatarUrl}
-                          alt={member.username}
-                          className="h-11 w-11 rounded-xl object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 font-semibold text-primary">
-                          {member.username.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-
-                      <div>
-                        <p className="font-semibold">{member.username}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Added {new Date(member.addedAt).toLocaleDateString()}
-                        </p>
+              return (
+                <div
+                  key={member.id}
+                  className="flex flex-col gap-4 p-5 transition hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-4">
+                    {member.avatarUrl ? (
+                      <img
+                        src={member.avatarUrl}
+                        alt={member.username}
+                        className="h-11 w-11 rounded-xl object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 font-semibold text-primary">
+                        {member.username.charAt(0).toUpperCase()}
                       </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center gap-4">
-                      <span title={meta?.help} className="cursor-help">
-                        <Badge variant="muted" size="lg">
-                          <RoleIcon size={13} className="text-primary" />
-                          {meta?.label ?? member.role}
-                        </Badge>
-                      </span>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Remove ${member.username}`}
-                        disabled={removingId === member.userId}
-                        onClick={() => removeMember(member)}
-                      >
-                        <Trash2 size={17} />
-                      </Button>
+                    <div>
+                      <p className="font-semibold">{member.username}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Added {new Date(member.addedAt).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
-                );
-              })}
 
-            {!isLoading && members.length === 0 && (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                {error ?? "No one has been added yet. The repository owner always has access."}
-              </div>
-            )}
-          </div>
-        </Card>
+                  <div className="flex items-center gap-4">
+                    <span title={meta?.help} className="cursor-help">
+                      <Badge variant="muted" size="lg">
+                        <RoleIcon size={13} className="text-primary" />
+                        {meta?.label ?? member.role}
+                      </Badge>
+                    </span>
 
-      </div>
-    </main>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remove ${member.username}`}
+                      disabled={removingId === member.userId}
+                      onClick={() => removeMember(member)}
+                    >
+                      <Trash2 size={17} />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+
+          {!isLoading && members.length === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              {error ?? "No one has been added yet. The repository owner always has access."}
+            </div>
+          )}
+        </div>
+      </Card>
+
+    </>
   );
 }
