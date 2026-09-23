@@ -819,16 +819,27 @@ Rate limiting is implemented at the **application level** using `express-rate-li
 │          │  429 Too Many  │                        │
 │          │ <────────────  │  Checks: IP + user ID  │
 │          │                │  Window: 15 min        │
-│          │   200 OK       │  Max: 100 requests     │
+│          │   200 OK       │  Max: 1000 requests    │
 │          │ <────────────  │                        │
 └──────────┘                └──────────────────────┘
 ```
 
 | Route | Window | Max Requests | Scope |
 |---|---|---|---|
-| Global (`/api/*`) | 15 min | 100 | Per IP |
+| Global (`/api/*`) | 15 min | 1000 | Per IP |
+| Auth (`/auth/*`) | 15 min | 100 | Per IP |
 | Webhook (`/api/webhooks/*`) | 1 min | 30 | Per IP |
 | Analysis trigger (`POST /api/repos/:id/analyze`) | 5 min | 5 | Per user |
+
+The global tier was originally 100/15 min. It was raised to 1000 because webhook
+deliveries and dashboard traffic share the same per-IP budget, and the original
+figure was exhausted during normal interactive use. The auth tier sits below it
+so that login-adjacent routes are still the binding constraint on `/auth/*`.
+
+Because the API runs behind a proxy (a tunnel in development, a load balancer in
+production), Express is configured with `trust proxy` set to one hop. Without it
+every forwarded request is keyed to the proxy's address, so all clients share a
+single counter and webhook traffic consumes the dashboard's budget.
 
 Using a **Redis-backed store** (`rate-limit-redis`) ensures rate limits are consistent across multiple API instances — all instances share the same counter via Redis.
 
