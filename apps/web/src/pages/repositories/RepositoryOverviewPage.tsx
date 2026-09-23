@@ -1,5 +1,6 @@
 
 import {
+  ArrowRight,
   Calendar,
   Code2,
   ExternalLink,
@@ -572,13 +573,22 @@ export function RepositoryOverviewPage() {
       </Card>
 
       <Card className="mt-6 p-5 sm:p-6">
-        <div className="mb-6">
-          <p className="text-sm font-semibold">
-            Hotspots
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Files with the most findings in the latest analysis
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">
+              Hotspots
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Files with the most findings in the latest analysis
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/repositories/${repoId}/findings`)}
+            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            All findings <ArrowRight size={12} />
+          </button>
         </div>
 
         <HotspotTable

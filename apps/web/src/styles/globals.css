@@ -81,7 +81,7 @@
   --popover: 48 40% 98%;
   --popover-foreground: 156 30% 12%;
 
-  --primary: 151 52% 24%;
+  --primary: 156 58% 28%;
   --primary-foreground: 48 40% 98%;
 
   --secondary: 48 24% 91%;
@@ -90,10 +90,10 @@
   --muted: 48 24% 91%;
   --muted-foreground: 150 10% 38%;
 
-  --accent: 151 28% 88%;
-  --accent-foreground: 151 52% 22%;
+  --accent: 156 30% 88%;
+  --accent-foreground: 156 58% 25%;
 
-  --success: 151 55% 30%;
+  --success: 156 55% 31%;
   --warning: 32 78% 38%;
   --destructive: 4 64% 45%;
   --info: 196 58% 34%;
@@ -101,7 +101,7 @@
 
   --border: 44 18% 84%;
   --input: 44 18% 84%;
-  --ring: 151 52% 24%;
+  --ring: 156 58% 28%;
 
   --sidebar: 48 28% 92%;
   --sidebar-foreground: 156 30% 12%;
@@ -121,50 +121,110 @@
 .dark {
   --font-heading: "Schibsted Grotesk", ui-sans-serif, sans-serif;
 
-  --background: 152 22% 6%;
-  --foreground: 150 12% 92%;
+  --background: 214 24% 7%;
+  --foreground: 214 16% 93%;
 
-  --card: 152 18% 9%;
-  --card-foreground: 150 12% 92%;
+  --card: 214 20% 10%;
+  --card-foreground: 214 16% 93%;
 
-  --popover: 152 20% 11%;
-  --popover-foreground: 150 12% 92%;
+  --popover: 214 20% 12%;
+  --popover-foreground: 214 16% 93%;
 
-  --primary: 152 65% 54%;
-  --primary-foreground: 152 40% 7%;
+  --primary: 156 62% 50%;
+  --primary-foreground: 214 30% 8%;
 
-  --secondary: 152 12% 14%;
-  --secondary-foreground: 150 12% 92%;
+  --secondary: 214 14% 15%;
+  --secondary-foreground: 214 16% 93%;
 
-  --muted: 152 12% 13%;
-  --muted-foreground: 150 8% 60%;
+  --muted: 214 14% 14%;
+  --muted-foreground: 214 10% 62%;
 
-  --accent: 152 14% 16%;
-  --accent-foreground: 152 65% 64%;
+  --accent: 214 16% 17%;
+  --accent-foreground: 156 62% 62%;
 
-  --success: 152 58% 50%;
+  --success: 156 58% 48%;
   --warning: 38 92% 58%;
   --destructive: 4 78% 64%;
   --info: 190 68% 56%;
-  --destructive-foreground: 152 40% 7%;
+  --destructive-foreground: 214 30% 8%;
 
-  --border: 152 12% 17%;
-  --input: 152 12% 17%;
-  --ring: 152 65% 54%;
+  --border: 214 14% 19%;
+  --input: 214 14% 19%;
+  --ring: 156 62% 50%;
 
-  --sidebar: 152 24% 5%;
-  --sidebar-foreground: 150 12% 92%;
-  --sidebar-border: 152 12% 15%;
+  --sidebar: 214 26% 5%;
+  --sidebar-foreground: 214 16% 93%;
+  --sidebar-border: 214 14% 16%;
 
-  --shadow-tint: 152 60% 2%;
+  --shadow-tint: 214 60% 2%;
 
   /* Faint measurement grid */
   --app-texture: radial-gradient(
     circle at center,
-    hsl(150 12% 92% / 0.05) 1px,
+    hsl(214 16% 93% / 0.05) 1px,
     transparent 1px
   );
   --app-texture-size: 22px 22px;
+}
+
+/* ==========================================================
+   LOGIN — always light, whatever the dashboard theme is
+========================================================== */
+
+.login-theme {
+  --font-heading: "Archivo", ui-sans-serif, sans-serif;
+
+  --background: 150 18% 96%;
+  --foreground: 158 40% 8%;
+  --card: 0 0% 100%;
+  --muted: 150 14% 92%;
+  --muted-foreground: 152 8% 38%;
+  --primary: 156 70% 28%;
+  --primary-foreground: 0 0% 100%;
+  --warning: 32 78% 38%;
+  --border: 152 12% 85%;
+  --ring: 156 70% 28%;
+  --shadow-tint: 158 40% 8%;
+}
+
+/* ECG sweep. pathLength is 1000 and each dash sits just behind the head, so
+   the head runs 0 -> 1160 and the longest trail is gone before it loops. */
+.ecg-sweep {
+  animation: ecg-sweep 7s linear infinite;
+}
+
+@keyframes ecg-sweep {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -1160;
+  }
+}
+
+.ecg-head {
+  filter: drop-shadow(0 0 4px hsl(var(--primary)));
+}
+
+/* the dot beats when the sweep head gets back to it, 1000 / 1160 of the loop */
+.ecg-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ecg-dot 7s linear infinite;
+}
+
+@keyframes ecg-dot {
+  0%,
+  84% {
+    transform: scale(1);
+  }
+  87% {
+    transform: scale(1.7);
+  }
+  92%,
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* ==========================================================

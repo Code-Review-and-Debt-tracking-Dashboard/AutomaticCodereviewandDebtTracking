@@ -1,5 +1,6 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 
 import { useAuth } from "../../contexts/AuthContext";
@@ -13,29 +14,83 @@ const SIGN_OUT_MESSAGES: Record<string, string> = {
   logged_out: "You have been logged out.",
 };
 
-const SECURITY_POINTS = [
-  "No password stored by the dashboard",
-  "Repository access controlled by GitHub",
-  "Secure authenticated API requests",
+const FEATURES = [
+  "First-pass review on every pull request",
+  "Debt measured in minutes, not guesses",
+  "Quality gates that flag risky merges",
 ];
 
-// a month of health scores, just enough to show the shape of the product
-const SAMPLE_TRACE = [58, 61, 57, 64, 62, 70, 68, 74, 79, 76, 83, 86, 84, 90, 92];
+// each beat is a pull request, taller for worse findings
+const BEATS = [
+  { at: 0.25, height: 28, pr: "PR #41", finding: "code smell" },
+  { at: 0.52, height: 52, pr: "PR #42", finding: "vulnerability" },
+  { at: 0.8, height: 40, pr: "PR #43", finding: "complexity" },
+];
 
-const TRACE_WIDTH = 520;
-const TRACE_HEIGHT = 170;
+// sweep trail layers, longest and faintest first
+const TRAILS = [
+  { length: 160, width: 3, opacity: 0.15 },
+  { length: 70, width: 2.5, opacity: 0.4 },
+  { length: 18, width: 3, opacity: 1 },
+];
 
-function traceGeometry(scores: number[]) {
-  const stepX = TRACE_WIDTH / (scores.length - 1);
-  const toY = (score: number) => TRACE_HEIGHT - (score / 100) * TRACE_HEIGHT;
+interface Trace {
+  width: number;
+  height: number;
+  d: string;
+  labels: { x: number; y: number; pr: string; finding: string }[];
+  end: [number, number];
+}
 
-  const points = scores.map((score, index) => [index * stepX, toY(score)] as const);
-  const line = points.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L ");
+function beat(x: number, height: number, y: number) {
+  return [
+    [x - 24, y],
+    [x - 14, y - height * 0.15],
+    [x - 6, y],
+    [x - 2, y + height * 0.2],
+    [x + 4, y - height],
+    [x + 10, y + height * 0.35],
+    [x + 16, y],
+  ]
+    .map(([px, py]) => `L ${px} ${py}`)
+    .join(" ");
+}
+
+// frame drawn clockwise just outside the card, back to where the line came in
+function frame(card: DOMRect, left: number, y: number) {
+  const gap = card.left - left;
+  const top = card.top - gap;
+  const right = card.right + gap;
+  const bottom = card.bottom + gap;
+
+  return `L ${left} ${top} L ${right} ${top} L ${right} ${bottom} L ${left} ${bottom} L ${left} ${y}`;
+}
+
+function buildTrace(stage: HTMLElement, row: HTMLElement, card: HTMLElement): Trace {
+  const origin = stage.getBoundingClientRect();
+  const shift = (r: DOMRect) => new DOMRect(r.x - origin.x, r.y - origin.y, r.width, r.height);
+
+  const rowBox = shift(row.getBoundingClientRect());
+  const cardBox = shift(card.getBoundingClientRect());
+  const y = rowBox.top + rowBox.height / 2;
+  const wide = window.matchMedia("(min-width: 1024px)").matches;
+
+  // on wide screens the line meets the card and runs a loop around it
+  const frameLeft = cardBox.left - 16;
+  const lineEnd = wide ? frameLeft : rowBox.right;
+  const beatSpan = wide ? frameLeft - 40 : rowBox.right;
+
+  const beats = BEATS.map((b) => ({ ...b, x: b.at * beatSpan }));
+
+  let d = `M 0 ${y} ${beats.map((b) => beat(b.x, b.height, y)).join(" ")} L ${lineEnd} ${y}`;
+  if (wide) d += ` ${frame(cardBox, frameLeft, y)}`;
 
   return {
-    line: `M ${line}`,
-    area: `M ${line} L ${TRACE_WIDTH} ${TRACE_HEIGHT} L 0 ${TRACE_HEIGHT} Z`,
-    last: points[points.length - 1],
+    width: origin.width,
+    height: origin.height,
+    d,
+    labels: origin.width >= 600 ? beats.map((b) => ({ x: b.x, y: y + 32, pr: b.pr, finding: b.finding })) : [],
+    end: [lineEnd, y],
   };
 }
 
@@ -49,6 +104,28 @@ function GithubMark({ size = 17 }: { size?: number }) {
 
 export function LoginPage() {
   const { status, authLostReason } = useAuth();
+  const reduceMotion = useReducedMotion();
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const [trace, setTrace] = useState<Trace | null>(null);
+
+  // redraw whenever the layout moves, so the loop always wraps the card
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    const row = rowRef.current;
+    const card = cardRef.current;
+    if (!stage || !row || !card) return;
+
+    const update = () => setTrace(buildTrace(stage, row, card));
+    update();
+
+    const observer = new ResizeObserver(update);
+    observer.observe(stage);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [status]);
 
   const handleGithubLogin = () => {
     window.location.href = `${API_URL}/auth/github`;
@@ -60,167 +137,163 @@ export function LoginPage() {
 
   const notice = authLostReason ? SIGN_OUT_MESSAGES[authLostReason] ?? null : null;
 
-  const trace = traceGeometry(SAMPLE_TRACE);
-
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto grid min-h-screen max-w-[1400px] lg:h-screen lg:grid-cols-[1.05fr_0.95fr]">
-        {/* ============ LEFT — the readout ============ */}
-        <section className="relative hidden flex-col justify-between gap-10 overflow-y-auto border-r border-border px-12 py-10 lg:flex xl:px-16">
-          <Logo size={30} />
+    <main className="login-theme flex min-h-screen flex-col bg-background text-foreground">
+      <header className="px-6 py-6 sm:px-10 lg:px-14">
+        <Logo size={30} />
+      </header>
 
-          <div>
-            <h1 className="max-w-xl font-display text-[40px] font-semibold leading-[1.05] tracking-[-0.03em] xl:text-[50px]">
-              Every commit leaves
-              <br />
-              a trace. Read it.
-            </h1>
+      <div
+        ref={stageRef}
+        className="relative grid flex-1 px-6 pb-10 sm:px-10 lg:grid-cols-[1fr_500px] lg:grid-rows-[1fr_auto_1fr] lg:px-14 xl:grid-cols-[1fr_520px]"
+      >
+        {/* ECG trace, drawn behind everything */}
+        {trace && (
+          <svg
+            width={trace.width}
+            height={trace.height}
+            className="pointer-events-none absolute inset-0 overflow-visible"
+            aria-hidden="true"
+          >
+            <path
+              d={trace.d}
+              pathLength={1000}
+              fill="none"
+              stroke="hsl(var(--foreground))"
+              strokeOpacity={0.5}
+              strokeWidth={1.5}
+              strokeLinejoin="miter"
+            />
 
-            <p className="mt-5 max-w-md text-[15px] leading-7 text-muted-foreground">
-              CodePulse runs the same static analysers on every pull request and
-              turns the result into one health score you can actually defend.
-            </p>
-
-            {/* Health trace */}
-            <figure className="mt-10 max-w-[520px]">
-              <figcaption className="mb-3 flex items-baseline justify-between">
-                <span className="eyebrow">Health score / 30 days</span>
-                <span className="font-mono text-2xl font-semibold text-primary">
-                  {SAMPLE_TRACE[SAMPLE_TRACE.length - 1]}
-                </span>
-              </figcaption>
-
-              <svg
-                viewBox={`0 0 ${TRACE_WIDTH} ${TRACE_HEIGHT}`}
-                className="w-full overflow-visible"
-                aria-hidden="true"
-              >
-                <defs>
-                  <linearGradient id="trace-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.16" />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-
-                {[0, 25, 50, 75].map((value) => (
-                  <line
-                    key={value}
-                    x1="0"
-                    x2={TRACE_WIDTH}
-                    y1={TRACE_HEIGHT - (value / 100) * TRACE_HEIGHT}
-                    y2={TRACE_HEIGHT - (value / 100) * TRACE_HEIGHT}
-                    stroke="hsl(var(--border))"
-                    strokeWidth="1"
-                  />
-                ))}
-
-                <motion.path
-                  d={trace.area}
-                  fill="url(#trace-fill)"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.9, duration: 0.6 }}
-                />
-
-                <motion.path
-                  d={trace.line}
+            {!reduceMotion &&
+              TRAILS.map((t) => (
+                <path
+                  key={t.length}
+                  d={trace.d}
+                  pathLength={1000}
                   fill="none"
                   stroke="hsl(var(--primary))"
-                  strokeWidth="2"
-                  strokeLinecap="square"
-                  strokeLinejoin="miter"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 1.4, ease: "easeInOut" }}
+                  strokeOpacity={t.opacity}
+                  strokeWidth={t.width}
+                  strokeLinecap="round"
+                  strokeDasharray={`0 ${3000 - t.length} ${t.length} 0`}
+                  className={`ecg-sweep ${t.length < 20 ? "ecg-head" : ""}`}
                 />
-
-                <motion.circle
-                  cx={trace.last[0]}
-                  cy={trace.last[1]}
-                  r="4"
-                  fill="hsl(var(--primary))"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 1.3, type: "spring", stiffness: 300 }}
-                />
-              </svg>
-            </figure>
-          </div>
-
-          <div className="flex gap-8 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-            <span>Rule-based analysis</span>
-            <span>Reproducible scoring</span>
-            <span>GitHub native</span>
-          </div>
-        </section>
-
-        {/* ============ RIGHT — sign in ============ */}
-        <section className="flex items-center justify-center overflow-y-auto px-6 py-12 sm:px-10">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="w-full max-w-sm"
-          >
-            <div className="mb-10 lg:hidden">
-              <Logo size={30} />
-            </div>
-
-            <p className="eyebrow">Sign in</p>
-
-            <h2 className="mt-2.5 font-display text-[26px] font-semibold tracking-[-0.02em]">
-              Welcome back
-            </h2>
-
-            <p className="mt-2.5 text-sm leading-6 text-muted-foreground">
-              Connect your GitHub account to start monitoring your repositories.
-            </p>
-
-            {notice && (
-              <p className="mt-6 flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs leading-5 text-warning">
-                <AlertIcon size={15} className="mt-px shrink-0" />
-                {notice}
-              </p>
-            )}
-
-            <button
-              type="button"
-              onClick={handleGithubLogin}
-              className="group mt-7 flex h-11 w-full items-center justify-center gap-2.5 rounded-md bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90"
-            >
-              <GithubMark />
-              Continue with GitHub
-              <ArrowRight
-                size={15}
-                className="transition-transform group-hover:translate-x-0.5"
-              />
-            </button>
-
-            <div className="my-7 flex items-center gap-3">
-              <span className="h-px flex-1 bg-border" />
-              <span className="eyebrow text-[10px]">Secure authentication</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
-
-            <ul className="space-y-2.5">
-              {SECURITY_POINTS.map((text) => (
-                <li
-                  key={text}
-                  className="flex items-center gap-2.5 text-xs text-muted-foreground"
-                >
-                  <CheckIcon size={14} className="shrink-0 text-primary" />
-                  {text}
-                </li>
               ))}
-            </ul>
 
-            <p className="mt-10 font-mono text-[10px] uppercase leading-5 tracking-[0.1em] text-muted-foreground">
-              Continuing authorises the GitHub permissions required for
-              repository analysis.
+            {trace.labels.map((l) => (
+              <text
+                key={l.pr}
+                x={l.x}
+                y={l.y}
+                textAnchor="middle"
+                className="fill-muted-foreground font-mono text-[10px] uppercase tracking-[0.12em]"
+              >
+                <tspan x={l.x}>{l.pr}</tspan>
+                <tspan x={l.x} dy={14} className="fill-foreground">
+                  {l.finding}
+                </tspan>
+              </text>
+            ))}
+
+            {/* Commit dot, same as the one in the logo */}
+            <circle
+              cx={trace.end[0]}
+              cy={trace.end[1]}
+              r={6}
+              fill="hsl(var(--primary))"
+              className={reduceMotion ? "" : "ecg-dot"}
+            />
+          </svg>
+        )}
+
+        {/* Headline */}
+        <h1
+          className="relative self-end pt-6 pb-8 font-display text-[34px] font-bold leading-[0.98] tracking-[-0.035em] sm:text-[48px] lg:col-start-1 lg:row-start-1 lg:pr-16 lg:text-[36px] xl:text-[56px] 2xl:text-[64px]"
+          style={{ fontStretch: "112%" }}
+        >
+          Debt you can see
+          <br />
+          is debt you can <span className="text-primary">fix.</span>
+        </h1>
+
+        {/* Row the ECG baseline runs through */}
+        <div
+          ref={rowRef}
+          className="-ml-6 h-[120px] sm:-ml-10 lg:col-start-1 lg:row-start-2 lg:-ml-14"
+        />
+
+        {/* Supporting line */}
+        <div className="relative self-start pt-4 sm:pt-10 lg:col-start-1 lg:row-start-3 lg:pr-16">
+          <p className="max-w-md text-[15px] leading-7 text-muted-foreground">
+            CodePulse reviews every pull request the moment it opens, flags
+            what slipped in, and tracks your technical debt as one Health
+            Score the whole team can read.
+          </p>
+        </div>
+
+        {/* Sign in */}
+        <motion.section
+          ref={cardRef}
+          initial={reduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="relative mt-10 w-full self-center rounded-[2px] border border-border bg-card p-8 shadow-xl sm:p-10 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:my-12 lg:w-[440px] lg:justify-self-center xl:w-[460px]"
+        >
+          <p className="eyebrow">Sign in</p>
+
+          <h2 className="mt-3 font-display text-[30px] font-bold tracking-[-0.025em]">
+            Welcome back
+          </h2>
+
+          <p className="mt-2.5 text-[15px] leading-6 text-muted-foreground">
+            See your Health Scores, open findings and debt trend across every
+            repository.
+          </p>
+
+          {notice && (
+            <p className="mt-6 flex items-start gap-2.5 rounded-[2px] border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs leading-5 text-warning">
+              <AlertIcon size={15} className="mt-px shrink-0" />
+              {notice}
             </p>
-          </motion.div>
-        </section>
+          )}
+
+          <button
+            type="button"
+            onClick={handleGithubLogin}
+            className="group mt-8 flex h-12 w-full items-center justify-center gap-2.5 rounded-[2px] bg-foreground text-[15px] font-medium text-background transition-colors hover:bg-primary"
+          >
+            <GithubMark />
+            Continue with GitHub
+            <ArrowRight
+              size={15}
+              className="transition-transform group-hover:translate-x-0.5"
+            />
+          </button>
+
+          <ul className="mt-8 space-y-3 border-t border-border pt-7">
+            {FEATURES.map((text) => (
+              <li
+                key={text}
+                className="flex items-center gap-2.5 text-[13px] text-muted-foreground"
+              >
+                <CheckIcon size={15} className="shrink-0 text-primary" />
+                {text}
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            We never see your GitHub password.
+          </p>
+        </motion.section>
       </div>
+
+      <footer className="flex flex-wrap gap-x-8 gap-y-2 border-t border-border px-6 py-5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:px-10 lg:px-14">
+        <span>Automated PR review</span>
+        <span>Technical debt tracking</span>
+        <span>Quality gates</span>
+      </footer>
     </main>
   );
 }

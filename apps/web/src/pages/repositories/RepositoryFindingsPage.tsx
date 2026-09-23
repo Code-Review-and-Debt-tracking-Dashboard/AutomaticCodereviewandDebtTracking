@@ -15,7 +15,7 @@ import {
   HotspotIcon,
   RepositoriesIcon,
 } from "../../components/icons";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
@@ -90,8 +90,10 @@ const categoryIcons: Record<string, React.ElementType> = {
 
 export function RepositoryFindingsPage() {
   const { repoId } = useParams();
+  const [searchParams] = useSearchParams();
 
-  const [search, setSearch] = useState("");
+  // hotspot rows link here with ?file= so only that file shows
+  const [search, setSearch] = useState(searchParams.get("file") ?? "");
   const [severity, setSeverity] = useState("All");
   const [result, setResult] = useState<FindingsResponse | null>(null);
   const [repoName, setRepoName] = useState("");
