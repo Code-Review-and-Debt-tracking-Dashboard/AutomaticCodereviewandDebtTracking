@@ -30,6 +30,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HotspotTable, type HotspotFile } from "../../components/hotspots/HotspotTable";
 import { api } from "../../lib/apiClient";
+import { healthBand } from "../../lib/healthBand";
 import { Loader2 } from "lucide-react";
 
 import {
@@ -176,14 +177,20 @@ export function RepositoryOverviewPage() {
     lastAnalyzedAt: repoDetail?.lastAnalyzedAt ?? null,
   };
 
-  const healthLabel =
-    repository.healthScore === null
-      ? { text: "Not analyzed", cls: "bg-muted text-muted-foreground" }
-      : repository.healthScore >= 85
-        ? { text: "Excellent", cls: "bg-success/10 text-success" }
-        : repository.healthScore >= 70
-          ? { text: "Healthy", cls: "bg-success/10 text-success" }
-          : { text: "Needs attention", cls: "bg-warning/10 text-warning" };
+  const band = healthBand(repository.healthScore);
+  const healthLabel = {
+    text: band.label,
+    cls:
+      band.tone === "success"
+        ? "bg-success/10 text-success"
+        : band.tone === "info"
+          ? "bg-info/10 text-info"
+          : band.tone === "warning"
+            ? "bg-warning/10 text-warning"
+            : band.tone === "destructive"
+              ? "bg-destructive/10 text-destructive"
+              : "bg-muted text-muted-foreground",
+  };
 
   const chartTrend = trendPoints;
 

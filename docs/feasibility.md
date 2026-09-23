@@ -267,7 +267,7 @@ The system targets two distinct user groups: developers who interact primarily w
 
 **Key usability considerations:**
 - **Single-click onboarding:** Users authenticate with their existing GitHub account — no separate registration process is required. Repository linking is performed through a visual picker that lists the user's accessible repositories.
-- **Intuitive Health Score:** The 0–100 Health Score is designed to be immediately understandable by non-technical stakeholders. Color-coded indicators (green: 85–100, yellow: 70–84, orange: 50–69, red: 0–49) provide at-a-glance assessment.
+- **Intuitive Health Score:** The 0–100 Health Score is designed to be immediately understandable by non-technical stakeholders. Color-coded indicators (green: 90–100, yellow-green: 70–89, orange: 50–69, red: 25–49, dark red: 0–24) provide at-a-glance assessment. These bands match the table in scoring_algorithm.md and the labels the worker posts on a pull request.
 - **Contextual PR comments:** Analysis results are posted directly in the GitHub Pull Request where developers already work, eliminating the need to switch to a separate tool.
 - **Responsive dashboard:** The web dashboard is designed for screen widths from 1024px to 1920px, ensuring usability on laptops and external monitors.
 - **Mobile quick-view:** The mobile app provides a condensed summary screen optimized for quick checks — a team lead can assess repository health in under 10 seconds.

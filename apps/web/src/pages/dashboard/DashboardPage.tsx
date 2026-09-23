@@ -46,6 +46,7 @@ import {
 } from "../../components/ui";
 
 import { useAuth } from "../../contexts/AuthContext";
+import { healthBand } from "../../lib/healthBand";
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
 
@@ -98,12 +99,7 @@ function debtLabel(minutes: number | null): string {
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
 }
 
-function repoStatus(score: number | null): string {
-  if (score === null) return "Not analyzed";
-  if (score >= 85) return "Excellent";
-  if (score < 70) return "Needs attention";
-  return "Healthy";
-}
+
 
 // bucket every repo's snapshots by day, then average each day across repos
 function averageByDay(series: ApiTrendPoint[][]): { name: string; score: number }[] {
@@ -190,7 +186,7 @@ export function DashboardPage() {
           findings: item.openFindings,
           debtMinutes: item.debtMinutes,
           debt: debtLabel(item.debtMinutes),
-          status: repoStatus(item.healthScore),
+          status: healthBand(item.healthScore).label,
         }))
       );
 
@@ -596,7 +592,7 @@ export function DashboardPage() {
                           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                             Health
                           </p>
-                          <p className={`mt-1 text-lg font-bold ${repo.score === null ? "text-muted-foreground" : repo.score >= 85 ? "text-success" : "text-warning"}`}>
+                          <p className={`mt-1 text-lg font-bold ${healthBand(repo.score).textClass}`}>
                             {repo.score ?? "—"}
                           </p>
                         </div>
@@ -620,7 +616,7 @@ export function DashboardPage() {
                         </div>
 
                         <Badge
-                          variant={repo.score === null ? "muted" : repo.score >= 85 ? "success" : "warning"}
+                          variant={healthBand(repo.score).tone === "destructive" ? "destructive" : healthBand(repo.score).tone}
                           size="md"
                         >
                           {repo.status}

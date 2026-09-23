@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../lib/apiClient";
+import { healthBand } from "../../lib/healthBand";
 
 import {
   BackLink,
@@ -188,9 +189,7 @@ export function RepositoryPullRequestsPage() {
 
                   <DataTableCell>
                     <div
-                      className={`text-sm font-bold ${
-                        pr.score >= 85 ? "text-success" : "text-warning"
-                      }`}
+                      className={`text-sm font-bold ${healthBand(pr.score).textClass}`}
                     >
                       {pr.score}
                     </div>

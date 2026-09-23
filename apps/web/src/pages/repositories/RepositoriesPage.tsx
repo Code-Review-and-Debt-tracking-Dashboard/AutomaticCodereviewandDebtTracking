@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
+import { healthBand } from "../../lib/healthBand";
 import { LinkRepositoryModal } from "../../components/repositories/LinkRepositoryModal";
 
 import {
@@ -39,8 +40,6 @@ import {
  * REPOSITORIES PAGE (D-06)
  * =========================================================
  */
-
-type RepositoryStatus = "Excellent" | "Healthy" | "Needs attention";
 
 interface ApiRepository {
   id: string;
@@ -66,7 +65,7 @@ type Repository = {
   score: number;
   findings: number;
   debt: string;
-  status: RepositoryStatus;
+  status: string;
   branch: string;
   lastAnalyzed: string;
   isPrivate: boolean;
@@ -85,9 +84,10 @@ const languages = [
 
 const scoreFilters = [
   "All scores",
-  "Excellent (85+)",
-  "Healthy (70-84)",
-  "Needs attention (<70)",
+  "Excellent (90+)",
+  "Good (70-89)",
+  "Fair (50-69)",
+  "Needs attention (<50)",
 ];
 
 type SortOption = "health" | "findings" | "debt" | "recent";
@@ -129,10 +129,7 @@ export function RepositoriesPage() {
       const mapped: Repository[] = apiList.map((item) => {
         const isAnalyzed = item.healthScore !== null && item.healthScore !== undefined;
         const score = item.healthScore ?? 0;
-        let status: RepositoryStatus = "Healthy";
-        if (!isAnalyzed) status = "Needs attention";
-        else if (score >= 85) status = "Excellent";
-        else if (score < 70) status = "Needs attention";
+        const status = healthBand(item.healthScore).label;
 
         const minutes = item.debtMinutes ?? 0;
         const hrs = Math.floor(minutes / 60);
@@ -205,12 +202,14 @@ export function RepositoriesPage() {
       result = result.filter((repo) => repo.language === language);
     }
 
-    if (scoreFilter === "Excellent (85+)") {
-      result = result.filter((repo) => repo.score >= 85);
-    } else if (scoreFilter === "Healthy (70-84)") {
-      result = result.filter((repo) => repo.score >= 70 && repo.score < 85);
-    } else if (scoreFilter === "Needs attention (<70)") {
-      result = result.filter((repo) => repo.score < 70);
+    if (scoreFilter === "Excellent (90+)") {
+      result = result.filter((repo) => repo.score >= 90);
+    } else if (scoreFilter === "Good (70-89)") {
+      result = result.filter((repo) => repo.score >= 70 && repo.score < 90);
+    } else if (scoreFilter === "Fair (50-69)") {
+      result = result.filter((repo) => repo.score >= 50 && repo.score < 70);
+    } else if (scoreFilter === "Needs attention (<50)") {
+      result = result.filter((repo) => repo.score < 50);
     }
 
     result.sort((a, b) => {
@@ -506,7 +505,7 @@ function RepositoryCard({
   onSelect: () => void;
   onUnlink: () => void;
 }) {
-  const isHealthy = repository.isAnalyzed && repository.score >= 85;
+  const band = healthBand(repository.isAnalyzed ? repository.score : null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -577,7 +576,7 @@ function RepositoryCard({
             </p>
             <p
               className={`mt-1 text-2xl font-bold ${
-                isHealthy ? "text-success" : "text-warning"
+                band.textClass
               }`}
             >
               {repository.isAnalyzed ? repository.score : "—"}
@@ -606,13 +605,7 @@ function RepositoryCard({
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Health score</span>
-            <span className="text-xs font-medium text-success">
-              {!repository.isAnalyzed
-                ? "Not analyzed yet"
-                : repository.score >= 85
-                  ? "Excellent"
-                  : "Needs improvement"}
-            </span>
+            <span className={`text-xs font-medium ${band.textClass}`}>{band.label}</span>
           </div>
 
           <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -621,7 +614,7 @@ function RepositoryCard({
               animate={{ width: `${repository.score}%` }}
               transition={{ duration: 0.8, delay: index * 0.05 }}
               className={`h-full rounded-full ${
-                isHealthy ? "bg-success" : "bg-warning"
+                band.tone === "success" ? "bg-success" : band.tone === "info" ? "bg-info" : band.tone === "warning" ? "bg-warning" : "bg-destructive"
               }`}
             />
           </div>

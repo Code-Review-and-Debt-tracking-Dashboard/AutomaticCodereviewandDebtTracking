@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
+import { healthBand } from "../../lib/healthBand";
 import {
   ArrowUpDown,
   CheckCircle2,
@@ -147,12 +148,7 @@ export function GlobalAnalyticsPage() {
           healthScore: r.healthScore,
           techDebt: debtLabel(r.debtMinutes),
           trend: trends[i].map((dp) => dp.healthScore),
-          status:
-            r.healthScore === null
-              ? "Not analyzed"
-              : r.healthScore >= 85
-                ? "Good"
-                : "Needs attention",
+          status: healthBand(r.healthScore).label,
         }))
       );
 
@@ -488,7 +484,7 @@ export function GlobalAnalyticsPage() {
 
                     {/* Health Score */}
                     <DataTableCell align="center">
-                      <span className={`text-lg font-bold ${repo.healthScore === null ? "text-muted-foreground" : repo.healthScore >= 85 ? "text-success" : "text-warning"}`}>
+                      <span className={`text-lg font-bold ${healthBand(repo.healthScore).textClass}`}>
                         {repo.healthScore ?? "—"}
                       </span>
                     </DataTableCell>
