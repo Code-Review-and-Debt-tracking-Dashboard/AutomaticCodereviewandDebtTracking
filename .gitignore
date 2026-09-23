@@ -4,6 +4,7 @@ build/
 coverage/
 .cache/
 .turbo/
+.venv/
 
 .env
 .env.*
