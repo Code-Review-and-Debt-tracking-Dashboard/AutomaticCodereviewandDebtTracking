@@ -475,13 +475,15 @@ async function main() {
 
   // The worker authenticates as this agent when it reports results. Only the
   // hash is stored, so the raw token has to match the worker's AGENT_TOKEN.
+  // orgId is null so one worker can analyse every org — scoping it to a single
+  // org means jobs from all the others fail with a 404 and sit PENDING.
   const agentToken = process.env.AGENT_TOKEN || "dev_agent_token";
   const tokenHash = crypto.createHash("sha256").update(agentToken).digest("hex");
 
   await prisma.agent.upsert({
     where: { tokenHash },
-    update: { orgId: acme.id, revokedAt: null },
-    create: { tokenHash, orgId: acme.id },
+    update: { orgId: null, revokedAt: null },
+    create: { tokenHash, orgId: null },
   });
 
   const [orgCount, userCount, repositoryCount, snapshotCount, findingCount, notificationCount] =

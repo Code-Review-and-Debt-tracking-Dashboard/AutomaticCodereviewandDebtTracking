@@ -34,52 +34,6 @@ import {
   FilterBar,
 } from "../../components/ui";
 
-const findings = [
-  {
-    id: "FND-001",
-    message: "SQL query constructed using user input",
-    category: "Security",
-    severity: "Critical",
-    file: "src/api/users.ts",
-    line: 42,
-    state: "New",
-    tool: "ESLint Security",
-    rule: "no-sql-injection",
-  },
-  {
-    id: "FND-002",
-    message: "Function complexity exceeds recommended threshold",
-    category: "Complexity",
-    severity: "High",
-    file: "src/services/analyzer.ts",
-    line: 128,
-    state: "New",
-    tool: "PMD",
-    rule: "cognitive-complexity",
-  },
-  {
-    id: "FND-003",
-    message: "Duplicated code block detected",
-    category: "Duplication",
-    severity: "Medium",
-    file: "src/utils/format.ts",
-    line: 76,
-    state: "Existing",
-    tool: "jscpd",
-    rule: "no-duplicate-code",
-  },
-  {
-    id: "FND-004",
-    message: "Unused variable detected",
-    category: "Code Smell",
-    severity: "Low",
-    file: "src/components/Table.tsx",
-    line: 24,
-    state: "Resolved",
-    tool: "ESLint",
-    rule: "no-unused-vars",
-  },
-];
 
 const severityStyles: Record<string, string> = {
   Critical: "bg-danger/10 text-danger border-danger/20",
@@ -104,7 +58,9 @@ export function PRFindingDrilldownPage() {
   const { repoId, prNumber } = useParams();
 
   const [realFindings, setRealFindings] = useState<FindingItem[]>([]);
-  const [_isLoading, setIsLoading] = useState(false);
+  const [hasAnalysis, setHasAnalysis] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("All");
   const [category, setCategory] = useState("All");
@@ -115,15 +71,54 @@ export function PRFindingDrilldownPage() {
 
     const fetchPrFindings = async () => {
       setIsLoading(true);
+      setLoadError(null);
       try {
-        const res = await api.get<{ data: FindingItem[] }>(
+        // the PR endpoint carries snapshots, not findings — the newest one
+        // points at the findings for this PR's latest analysis
+        const pr = await api.get<{ snapshots: { id: string; createdAt: string }[] }>(
           `/api/repos/${repoId}/pulls/${prNumber}`
         );
-        if (res?.data && res.data.length > 0) {
-          setRealFindings(res.data);
+        const latest = [...(pr.snapshots ?? [])].sort((a, b) =>
+          b.createdAt.localeCompare(a.createdAt)
+        )[0];
+
+        if (!latest) {
+          setRealFindings([]);
+          setHasAnalysis(false);
+          return;
         }
-      } catch {
-        // Fallback to static demo data
+
+        const res = await api.get<{
+          data: {
+            id: string;
+            file: string | null;
+            line: number | null;
+            severity: string;
+            category: string;
+            rule: string;
+            message: string;
+            tool: string;
+            isNew: boolean;
+          }[];
+        }>(`/api/snapshots/${latest.id}/findings`);
+
+        setHasAnalysis(true);
+        setRealFindings(
+          (res.data ?? []).map((f) => ({
+            id: f.id,
+            message: f.message,
+            category: f.category,
+            severity: f.severity,
+            file: f.file ?? "",
+            line: f.line ?? 0,
+            state: f.isNew ? "NEW" : "EXISTING",
+            tool: f.tool,
+            rule: f.rule,
+          }))
+        );
+      } catch (err: any) {
+        setLoadError(err?.response?.data?.message || "Failed to load findings for this pull request.");
+        setRealFindings([]);
       } finally {
         setIsLoading(false);
       }
@@ -132,7 +127,7 @@ export function PRFindingDrilldownPage() {
     fetchPrFindings();
   }, [repoId, prNumber]);
 
-  const activeFindings = realFindings.length > 0 ? realFindings : findings;
+  const activeFindings = realFindings;
 
   const filteredFindings = activeFindings.filter((finding) => {
     const matchesSearch =
@@ -287,9 +282,19 @@ export function PRFindingDrilldownPage() {
             {filteredFindings.length === 0 && (
               <div className="flex flex-col items-center justify-center p-12 text-center">
                 <ShieldAlert size={32} className="text-muted-foreground mb-4" />
-                <p className="text-sm font-semibold">No findings match your criteria</p>
+                <p className="text-sm font-semibold">
+                  {isLoading
+                    ? "Loading findings…"
+                    : loadError
+                      ? "Could not load findings"
+                      : !hasAnalysis
+                        ? "This pull request has not been analyzed yet"
+                        : realFindings.length === 0
+                          ? "No findings — this analysis came back clean"
+                          : "No findings match your criteria"}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Try adjusting your search or filters.
+                  {loadError ?? (realFindings.length > 0 ? "Try adjusting your search or filters." : "")}
                 </p>
               </div>
             )}

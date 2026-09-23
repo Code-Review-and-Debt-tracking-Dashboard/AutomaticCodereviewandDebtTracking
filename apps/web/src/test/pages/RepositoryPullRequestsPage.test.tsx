@@ -68,6 +68,16 @@ describe("RepositoryPullRequestsPage", () => {
     const searchInput = screen.getByPlaceholderText(/Search pull requests.../i);
     await user.type(searchInput, "nonexistent");
 
-    expect(screen.getByText("No pull requests found.")).toBeInTheDocument();
+    expect(screen.getByText(/No pull requests match your filters/i)).toBeInTheDocument();
+  });
+
+  it("says none are analyzed rather than showing placeholder pull requests", async () => {
+    mockedApi.get.mockResolvedValue({ data: [] } as any);
+
+    renderPage();
+
+    expect(
+      await screen.findByText(/No pull requests analyzed for this repository yet/i),
+    ).toBeInTheDocument();
   });
 });

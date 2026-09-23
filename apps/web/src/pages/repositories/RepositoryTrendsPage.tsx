@@ -3,7 +3,6 @@ import {
   Activity,
   BarChart3,
   CalendarDays,
-  CheckCircle2,
   GitPullRequest,
   ShieldAlert,
   TrendingDown,
@@ -23,6 +22,7 @@ import {
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/apiClient";
+import { METRIC_HELP } from "../../lib/healthBand";
 
 
 import {
@@ -36,92 +36,28 @@ import {
   Select,
 } from "../../components/ui";
 
-const metricTrend = [
-  { date: "Jun 16", codeSmells: 48, complexity: 32, duplication: 18, security: 9 },
-  { date: "Jun 17", codeSmells: 45, complexity: 31, duplication: 17, security: 8 },
-  { date: "Jun 18", codeSmells: 43, complexity: 30, duplication: 16, security: 8 },
-  { date: "Jun 19", codeSmells: 38, complexity: 28, duplication: 14, security: 6 },
-  { date: "Jun 20", codeSmells: 34, complexity: 26, duplication: 13, security: 5 },
-  { date: "Jun 21", codeSmells: 31, complexity: 24, duplication: 11, security: 4 },
-  { date: "Jun 22", codeSmells: 28, complexity: 22, duplication: 10, security: 3 },
-  { date: "Jun 23", codeSmells: 24, complexity: 20, duplication: 8, security: 2 },
-];
+interface TrendPoint {
+  date: string;
+  healthScore: number;
+  debtMinutes: number;
+  totalIssues: number;
+  vulnerabilityCount: number;
+  complexityCount: number;
+  duplicationPct: number;
+}
 
-const debtTrend = [
-  { date: "Jun 16", hours: 14.5 },
-  { date: "Jun 17", hours: 13.8 },
-  { date: "Jun 18", hours: 12.6 },
-  { date: "Jun 19", hours: 11.2 },
-  { date: "Jun 20", hours: 9.8 },
-  { date: "Jun 21", hours: 8.1 },
-  { date: "Jun 22", hours: 6.4 },
-  { date: "Jun 23", hours: 4.3 },
-];
-
-const summaryCards = [
-  {
-    title: "Current Health",
-    value: "88",
-    description: "+16 points in 7 days",
-    icon: Activity,
-    color: "success" as const,
-    trend: "up",
-  },
-  {
-    title: "Open Findings",
-    value: "34",
-    description: "-42% from last week",
-    icon: ShieldAlert,
-    color: "warning" as const,
-    trend: "down",
-  },
-  {
-    title: "Technical Debt",
-    value: "4h 20m",
-    description: "-10h 10m this week",
-    icon: TrendingDown,
-    color: "info" as const,
-    trend: "down",
-  },
-  {
-    title: "Analyses",
-    value: "24",
-    description: "+6 this week",
-    icon: BarChart3,
-    color: "primary" as const,
-    trend: "up",
-  },
-];
-
-const recentChanges = [
-  {
-    title: "Health score improved",
-    description: "Repository health increased from 84 to 88",
-    time: "Today, 10:42 AM",
-    icon: TrendingUp,
-    className: "bg-success/10 text-success",
-  },
-  {
-    title: "Security findings reduced",
-    description: "7 security issues were resolved",
-    time: "Yesterday, 4:18 PM",
-    icon: ShieldAlert,
-    className: "bg-info/10 text-info",
-  },
-  {
-    title: "Pull request analyzed",
-    description: "PR #42 introduced 3 new findings",
-    time: "Yesterday, 11:26 AM",
-    icon: GitPullRequest,
-    className: "bg-primary/10 text-primary",
-  },
-];
+function formatMinutes(minutes: number): string {
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+}
 
 export function RepositoryTrendsPage() {
   const { repoId } = useParams<{ repoId: string }>();
   const [days, setDays] = useState<number>(30);
+  const [raw, setRaw] = useState<TrendPoint[]>([]);
   const [points, setPoints] = useState<{ date: string; score: number }[]>([]);
-  const [latestScore, setLatestScore] = useState<number>(88);
+  const [latestScore, setLatestScore] = useState<number | null>(null);
   const [_isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -130,21 +66,22 @@ export function RepositoryTrendsPage() {
     const fetchTrend = async () => {
       setIsLoading(true);
       try {
-        const res = await api.get<{ dataPoints: { date: string; healthScore: number }[] }>(
+        const res = await api.get<{ dataPoints: TrendPoint[] }>(
           `/api/repos/${repoId}/trend?days=${days}`
         );
 
-        if (res?.dataPoints && res.dataPoints.length > 0) {
-          const mapped = res.dataPoints.map((dp) => ({
-            date: new Date(dp.date).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            }),
-            score: dp.healthScore,
-          }));
-          setPoints(mapped);
-          setLatestScore(mapped[mapped.length - 1].score);
-        }
+        const dataPoints = res?.dataPoints ?? [];
+        setRaw(dataPoints);
+
+        const mapped = dataPoints.map((dp) => ({
+          date: new Date(dp.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          score: dp.healthScore,
+        }));
+        setPoints(mapped);
+        setLatestScore(mapped.length > 0 ? mapped[mapped.length - 1].score : null);
       } catch {
         // Fallback
       } finally {
@@ -155,15 +92,59 @@ export function RepositoryTrendsPage() {
     fetchTrend();
   }, [repoId, days]);
 
-  const healthTrend = points.length > 0 ? points : [
-    { date: "Jun 16", score: 72 },
-    { date: "Jun 17", score: 74 },
-    { date: "Jun 18", score: 73 },
-    { date: "Jun 19", score: 78 },
-    { date: "Jun 20", score: 81 },
-    { date: "Jun 21", score: 84 },
-    { date: "Jun 22", score: 86 },
-    { date: "Jun 23", score: 88 },
+  const healthTrend = points;
+
+  const label = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const metricTrend = raw.map((dp) => ({
+    date: label(dp.date),
+    findings: dp.totalIssues ?? 0,
+    complexity: dp.complexityCount ?? 0,
+    duplication: Number((dp.duplicationPct ?? 0).toFixed(1)),
+    security: dp.vulnerabilityCount ?? 0,
+  }));
+
+  const debtTrend = raw.map((dp) => ({
+    date: label(dp.date),
+    hours: Number(((dp.debtMinutes ?? 0) / 60).toFixed(2)),
+  }));
+
+  const latest = raw.length > 0 ? raw[raw.length - 1] : null;
+
+  const summaryCards = [
+    {
+      help: METRIC_HELP.healthScore,
+      title: "Current Health",
+      value: latest ? String(latest.healthScore) : "—",
+      description: `Across ${raw.length} ${raw.length === 1 ? "analysis" : "analyses"}`,
+      icon: Activity,
+      color: "success" as const,
+    },
+    {
+      help: METRIC_HELP.openFindings,
+      title: "Open Findings",
+      value: latest ? String(latest.totalIssues ?? 0) : "—",
+      description: "In the latest analysis",
+      icon: ShieldAlert,
+      color: "warning" as const,
+    },
+    {
+      help: METRIC_HELP.technicalDebt,
+      title: "Technical Debt",
+      value: latest ? formatMinutes(latest.debtMinutes ?? 0) : "—",
+      description: "Estimated remediation",
+      icon: TrendingDown,
+      color: "info" as const,
+    },
+    {
+      help: "How many times this repository has been analyzed in the selected period.",
+      title: "Analyses",
+      value: String(raw.length),
+      description: `In the last ${days} days`,
+      icon: BarChart3,
+      color: "primary" as const,
+    },
   ];
 
   return (
@@ -210,6 +191,7 @@ export function RepositoryTrendsPage() {
                 key={card.title}
                 title={card.title}
                 value={card.value}
+                help={card.help}
                 icon={Icon}
                 color={card.color}
               />
@@ -268,19 +250,19 @@ export function RepositoryTrendsPage() {
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px" }} />
-                  <Line type="monotone" dataKey="codeSmells" name="Code Smells" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="findings" name="Total Findings" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} />
                   <Line type="monotone" dataKey="complexity" name="Complexity" stroke="hsl(var(--warning))" strokeWidth={2.5} dot={false} />
-                  <Line type="monotone" dataKey="duplication" name="Duplication" stroke="hsl(var(--info))" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="duplication" name="Duplication %" stroke="hsl(var(--info))" strokeWidth={2.5} dot={false} />
                   <Line type="monotone" dataKey="security" name="Security" stroke="hsl(var(--danger))" strokeWidth={2.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                ["Code Smells", "24", "text-primary"],
-                ["Complexity", "20", "text-warning"],
-                ["Duplication", "8", "text-info"],
-                ["Security", "2", "text-danger"],
+                ["Total Findings", latest ? String(latest.totalIssues ?? 0) : "—", "text-primary"],
+                ["Complexity", latest ? String(latest.complexityCount ?? 0) : "—", "text-warning"],
+                ["Duplication", latest ? `${(latest.duplicationPct ?? 0).toFixed(1)}%` : "—", "text-info"],
+                ["Security", latest ? String(latest.vulnerabilityCount ?? 0) : "—", "text-danger"],
               ].map(([label, value, color]) => (
                 <div key={label} className="rounded-xl border border-border/60 bg-muted/20 p-3">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
@@ -318,38 +300,19 @@ export function RepositoryTrendsPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold">Technical debt is decreasing</p>
-                <p className="mt-1 text-xs text-muted-foreground">The repository reduced estimated debt by 70% during the selected period.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {latest ? `Latest analysis: ${formatMinutes(latest.debtMinutes)} of estimated debt.` : "No analysis in this period."}
+                </p>
               </div>
             </div>
           </Card>
         </div>
 
-        <Card className="mt-6 p-5 sm:p-6">
-          <div className="mb-6">
-            <p className="text-sm font-semibold">Recent Trend Changes</p>
-            <p className="mt-1 text-xs text-muted-foreground">Important changes detected in repository quality</p>
+        {raw.length === 0 && (
+          <div className="mt-6 rounded-xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
+            No analyses in the last {days} days.
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {recentChanges.map((change) => {
-              const Icon = change.icon;
-              return (
-                <div key={change.title} className="rounded-xl border border-border/60 p-4 transition hover:border-primary/30 hover:bg-muted/20">
-                  <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl ${change.className}`}>
-                    <Icon size={18} />
-                  </div>
-                  <p className="text-sm font-semibold">{change.title}</p>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{change.description}</p>
-                  <p className="mt-3 text-[11px] text-muted-foreground">{change.time}</p>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <div className="mt-6 flex items-center gap-2 rounded-xl border border-success/20 bg-success/5 px-4 py-3 text-xs text-success">
-          <CheckCircle2 size={15} />
-          Latest repository analysis completed successfully.
-        </div>
+        )}
       </div>
     </main>
   );

@@ -30,6 +30,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HotspotTable, type HotspotFile } from "../../components/hotspots/HotspotTable";
 import { api } from "../../lib/apiClient";
+import { healthBand, METRIC_HELP } from "../../lib/healthBand";
 import { Loader2 } from "lucide-react";
 
 import {
@@ -41,6 +42,7 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   PageHeaderActions,
+  InfoHint,
 } from "../../components/ui";
 
 interface RepoDetail {
@@ -176,14 +178,20 @@ export function RepositoryOverviewPage() {
     lastAnalyzedAt: repoDetail?.lastAnalyzedAt ?? null,
   };
 
-  const healthLabel =
-    repository.healthScore === null
-      ? { text: "Not analyzed", cls: "bg-muted text-muted-foreground" }
-      : repository.healthScore >= 85
-        ? { text: "Excellent", cls: "bg-success/10 text-success" }
-        : repository.healthScore >= 70
-          ? { text: "Healthy", cls: "bg-success/10 text-success" }
-          : { text: "Needs attention", cls: "bg-warning/10 text-warning" };
+  const band = healthBand(repository.healthScore);
+  const healthLabel = {
+    text: band.label,
+    cls:
+      band.tone === "success"
+        ? "bg-success/10 text-success"
+        : band.tone === "info"
+          ? "bg-info/10 text-info"
+          : band.tone === "warning"
+            ? "bg-warning/10 text-warning"
+            : band.tone === "destructive"
+              ? "bg-destructive/10 text-destructive"
+              : "bg-muted text-muted-foreground",
+  };
 
   const chartTrend = trendPoints;
 
@@ -202,6 +210,7 @@ export function RepositoryOverviewPage() {
       title: "Code Smells",
       value: String(debtBreakdown?.code_smell.count ?? 0),
       description: "Detected issues",
+      help: METRIC_HELP.codeSmells,
       icon: AlertTriangle,
       iconClass: "bg-warning/10 text-warning",
     },
@@ -209,6 +218,7 @@ export function RepositoryOverviewPage() {
       title: "Complexity",
       value: String(debtBreakdown?.complexity.count ?? 0),
       description: "High complexity areas",
+      help: METRIC_HELP.complexity,
       icon: TrendingUp,
       iconClass: "bg-info/10 text-info",
     },
@@ -216,6 +226,7 @@ export function RepositoryOverviewPage() {
       title: "Security",
       value: String(debtBreakdown?.vulnerability.count ?? 0),
       description: "Security findings",
+      help: METRIC_HELP.vulnerabilities,
       icon: ShieldAlert,
       iconClass: "bg-danger/10 text-danger",
     },
@@ -223,6 +234,7 @@ export function RepositoryOverviewPage() {
       title: "Technical Debt",
       value: repository.technicalDebt,
       description: "Estimated remediation",
+      help: METRIC_HELP.technicalDebt,
       icon: Wrench,
       iconClass: "bg-primary/10 text-primary",
     },
@@ -300,6 +312,7 @@ export function RepositoryOverviewPage() {
           <StatCard
             title="Health Score"
             value={repository.healthScore === null ? "—" : String(repository.healthScore)}
+            help={METRIC_HELP.healthScore}
             icon={CheckCircle2}
             color="success"
           />
@@ -314,6 +327,7 @@ export function RepositoryOverviewPage() {
           <StatCard
             title="Technical Debt"
             value={repository.technicalDebt}
+            help={METRIC_HELP.technicalDebt}
             icon={Wrench}
             color="primary"
           />
@@ -480,8 +494,9 @@ export function RepositoryOverviewPage() {
                       <Icon size={18} />
                     </div>
                   </div>
-                  <p className="mt-4 text-sm font-semibold">
+                  <p className="mt-4 flex items-center gap-1.5 text-sm font-semibold">
                     {metric.title}
+                    <InfoHint text={metric.help} />
                   </p>
                   <p className="mt-1 text-2xl font-bold">
                     {metric.value}

@@ -1,5 +1,9 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+import { useOrg } from "../../contexts/OrgContext";
+import { api } from "../../lib/apiClient";
+import { healthBand } from "../../lib/healthBand";
 import {
   ArrowUpDown,
   CheckCircle2,
@@ -51,90 +55,168 @@ import {
    TREND DATA — Health Score vs Tech Debt
 ========================================================= */
 
-const trendData = [
-  { month: "Dec", health: 72, debt: 56 },
-  { month: "Jan", health: 74, debt: 52 },
-  { month: "Feb", health: 78, debt: 48 },
-  { month: "Mar", health: 80, debt: 42 },
-  { month: "Apr", health: 83, debt: 38 },
-  { month: "May", health: 86, debt: 34 },
-];
+interface ApiRepository {
+  id: string;
+  name: string;
+  fullName: string;
+  language: string | null;
+  healthScore: number | null;
+  openFindings: number | null;
+  debtMinutes: number | null;
+}
 
+interface TrendPoint {
+  date: string;
+  healthScore: number;
+  debtMinutes: number;
+}
 
-/* =========================================================
-   LANGUAGE DATA
-========================================================= */
+interface AnalyticsRepo {
+  id: string;
+  name: string;
+  owner: string;
+  language: string;
+  langColor: string;
+  healthScore: number | null;
+  techDebt: string;
+  trend: number[];
+  status: string;
+}
 
-const languageData = [
-  { name: "TypeScript", score: 92 },
-  { name: "Python", score: 95 },
-  { name: "JavaScript", score: 85 },
-  { name: "Java", score: 76 },
-];
+const LANG_COLORS: Record<string, string> = {
+  TypeScript: "bg-info/10 text-info",
+  JavaScript: "bg-warning/10 text-warning",
+  Python: "bg-success/10 text-success",
+  Java: "bg-danger/10 text-danger",
+};
 
-
-/* =========================================================
-   REPOSITORY TABLE DATA
-========================================================= */
-
-const repositoryTable = [
-  {
-    name: "AutomaticCodeReview",
-    owner: "@codeguard",
-    language: "TypeScript",
-    langColor: "bg-info/10 text-info",
-    healthScore: 91,
-    techDebt: "18h",
-    trend: [78, 82, 85, 88, 91],
-    gatePassRate: "98%",
-    status: "Good",
-  },
-  {
-    name: "AnalysisWorker",
-    owner: "@codeguard",
-    language: "Python",
-    langColor: "bg-success/10 text-success",
-    healthScore: 88,
-    techDebt: "12h",
-    trend: [80, 82, 84, 86, 88],
-    gatePassRate: "96%",
-    status: "Good",
-  },
-  {
-    name: "MobileDashboard",
-    owner: "@codeguard",
-    language: "JavaScript",
-    langColor: "bg-warning/10 text-warning",
-    healthScore: 82,
-    techDebt: "20h",
-    trend: [74, 76, 78, 80, 82],
-    gatePassRate: "90%",
-    status: "Needs Attention",
-  },
-  {
-    name: "BackendAPI",
-    owner: "@codeguard",
-    language: "Java",
-    langColor: "bg-destructive/10 text-destructive",
-    healthScore: 76,
-    techDebt: "26h",
-    trend: [70, 72, 73, 75, 76],
-    gatePassRate: "85%",
-    status: "Needs Attention",
-  },
-];
-
-
-/* =========================================================
-   COMPONENT
-========================================================= */
+function debtLabel(minutes: number | null): string {
+  if (minutes === null) return "—";
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+}
 
 export function GlobalAnalyticsPage() {
   const navigate = useNavigate();
+  const { selectedOrg } = useOrg();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [langFilter, setLangFilter] = useState("All");
   const [timeFilter, setTimeFilter] = useState("All");
+
+  const [repositoryTable, setRepositoryTable] = useState<AnalyticsRepo[]>([]);
+  const [trendData, setTrendData] = useState<{ month: string; health: number; debt: number }[]>([]);
+  const [languageData, setLanguageData] = useState<{ name: string; score: number }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!selectedOrg) {
+      setRepositoryTable([]);
+      setTrendData([]);
+      setLanguageData([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<{ data: ApiRepository[] }>(
+        `/api/orgs/${selectedOrg.id}/repos`
+      );
+      const repos = res.data || [];
+
+      // one trend call per repo — there is no org-wide trend endpoint
+      const trends = await Promise.all(
+        repos.map((r) =>
+          api
+            .get<{ dataPoints: TrendPoint[] }>(`/api/repos/${r.id}/trend`, { days: 30 })
+            .then((t) => t.dataPoints || [])
+            .catch(() => [] as TrendPoint[])
+        )
+      );
+
+      setRepositoryTable(
+        repos.map((r, i) => ({
+          id: r.id,
+          name: r.name,
+          owner: r.fullName.split("/")[0],
+          language: r.language || "Unknown",
+          langColor: LANG_COLORS[r.language || ""] || "bg-muted text-muted-foreground",
+          healthScore: r.healthScore,
+          techDebt: debtLabel(r.debtMinutes),
+          trend: trends[i].map((dp) => dp.healthScore),
+          status: healthBand(r.healthScore).label,
+        }))
+      );
+
+      // average health and debt per day across the org
+      const byDay = new Map<string, { health: number[]; debt: number[] }>();
+      for (const series of trends) {
+        for (const dp of series) {
+          const day = dp.date.slice(0, 10);
+          const entry = byDay.get(day) ?? { health: [], debt: [] };
+          entry.health.push(dp.healthScore);
+          entry.debt.push(dp.debtMinutes / 60);
+          byDay.set(day, entry);
+        }
+      }
+      const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+      setTrendData(
+        [...byDay.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([day, v]) => ({
+            month: new Date(day).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            health: Number(avg(v.health).toFixed(1)),
+            debt: Number(avg(v.debt).toFixed(1)),
+          }))
+      );
+
+      // average health per language, analysed repos only
+      const byLang = new Map<string, number[]>();
+      for (const r of repos) {
+        if (r.healthScore === null) continue;
+        const key = r.language || "Unknown";
+        byLang.set(key, [...(byLang.get(key) ?? []), r.healthScore]);
+      }
+      setLanguageData(
+        [...byLang.entries()].map(([name, scores]) => ({
+          name,
+          score: Number(avg(scores).toFixed(1)),
+        }))
+      );
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to load analytics for this organization.");
+      setRepositoryTable([]);
+      setTrendData([]);
+      setLanguageData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedOrg]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const orgStats = useMemo(() => {
+    const analyzed = repositoryTable.filter((r) => r.healthScore !== null);
+    const avg =
+      analyzed.length > 0
+        ? (analyzed.reduce((a, r) => a + (r.healthScore ?? 0), 0) / analyzed.length).toFixed(1)
+        : "—";
+    const debtMins = repositoryTable.reduce((a, r) => {
+      const m = /^(?:(\d+)h )?(\d+)m$/.exec(r.techDebt);
+      return a + (m ? Number(m[1] ?? 0) * 60 + Number(m[2]) : 0);
+    }, 0);
+    return {
+      avgHealth: avg,
+      totalDebt: debtLabel(debtMins),
+      analyzed: `${analyzed.length}/${repositoryTable.length}`,
+    };
+  }, [repositoryTable]);
 
   const filteredRepos = useMemo(() => {
     return repositoryTable.filter((r) => {
@@ -143,7 +225,7 @@ export function GlobalAnalyticsPage() {
       const matchesLang = langFilter === "All" || r.language === langFilter;
       return matchesSearch && matchesLang;
     });
-  }, [searchQuery, langFilter]);
+  }, [repositoryTable, searchQuery, langFilter]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -171,36 +253,28 @@ export function GlobalAnalyticsPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Average Health Score"
-            value="86.4"
-            change="+18 points in 6 months"
-            trend="up"
+            value={orgStats.avgHealth}
             icon={TrendingUp}
             iconColor="bg-success/10 text-success"
             delay={0}
           />
           <StatCard
-            title="Remediated Debt"
-            value="140 hours"
-            change="42 remaining"
-            trend="down"
+            title="Technical Debt"
+            value={orgStats.totalDebt}
             icon={Wrench}
             iconColor="bg-info/10 text-info"
             delay={0.08}
           />
           <StatCard
             title="Repositories Tracked"
-            value="12"
-            change="100% active coverage"
-            trend="up"
+            value={String(repositoryTable.length)}
             icon={Code2}
             iconColor="bg-primary/10 text-primary"
             delay={0.16}
           />
           <StatCard
-            title="Gate Pass Rate"
-            value="94.2%"
-            change="PR Quality Compliance"
-            trend="up"
+            title="Analyzed"
+            value={orgStats.analyzed}
             icon={CheckCircle2}
             iconColor="bg-success/10 text-success"
             delay={0.24}
@@ -381,7 +455,6 @@ export function GlobalAnalyticsPage() {
                 </DataTableHeaderCell>
                 <DataTableHeaderCell align="center">Tech Debt</DataTableHeaderCell>
                 <DataTableHeaderCell align="center">Trend</DataTableHeaderCell>
-                <DataTableHeaderCell align="center">Gate Pass Rate</DataTableHeaderCell>
                 <DataTableHeaderCell align="center">Status</DataTableHeaderCell>
                 <DataTableHeaderCell align="right" className="w-10" children={""} />
               </DataTableHead>
@@ -411,8 +484,8 @@ export function GlobalAnalyticsPage() {
 
                     {/* Health Score */}
                     <DataTableCell align="center">
-                      <span className={`text-lg font-bold ${repo.healthScore >= 85 ? "text-success" : "text-warning"}`}>
-                        {repo.healthScore}
+                      <span className={`text-lg font-bold ${healthBand(repo.healthScore).textClass}`}>
+                        {repo.healthScore ?? "—"}
                       </span>
                     </DataTableCell>
 
@@ -444,11 +517,6 @@ export function GlobalAnalyticsPage() {
                       </div>
                     </DataTableCell>
 
-                    {/* Gate Pass Rate */}
-                    <DataTableCell align="center">
-                      <span className="text-sm font-medium">{repo.gatePassRate}</span>
-                    </DataTableCell>
-
                     {/* Status */}
                     <DataTableCell align="center">
                       <Badge
@@ -465,6 +533,19 @@ export function GlobalAnalyticsPage() {
                     </DataTableCell>
                   </DataTableRow>
                 ))}
+                {filteredRepos.length === 0 && (
+                  <DataTableRow>
+                    <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                      {isLoading
+                        ? "Loading analytics…"
+                        : error
+                          ? error
+                          : repositoryTable.length === 0
+                            ? "No repositories linked in this organization yet."
+                            : "No repositories match your filters."}
+                    </DataTableCell>
+                  </DataTableRow>
+                )}
               </DataTableBody>
             </DataTable>
 

@@ -2,14 +2,17 @@
 import {
   AlertTriangle,
   Bug,
-  CheckCircle2,
   Code2,
+  Loader2,
   LockKeyhole,
   ShieldAlert,
   Wrench,
 } from "lucide-react";
 import { useParams } from "react-router-dom";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+import { api } from "../../lib/apiClient";
+import { METRIC_HELP } from "../../lib/healthBand";
 
 import {
   BackLink,
@@ -29,58 +32,39 @@ import {
   DataTableCell,
 } from "../../components/ui";
 
-const findings = [
-  {
-    id: "FND-001",
-    title: "SQL query constructed using user input",
-    category: "Security",
-    severity: "Critical",
-    file: "src/api/users.ts",
-    line: 42,
-    status: "Open",
-    tool: "ESLint Security",
-  },
-  {
-    id: "FND-002",
-    title: "Function complexity exceeds recommended threshold",
-    category: "Complexity",
-    severity: "High",
-    file: "src/services/analyzer.ts",
-    line: 128,
-    status: "Open",
-    tool: "PMD",
-  },
-  {
-    id: "FND-003",
-    title: "Duplicated code block detected",
-    category: "Duplication",
-    severity: "Medium",
-    file: "src/utils/format.ts",
-    line: 76,
-    status: "Open",
-    tool: "jscpd",
-  },
-  {
-    id: "FND-004",
-    title: "Unused variable detected",
-    category: "Code Smell",
-    severity: "Low",
-    file: "src/components/Table.tsx",
-    line: 24,
-    status: "Resolved",
-    tool: "ESLint",
-  },
-  {
-    id: "FND-005",
-    title: "Missing error handling for asynchronous operation",
-    category: "Maintainability",
-    severity: "Medium",
-    file: "src/services/repositoryApi.ts",
-    line: 91,
-    status: "Open",
-    tool: "ESLint",
-  },
-];
+interface ApiFinding {
+  id: string;
+  file: string | null;
+  line: number | null;
+  severity: string;
+  category: string;
+  rule: string;
+  message: string;
+  tool: string;
+  isNew: boolean;
+  debtMinutes: number;
+}
+
+interface FindingsResponse {
+  snapshotId: string;
+  summary: {
+    total: number;
+    new: number;
+    carryOver: number;
+    bySeverity: Record<string, number>;
+    byCategory: Record<string, number>;
+  };
+  data: ApiFinding[];
+}
+
+// API uses SCREAMING_SNAKE; the table reads better in title case.
+function titleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 const severityStyles: Record<string, string> = {
   Critical: "bg-danger/10 text-danger border-danger/20",
@@ -102,17 +86,56 @@ export function RepositoryFindingsPage() {
 
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState("All");
+  const [result, setResult] = useState<FindingsResponse | null>(null);
+  const [repoName, setRepoName] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadFindings = useCallback(async () => {
+    if (!repoId) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [detail, debt] = await Promise.all([
+        api.get<{ name: string }>(`/api/repos/${repoId}`),
+        // the debt endpoint is what tells us the latest snapshot
+        api.get<{ snapshotId: string }>(`/api/repos/${repoId}/debt`),
+      ]);
+      setRepoName(detail.name);
+
+      const res = await api.get<FindingsResponse>(
+        `/api/snapshots/${debt.snapshotId}/findings`
+      );
+      setResult(res);
+    } catch (err: any) {
+      // no snapshot yet is the normal state for a freshly linked repo
+      if (err?.response?.status === 404) {
+        setResult(null);
+      } else {
+        setError(err?.response?.data?.message || "Failed to load findings.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [repoId]);
+
+  useEffect(() => {
+    loadFindings();
+  }, [loadFindings]);
+
+  const findings = result?.data ?? [];
 
   const filteredFindings = findings.filter((finding) => {
-    const matchesSearch =
-      finding.title.toLowerCase().includes(search.toLowerCase()) ||
-      finding.file.toLowerCase().includes(search.toLowerCase());
-
+    const haystack = `${finding.message} ${finding.file ?? ""} ${finding.rule}`.toLowerCase();
+    const matchesSearch = haystack.includes(search.toLowerCase());
     const matchesSeverity =
-      severity === "All" || finding.severity === severity;
+      severity === "All" || titleCase(finding.severity) === severity;
 
     return matchesSearch && matchesSeverity;
   });
+
+  const summary = result?.summary;
 
   return (
     <main className="min-h-screen bg-background">
@@ -136,34 +159,38 @@ export function RepositoryFindingsPage() {
 
           <div className="rounded-2xl border border-border/70 bg-card px-5 py-4">
             <p className="text-xs text-muted-foreground">Repository</p>
-            <p className="mt-1 font-semibold">AutomaticCodeReview</p>
+            <p className="mt-1 font-semibold">{repoName || "—"}</p>
           </div>
         </PageHeader>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Total Findings"
-            value="183"
+            value={String(summary?.total ?? 0)}
+            help={METRIC_HELP.openFindings}
             icon={ShieldAlert}
             color="danger"
           />
           <StatCard
             title="Critical"
-            value="4"
+            value={String(summary?.bySeverity?.critical ?? 0)}
+            help="The most serious problems found. These should be dealt with first."
             icon={AlertTriangle}
             color="danger"
           />
           <StatCard
             title="High Severity"
-            value="27"
+            value={String(summary?.bySeverity?.high ?? 0)}
+            help="Serious problems, though less urgent than critical ones."
             icon={Bug}
             color="warning"
           />
           <StatCard
-            title="Resolved"
-            value="96"
-            icon={CheckCircle2}
-            color="success"
+            title="New in this analysis"
+            value={String(summary?.new ?? 0)}
+            help="Problems that were not present in the previous analysis of this repository."
+            icon={Code2}
+            color="info"
           />
         </div>
 
@@ -196,38 +223,40 @@ export function RepositoryFindingsPage() {
             </DataTableHead>
             <DataTableBody>
               {filteredFindings.map((finding) => {
-                const CategoryIcon = categoryIcons[finding.category] ?? Code2;
+                const category = titleCase(finding.category);
+                const sev = titleCase(finding.severity);
+                const CategoryIcon = categoryIcons[category] ?? Code2;
 
                 return (
                   <DataTableRow key={finding.id} className="hover:bg-muted/30">
                     <DataTableCell>
                       <div>
-                        <p className="max-w-[360px] font-medium">{finding.title}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{finding.id}</p>
+                        <p className="max-w-[360px] font-medium">{finding.message}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{finding.rule}</p>
                       </div>
                     </DataTableCell>
 
                     <DataTableCell>
                       <div className="flex items-center gap-2 text-sm">
                         <CategoryIcon size={15} className="text-primary" />
-                        {finding.category}
+                        {category}
                       </div>
                     </DataTableCell>
 
                     <DataTableCell>
                       <span
                         className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                          severityStyles[finding.severity]
+                          severityStyles[sev] ?? severityStyles.Low
                         }`}
                       >
-                        {finding.severity}
+                        {sev}
                       </span>
                     </DataTableCell>
 
                     <DataTableCell>
-                      <p className="font-mono text-xs">{finding.file}</p>
+                      <p className="font-mono text-xs">{finding.file ?? "—"}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Line {finding.line}
+                        {finding.line !== null ? `Line ${finding.line}` : ""}
                       </p>
                     </DataTableCell>
 
@@ -241,12 +270,12 @@ export function RepositoryFindingsPage() {
                       <Badge
                         variant="muted"
                         className={
-                          finding.status === "Resolved"
-                            ? "bg-success/10 text-success"
-                            : "bg-warning/10 text-warning"
+                          finding.isNew
+                            ? "bg-warning/10 text-warning"
+                            : "bg-muted text-muted-foreground"
                         }
                       >
-                        {finding.status}
+                        {finding.isNew ? "New" : "Carried over"}
                       </Badge>
                     </DataTableCell>
                   </DataTableRow>
@@ -256,7 +285,20 @@ export function RepositoryFindingsPage() {
               {filteredFindings.length === 0 && (
                 <DataTableRow>
                   <DataTableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    No findings match your search.
+                    {isLoading ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        Loading findings…
+                      </span>
+                    ) : error ? (
+                      <span className="text-destructive">{error}</span>
+                    ) : !result ? (
+                      "This repository has not been analyzed yet."
+                    ) : findings.length === 0 ? (
+                      "No findings — this analysis came back clean."
+                    ) : (
+                      "No findings match your search."
+                    )}
                   </DataTableCell>
                 </DataTableRow>
               )}
