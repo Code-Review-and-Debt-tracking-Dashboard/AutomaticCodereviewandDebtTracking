@@ -8,6 +8,7 @@ import type { BanditLevel, BanditReport } from '../analyzers/bandit';
 import type { CheckstyleLevel, CheckstyleReport } from '../analyzers/checkstyle';
 import type { EslintReport } from '../analyzers/eslint';
 import type { JscpdReport } from '../analyzers/jscpd';
+import type { PmdPriority, PmdReport } from '../analyzers/pmd';
 import type { PylintMessageType, PylintReport } from '../analyzers/pylint';
 import type { RadonMiRank, RadonRank, RadonReport } from '../analyzers/radon';
 import type { TodoMarker, TodoScanReport } from '../analyzers/todoScan';
@@ -277,6 +278,43 @@ export function fromCheckstyle(report: CheckstyleReport): AnalysisFinding[] {
   );
 }
 
+// ── PMD ──
+
+// Priority is whatever our own ruleset gave each rule. Even the security rules
+// stop at HIGH, same as the eslint ones: only bandit is sure enough for CRITICAL.
+const pmdSeverities: Record<PmdPriority, Severity> = {
+  1: 'HIGH',
+  2: 'HIGH',
+  3: 'MEDIUM',
+  4: 'LOW',
+  5: 'INFO',
+};
+
+const pmdCategories: Record<string, FindingCategory> = {
+  CognitiveComplexity: 'COMPLEXITY',
+  GodClass: 'MAINTAINABILITY',
+};
+
+export function fromPmd(report: PmdReport): AnalysisFinding[] {
+  return report.violations.map((violation) =>
+    complete({
+      file: violation.file,
+      line: violation.line,
+      endLine: violation.endLine,
+      column: violation.column,
+      endColumn: violation.endColumn,
+      severity: pmdSeverities[violation.priority],
+      category:
+        violation.ruleSet === 'Security'
+          ? 'VULNERABILITY'
+          : (pmdCategories[violation.rule] ?? 'CODE_SMELL'),
+      rule: violation.rule,
+      message: violation.message,
+      tool: 'pmd',
+    }),
+  );
+}
+
 // ── jscpd ──
 
 export function fromJscpd(report: JscpdReport): AnalysisFinding[] {
@@ -332,6 +370,7 @@ export interface AnalyzerReports {
   bandit?: BanditReport;
   radon?: RadonReport;
   checkstyle?: CheckstyleReport;
+  pmd?: PmdReport;
   jscpd?: JscpdReport;
   todoScan?: TodoScanReport;
 }
@@ -348,6 +387,7 @@ export function normalize(reports: AnalyzerReports) {
     ...(reports.bandit ? fromBandit(reports.bandit) : []),
     ...(reports.radon ? fromRadon(reports.radon) : []),
     ...(reports.checkstyle ? fromCheckstyle(reports.checkstyle) : []),
+    ...(reports.pmd ? fromPmd(reports.pmd) : []),
     ...(reports.jscpd ? fromJscpd(reports.jscpd) : []),
     ...(reports.todoScan ? fromTodoScan(reports.todoScan) : []),
   ];
