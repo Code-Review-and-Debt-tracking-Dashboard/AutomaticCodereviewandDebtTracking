@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../lib/apiClient";
 import { RepositoryAnalyzePage } from "../../pages/repositories/RepositoryAnalyzePage";
@@ -11,6 +11,21 @@ vi.mock("../../lib/apiClient", () => ({
 }));
 
 const mockedApi = vi.mocked(api);
+
+function run(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "analysis-1",
+    status: "COMPLETED",
+    trigger: "MANUAL",
+    branch: "main",
+    commitSha: "abc1234def",
+    errorMessage: null,
+    queuedAt: "2026-09-20T10:00:00.000Z",
+    startedAt: "2026-09-20T10:00:05.000Z",
+    completedAt: "2026-09-20T10:01:00.000Z",
+    ...overrides,
+  };
+}
 
 function renderPage() {
   return render(
@@ -27,32 +42,45 @@ describe("RepositoryAnalyzePage", () => {
     vi.clearAllMocks();
   });
 
-  it("renders pipeline steps and loads last analyzed info", async () => {
-    mockedApi.get.mockResolvedValueOnce({
-      id: "repo-1",
-      name: "code-health",
-      defaultBranch: "main",
-      lastAnalyzedAt: "2026-09-20T10:00:00.000Z",
-      healthScore: 85,
-    });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders pipeline steps and the latest run", async () => {
+    mockedApi.get.mockResolvedValueOnce({ data: [run()] });
 
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Analyze" })).toBeInTheDocument();
-    expect(await screen.findByText("Clone repository into the worker sandbox")).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(screen.getByText(/Last analyzed on branch: main/)).toBeInTheDocument();
-    });
+    expect(screen.getByText("Clone repository into the worker sandbox")).toBeInTheDocument();
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
+    expect(screen.getByText("manual run on main @ abc1234")).toBeInTheDocument();
+    expect(mockedApi.get).toHaveBeenCalledWith("/api/repos/repo-1/analyses");
   });
 
-  it("triggers analysis and shows success message on button click", async () => {
+  it("shows an empty state when nothing has run", async () => {
+    mockedApi.get.mockResolvedValueOnce({ data: [] });
+
+    renderPage();
+
+    expect(await screen.findByText("No analysis has run yet for this repository.")).toBeInTheDocument();
+  });
+
+  it("shows why a failed run failed", async () => {
     mockedApi.get.mockResolvedValueOnce({
-      id: "repo-1",
-      name: "code-health",
-      defaultBranch: "main",
-      lastAnalyzedAt: null,
+      data: [run({ status: "FAILED", errorMessage: "clone: repository not found" })],
     });
+
+    renderPage();
+
+    expect(await screen.findByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Error: clone: repository not found")).toBeInTheDocument();
+  });
+
+  it("triggers analysis and shows the queued run", async () => {
+    mockedApi.get
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: [run({ status: "PENDING", commitSha: "HEAD", startedAt: null, completedAt: null })] });
     mockedApi.post.mockResolvedValueOnce({
       message: "Analysis queued",
       analysisId: "analysis-1",
@@ -62,13 +90,29 @@ describe("RepositoryAnalyzePage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole("button", { name: /Run analysis/i });
+    await screen.findByText("No analysis has run yet for this repository.");
     await user.click(screen.getByRole("button", { name: /Run analysis/i }));
 
-    await waitFor(() => {
-      expect(screen.getByText("Analysis queued")).toBeInTheDocument();
-    });
+    expect(await screen.findByText("Analysis queued")).toBeInTheDocument();
+    expect(await screen.findByText("Queued")).toBeInTheDocument();
+    expect(mockedApi.post).toHaveBeenCalledWith("/api/repos/repo-1/analyze");
+    expect(screen.getByRole("button", { name: /Run analysis/i })).toBeDisabled();
+  });
 
-    expect(mockedApi.post).toHaveBeenCalledWith("/repos/repo-1/analyze");
+  it("keeps checking while running and stops once it completes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockedApi.get
+      .mockResolvedValueOnce({ data: [run({ status: "RUNNING", completedAt: null })] })
+      .mockResolvedValueOnce({ data: [run()] });
+
+    renderPage();
+
+    expect(await screen.findByText("Running")).toBeInTheDocument();
+
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
+
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledTimes(2));
   });
 });
