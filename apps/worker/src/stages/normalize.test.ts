@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BanditLevel, BanditReport, BanditResult } from '../analyzers/bandit';
+import type {
+  CheckstyleLevel,
+  CheckstyleReport,
+  CheckstyleViolation,
+} from '../analyzers/checkstyle';
+import type { CppcheckFinding, CppcheckReport, CppcheckSeverity } from '../analyzers/cppcheck';
 import type { EslintMessage, EslintReport } from '../analyzers/eslint';
 import type { JscpdClone, JscpdReport } from '../analyzers/jscpd';
+import type { PmdPriority, PmdReport, PmdViolation } from '../analyzers/pmd';
 import type { PylintMessage, PylintMessageType, PylintReport } from '../analyzers/pylint';
 import type { RadonBlock, RadonFileMi, RadonRank, RadonReport } from '../analyzers/radon';
 import type { TodoScanReport } from '../analyzers/todoScan';
@@ -10,8 +17,11 @@ import {
   type AnalyzerReports,
   DEBT_COST_TABLE,
   fromBandit,
+  fromCheckstyle,
+  fromCppcheck,
   fromEslint,
   fromJscpd,
+  fromPmd,
   fromPylint,
   fromRadon,
   fromTodoScan,
@@ -152,6 +162,64 @@ const radonReport = (blocks: RadonBlock[], maintainability: RadonFileMi[] = []):
   errors: [],
   counts: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
   miCounts: { A: 0, B: 0, C: 0 },
+});
+
+const violation = (level: CheckstyleLevel, rule: string): CheckstyleViolation => ({
+  file: 'src/App.java',
+  line: 12,
+  column: 5,
+  level,
+  rule,
+  message: 'msg',
+});
+
+const checkstyleReport = (violations: CheckstyleViolation[]): CheckstyleReport => ({
+  violations,
+  errors: [],
+  counts: { error: 0, warning: 0, note: 0 },
+});
+
+const pmdViolation = (
+  priority: PmdPriority,
+  rule: string,
+  ruleSet = 'Error Prone',
+): PmdViolation => ({
+  file: 'src/App.java',
+  line: 20,
+  endLine: 24,
+  column: 9,
+  endColumn: 30,
+  rule,
+  ruleSet,
+  priority,
+  message: 'msg',
+});
+
+const pmdReport = (violations: PmdViolation[]): PmdReport => ({
+  violations,
+  errors: [],
+  counts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+});
+
+const cppcheckFinding = (
+  severity: CppcheckSeverity,
+  id: string,
+  extra: Partial<CppcheckFinding> = {},
+): CppcheckFinding => ({
+  file: 'src/main.c',
+  line: 7,
+  column: 6,
+  severity,
+  id,
+  cwe: 0,
+  message: 'msg',
+  ...extra,
+});
+
+const cppcheckReport = (findings: CppcheckFinding[]): CppcheckReport => ({
+  findings,
+  errors: [],
+  counts: { error: 0, warning: 0, style: 0, performance: 0, portability: 0, information: 0 },
 });
 
 const clone = (lines: number): JscpdClone => ({
@@ -371,6 +439,148 @@ describe('fromRadon', () => {
   });
 });
 
+describe('fromCheckstyle', () => {
+  it('grades by the level our config gave the check', () => {
+    const levels: CheckstyleLevel[] = ['error', 'warning', 'note'];
+    const findings = fromCheckstyle(checkstyleReport(levels.map((l) => violation(l, 'EmptyBlock'))));
+
+    expect(findings.map((f) => f.severity)).toEqual(['HIGH', 'MEDIUM', 'LOW']);
+  });
+
+  it('puts complexity and file length in their own categories', () => {
+    const findings = fromCheckstyle(
+      checkstyleReport([
+        violation('warning', 'CyclomaticComplexity'),
+        violation('warning', 'MethodLength'),
+        violation('warning', 'FileLength'),
+        violation('error', 'EqualsHashCode'),
+      ]),
+    );
+
+    expect(findings.map((f) => f.category)).toEqual([
+      'COMPLEXITY',
+      'COMPLEXITY',
+      'MAINTAINABILITY',
+      'CODE_SMELL',
+    ]);
+  });
+
+  it('keeps the position and has no end', () => {
+    const [finding] = fromCheckstyle(checkstyleReport([violation('error', 'EqualsHashCode')]));
+
+    expect(finding).toMatchObject({
+      file: 'src/App.java',
+      line: 12,
+      endLine: null,
+      column: 5,
+      endColumn: null,
+      rule: 'EqualsHashCode',
+      message: 'msg',
+      tool: 'checkstyle',
+    });
+  });
+});
+
+describe('fromPmd', () => {
+  it('grades by the priority our ruleset gave the rule', () => {
+    const priorities: PmdPriority[] = [1, 2, 3, 4, 5];
+    const findings = fromPmd(pmdReport(priorities.map((p) => pmdViolation(p, 'CloseResource'))));
+
+    expect(findings.map((f) => f.severity)).toEqual(['HIGH', 'HIGH', 'MEDIUM', 'LOW', 'INFO']);
+  });
+
+  it('files the security rule set as vulnerabilities and sorts out the design rules', () => {
+    const findings = fromPmd(
+      pmdReport([
+        pmdViolation(1, 'HardCodedCryptoKey', 'Security'),
+        pmdViolation(3, 'CognitiveComplexity', 'Design'),
+        pmdViolation(3, 'GodClass', 'Design'),
+        pmdViolation(2, 'CloseResource'),
+      ]),
+    );
+
+    expect(findings.map((f) => f.category)).toEqual([
+      'VULNERABILITY',
+      'COMPLEXITY',
+      'MAINTAINABILITY',
+      'CODE_SMELL',
+    ]);
+  });
+
+  it('keeps the whole range pmd gives', () => {
+    const [finding] = fromPmd(pmdReport([pmdViolation(2, 'CloseResource')]));
+
+    expect(finding).toMatchObject({
+      file: 'src/App.java',
+      line: 20,
+      endLine: 24,
+      column: 9,
+      endColumn: 30,
+      rule: 'CloseResource',
+      message: 'msg',
+      tool: 'pmd',
+    });
+  });
+});
+
+describe('fromCppcheck', () => {
+  it('grades by cppcheck severity', () => {
+    const severities: CppcheckSeverity[] = [
+      'error',
+      'warning',
+      'style',
+      'performance',
+      'portability',
+      'information',
+    ];
+    const findings = fromCppcheck(
+      cppcheckReport(severities.map((s) => cppcheckFinding(s, 'nullPointer'))),
+    );
+
+    expect(findings.map((f) => f.severity)).toEqual(['HIGH', 'MEDIUM', 'LOW', 'LOW', 'LOW', 'INFO']);
+  });
+
+  it('only files memory-safety bugs as vulnerabilities', () => {
+    const findings = fromCppcheck(
+      cppcheckReport([
+        cppcheckFinding('error', 'bufferAccessOutOfBounds', { cwe: 788 }),
+        cppcheckFinding('error', 'doubleFree', { cwe: 415 }),
+        // has a CWE, but is a plain bug
+        cppcheckFinding('error', 'nullPointer', { cwe: 476 }),
+        cppcheckFinding('style', 'unreadVariable', { cwe: 563 }),
+      ]),
+    );
+
+    expect(findings.map((f) => f.category)).toEqual([
+      'VULNERABILITY',
+      'VULNERABILITY',
+      'CODE_SMELL',
+      'CODE_SMELL',
+    ]);
+  });
+
+  it('keeps the position, and treats line 0 as the whole file', () => {
+    const findings = fromCppcheck(
+      cppcheckReport([
+        cppcheckFinding('error', 'nullPointer'),
+        cppcheckFinding('style', 'missingOverride', { line: 0, column: 0 }),
+      ]),
+    );
+
+    expect(findings[0]).toMatchObject({
+      file: 'src/main.c',
+      line: 7,
+      endLine: null,
+      column: 6,
+      endColumn: null,
+      rule: 'nullPointer',
+      message: 'msg',
+      tool: 'cppcheck',
+    });
+    expect([findings[1].line, findings[1].column]).toEqual([null, null]);
+  });
+});
+
 describe('fromJscpd', () => {
   it('grades clones by size', () => {
     const findings = fromJscpd(jscpdReport([clone(29), clone(30), clone(99), clone(100)]));
@@ -399,6 +609,9 @@ const everything: AnalyzerReports = {
   pylint: pylintReport([pylintMessage('warning', 'unused-import')]),
   bandit: banditReport([banditResult('HIGH', 'HIGH')]),
   radon: radonReport([radonBlock('D')], [{ file: 'app.py', mi: 10, rank: 'B' }]),
+  checkstyle: checkstyleReport([violation('warning', 'NestedIfDepth')]),
+  pmd: pmdReport([pmdViolation(2, 'CloseResource')]),
+  cppcheck: cppcheckReport([cppcheckFinding('error', 'nullPointer')]),
   jscpd: jscpdReport([clone(40)], 12.5),
   todoScan: report,
 };
@@ -428,7 +641,17 @@ describe('normalize', () => {
   it('sorts by tool first', () => {
     const tools = normalize(everything).findings.map((f) => f.tool);
 
-    expect([...new Set(tools)]).toEqual(['bandit', 'eslint', 'jscpd', 'pylint', 'radon', 'todo-scan']);
+    expect([...new Set(tools)]).toEqual([
+      'bandit',
+      'checkstyle',
+      'cppcheck',
+      'eslint',
+      'jscpd',
+      'pmd',
+      'pylint',
+      'radon',
+      'todo-scan',
+    ]);
   });
 
   it('then by file, line and rule', () => {

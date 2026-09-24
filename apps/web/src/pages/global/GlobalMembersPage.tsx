@@ -65,7 +65,7 @@ export function GlobalMembersPage() {
       {/* Member Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         {!isLoading && members.map((member) => (
-          <Card key={member.id} className="p-5 transition hover:border-primary/40">
+          <Card key={member.userId} className="p-5 transition hover:border-primary/40">
             <div className="flex items-center gap-4">
               {member.avatarUrl ? (
                 <img
