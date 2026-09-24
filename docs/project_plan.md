@@ -8,6 +8,9 @@
 > §7; `B-21` rescoped; mobile push notifications (`A-23`, `A-24`, `E-08`, `E-09`) cut. §1.1, §2, §3
 > and §4 updated to match. **Step-level assignment for Weeks 11–15 lives in
 > `project_features_plan.md`** — that document is the authority; this one holds the WBS and the risks.
+>
+> **Revised 24 September 2026.** `A-41`, `B-33`, `D-22`, `E-11` added for non-functional testing,
+> scheduled in Week 14 (steps `110`–`115` in `project_features_plan.md`).
 
 ---
 
@@ -52,6 +55,7 @@
 | A-38 | **Bulk repository enable** — `POST /orgs/:orgId/repos/bulk-link`, queued registration job, per-repo result status. Reuses the existing `linkRepository` body | 5h | B-28 |
 | A-39 | **Orphaned-webhook fix** in `unlinkRepository` — the current path swallows a failed `deleteWebhook` as a warning and nulls `webhookId` anyway, leaving GitHub delivering to an endpoint with no matching row | 2h | A-11 |
 | A-40 | Subscribe webhook registration to `push` events, not `pull_request` only | 1h | A-11 |
+| A-41 | **API load test** — webhook burst acknowledged well under 10s (NFR-1); 5 concurrent users on dashboard endpoints, p95 < 500ms (NFR-3, NFR-11). Tool pending sign-off (k6 proposed) | 4h | A-27, deployed stack |
 
 ### WBS-B: Worker Service (Owner: You — Team Lead)
 
@@ -89,6 +93,7 @@
 | B-30 | TODO / FIXME / HACK scan analyzer (self-admitted technical debt) | 2h | B-12 |
 | B-31 | **PR comment metrics table** — extends `B-18` with a per-metric value / threshold / status table, failing rows first, rows with no configured threshold omitted | 3h | B-18, C-11 |
 | B-32 | Self-hosted data plane — compose file + deployment documentation for running the worker inside a customer network | 3h | B-24, B-21, A-37 |
+| B-33 | **Worker timing and retry run** — 3 simultaneous analyses (NFR-11, NFR-13), per-run duration against NFR-2, forced failure retried 3× then `FAILED` (NFR-19) | 2h | B-27, deployed stack |
 
 > **Note:** SpotBugs (previously B-11) has been dropped — it analyzes compiled Java bytecode, and this worker only does a shallow `git clone` (no build step), so it cannot run as designed. It was also never part of the locked tool stack in `CLAUDE.md` or the pipeline in `system_architecture.md` §3.2. Java security coverage for this project comes from PMD's rule set only (see `tool_matrix.md`).
 
@@ -138,6 +143,7 @@
 | D-19 | Frontend unit/component tests | 5h | D-06 to D-16 |
 | D-20 | Organization switcher in the topbar (fed by `GET /api/orgs`); selected organization scopes the repo list and the link-repo picker | 3h | D-05, A-33 |
 | D-21 | **Bulk enable UI** — multi-select repository picker, progress indicator, per-repo result summary ("enabled 47 · already linked 5 · skipped 7, no admin"). Partial failure is the normal case and must be reported, not swallowed | 3h | D-07, A-38 |
+| D-22 | Run the web test suite (`D-19`) in CI alongside worker and API tests | 1h | D-19 |
 | A-34 | ✅ **Done 10 Aug — taken back into WBS-A by the lead, rescoped.** Session-backed revocation rather than the Redis denylist originally specified: 15-minute access JWT plus a rotating 7-day refresh token stored hashed in `Session`, with family-wide reuse detection, working `POST /auth/logout`, and an admin force-logout endpoint. The denylist would have satisfied FR-4 while leaving the architecture document's `Session.tokenHash` / `validateSession()` / `revokeSession()` unimplemented. Also removed the `demo-token` backdoor that signed every anonymous visitor in as a platform ADMIN | ~~4h~~ 14h | A-06, A-09 |
 
 ### WBS-E: Mobile App (Owner: Teammate 2)
@@ -155,6 +161,7 @@
 | ~~E-08~~ | ~~Push notification setup (Expo Notifications, device registration)~~ · **CUT 29 Aug** | ~~5h~~ | — |
 | ~~E-09~~ | ~~Push notification handling (foreground/background, tap navigation)~~ · **CUT 29 Aug** | ~~4h~~ | — |
 | E-10 | Mobile UI polish (loading states, pull-to-refresh, empty states) | 4h | E-05 to E-07 |
+| E-11 | Mobile manual test cases on Expo Go, Android + iOS (NFR-18) | 2h | E-10, EAS build |
 
 ### WBS-F: Documentation (Owner: You — Team Lead)
 
@@ -229,7 +236,7 @@ and per-week hour loads are in `project_features_plan.md`; this table is the WBS
 | **11** | Aug 31–Sep 6 | B-04, B-05 *(carried)*, B-29 sonarjs, B-28 contract DTOs, B-12 normalizer | B-06 Bandit, B-07 Radon, A-40 push events, E-05 home screen, D-17 states | D-15 gate page *(carried)*, A-26, A-31 *(carried)*, C-07, C-10 agent record, A-39 webhook fix | ⚠️ Week 10 spillover cleared |
 | **12** | Sep 7–13 | B-13 scoring fn, B-14 debt score, B-15 matcher, B-16 debt delta, B-17 gate eval | A-36 results-ingest, A-37 job-lease, D-21 bulk enable UI | B-25 scoring tests, B-18 PR comment builder, C-11 botCommentId, B-31 metrics table, B-30 TODO scan | **⛔ FEATURE FREEZE Sep 13** |
 | **13** | Sep 14–20 | **B-21 persistence as API client**, B-19 PR comment poster, A-38 bulk enable endpoint, B-22 notifications | D-19 frontend tests, D-17/E-07 carried polish, cross-test mobile + API | A-27 API integration tests *(incl. cross-tenant matrix)*, B-20 commit status, E-10 polish, cross-test web | Loop closes across the plane boundary |
-| **14** | Sep 21–27 | B-24 Docker image, B-26 normalizer tests, B-27 e2e test, cloud deploy, F-05 testing doc | Web bug fixes, D-18 responsive, deploy dashboard | Mobile bug fixes, Expo EAS build, B-32 self-hosted data plane docs, cloud deploy | **📋 Testing doc due Sep 27** |
+| **14** | Sep 21–27 | B-24 Docker image, B-26 normalizer tests, B-27 e2e test, cloud deploy, security audit (`npm audit`), UAT, F-05 testing doc | Web bug fixes, D-18 responsive, deploy dashboard, D-22 web tests in CI, A-41 API load test, UAT | Mobile bug fixes, Expo EAS build, B-32 self-hosted data plane docs, cloud deploy, B-33 worker timing + retry run, E-11 mobile test cases, UAT | **📋 Testing doc due Sep 27** |
 | **15** | Sep 28–Oct 3 | F-06 final report, F-07 marketing video | Smoke test, regression fixes, demo rehearsal | Smoke test, regression fixes, demo rehearsal | **📋 Review 2, Video, Final report + zip** |
 
 ### Dependency Chain (Critical Path)

@@ -22,13 +22,17 @@
 > than deleted, so every existing reference still resolves. Weeks 6–10 are untouched historical
 > record.
 >
+> **Revised:** 24 September 2026 — steps `110`–`115` appended to Week 14 for non-functional testing
+> (load, timing, retry, security audit, mobile test cases, user acceptance). WBS entries `A-41`,
+> `B-33`, `D-22`, `E-11` added in `project_plan.md`. Nothing renumbered.
+>
 > **Team:** Rumesh (lead) · Nethmi · Vidushi
 
 ---
  
 ## How to read this
 
-One continuous chain, **step 1 to step 109, top to bottom**.
+One continuous chain, **step 1 to step 115, top to bottom**.
 
 - **Within one person's steps, the order is strict** — do not start your next step until the previous one is merged to `develop`.
 - **Across people, steps run in parallel.** Step 8 and step 9 sit next to each other because they happen at the same time, not because one waits for the other.
@@ -319,12 +323,29 @@ reconciliation job already deferred in `analysis_access_and_reporting_design.md`
 | 86 | Rumesh | `B-27` | End-to-end integration test of the analysis pipeline | 83 | 5 |
 | 88 | Rumesh + Vidushi | — | Deploy API, worker, Postgres and Redis to cloud | 86 | 6 |
 | 89 | All | — | Cross-platform integration test on the deployed stack | 84, 88 | 5 |
+| **110** | Nethmi | `D-22` | Run the web test suite in CI — `ci.yml` currently runs only worker and API tests | 73 | 1 |
+| **111** | Nethmi | `A-41` | API load test on the deployed stack — **NFR-1**: burst of ~20 signed webhooks, every one acknowledged well under 10s; **NFR-3 / NFR-11**: 5 concurrent users on repo list, snapshot and trend endpoints, p95 < 500ms. Tool: k6 proposed — not in `tool_matrix.md`, needs lead sign-off | 88, 110 | 4 |
+| **112** | Rumesh | — | Security check — `npm audit` across all workspaces; map the existing 401 / 403 / 404 / 429 integration tests to **NFR-6**, **NFR-9** and the tenant matrix for the testing document | 74, 88 | 1 |
+| **113** | Vidushi | `B-33` | Worker timing and retry run — **NFR-11 / NFR-13**: 3 analyses triggered together, all complete; **NFR-2**: each timed on a small and a medium repo; **NFR-19**: a forced failure retried 3 times, then `FAILED`. Bull Board screenshots as evidence | 88 | 2 |
+| **114** | Vidushi | `E-11` | Mobile manual test cases on Expo Go, Android and iOS — **NFR-18**. Written as a table: case, steps, expected, actual | 85 | 2 |
+| **115** | All | — | User acceptance test — 3–5 people outside the team run fixed tasks (link a repo, find the worst file, change a quality gate threshold); record what they got stuck on. Covers **NFR-15 – NFR-17** | 84, 88 | 3 |
 
-**Load: Rumesh ~19h · Nethmi ~15h · Vidushi ~17h** *(88 split two ways, 89 three ways)*
+**Load: Rumesh ~21h · Nethmi ~21h · Vidushi ~22h** *(88 split two ways, 89 and 115 three ways)*
 
 > **Step 108 is what makes the hybrid model demonstrable.** Running the same worker image twice — once
 > beside the API, once as a "customer" deployment talking over HTTPS — is the demo that answers the
 > private-repo objection. It depends on 80, so it cannot start earlier.
+> **Steps 110–115 added 24 Sep — evidence for the non-functional requirements.** The unit and
+> integration suites prove behaviour; nothing yet proves the numbers `requirements_analysis.md` §4
+> commits to. Every row maps to a named NFR so the testing document (`F-05`, due 27 Sep) can cite a
+> result against each one. Scope is **demo scale (NFR-11)** only — no stress, soak or chaos testing.
+> Rumesh takes the smallest share because he is already the heaviest on the chain; 111 goes to Nethmi
+> so the API is load-tested by someone who did not write it.
+> **Step 113 needs one number settled first.** NFR-2 says < 5 min for < 50k LOC; `feasibility.md`
+> §3.1 says < 3 min for < 10k LOC. Pick one before the run, and use the same figure in the testing doc.
+> **The week is over the 20h line for all three**, and these rows were added mid-week. If it slips,
+> 115 and 114 move to the first days of Week 15 — they are test runs, not code, so they do not break
+> the Week 15 no-new-code rule. 110–113 do not move: the testing doc needs their numbers.
 
 ---
 
@@ -393,15 +414,15 @@ neither scheduled nor cut — they need no row, but the reason has to be written
 
 | Person | Steps | Hours | Weeks 6–14 avg |
 |---|---|---|---|
-| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, **17b**, 20, 23, 26, 32, **32a**, 35, 38, 41, 43, 46, 61, 62, 63, 66, 69, 70, 75, 77, 80, 83, 86, 88, **95**, **96**, **97**, **98** | ~141h | ~15.7h/wk |
-| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, **53**, 55, 56, 58, 59, 64, 68, 73, 78, 81, 84, **99**, **100**, **101**, **102** | ~122h | ~13.6h/wk |
-| **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 49, 50, 51, 54, 65, 67, 71, 74, 76, 79, 82, 85, 88, **103**, **104**, **105**, **106**, **107**, **108**, **109** | ~118h | ~13.1h/wk |
+| **Rumesh** | 1, 2, 5, **5a**, **5b**, 8, 11, 17, **17a**, **17b**, 20, 23, 26, 32, **32a**, 35, 38, 41, 43, 46, 61, 62, 63, 66, 69, 70, 75, 77, 80, 83, 86, 88, **95**, **96**, **97**, **98**, **112** | ~143h | ~15.9h/wk |
+| **Nethmi** | 3, 6, 9, 12, **12a**, 14, 18, 21, 24, 27, 33, 36, 39, 42, 44, 47, **53**, 55, 56, 58, 59, 64, 68, 73, 78, 81, 84, **99**, **100**, **101**, **102**, **110**, **111** | ~128h | ~14.2h/wk |
+| **Vidushi** | 4, 7, 10, 13, 15, 16, 19, 22, 25, 28, 34, 37, 40, 45, 49, 50, 51, 54, 65, 67, 71, 74, 76, 79, 82, 85, 88, **103**, **104**, **105**, **106**, **107**, **108**, **109**, **113**, **114** | ~123h | ~13.7h/wk |
 
 Steps in bold are either new from the 29 Aug replan (`5a`–`12a`, `95`–`108`) or corrected on 9 Sep
-(`17b`, `53`, `109`). The 29 Aug additions total **14h Rumesh · 14h Nethmi · 13h Vidushi** — the new
+(`17b`, `53`, `109`), or added 24 Sep (`110`–`114`). The 29 Aug additions total **14h Rumesh · 14h Nethmi · 13h Vidushi** — the new
 work was split evenly by design, which was the explicit requirement for that replan.
 
-Hours are summed from the week tables above and include the shared steps (30, 31, 88–94), which are
+Hours are summed from the week tables above and include the shared steps (30, 31, 88–94, 115), which are
 not listed in the Steps column. Carried steps are counted once, in the week they are actually done.
 Cut steps (48, 52, 57, 60, 87) are excluded.
 
