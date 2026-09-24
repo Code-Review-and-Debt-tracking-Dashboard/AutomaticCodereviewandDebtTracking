@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BanditLevel, BanditReport, BanditResult } from '../analyzers/bandit';
+import type {
+  CheckstyleLevel,
+  CheckstyleReport,
+  CheckstyleViolation,
+} from '../analyzers/checkstyle';
 import type { EslintMessage, EslintReport } from '../analyzers/eslint';
 import type { JscpdClone, JscpdReport } from '../analyzers/jscpd';
 import type { PylintMessage, PylintMessageType, PylintReport } from '../analyzers/pylint';
@@ -10,6 +15,7 @@ import {
   type AnalyzerReports,
   DEBT_COST_TABLE,
   fromBandit,
+  fromCheckstyle,
   fromEslint,
   fromJscpd,
   fromPylint,
@@ -152,6 +158,21 @@ const radonReport = (blocks: RadonBlock[], maintainability: RadonFileMi[] = []):
   errors: [],
   counts: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
   miCounts: { A: 0, B: 0, C: 0 },
+});
+
+const violation = (level: CheckstyleLevel, rule: string): CheckstyleViolation => ({
+  file: 'src/App.java',
+  line: 12,
+  column: 5,
+  level,
+  rule,
+  message: 'msg',
+});
+
+const checkstyleReport = (violations: CheckstyleViolation[]): CheckstyleReport => ({
+  violations,
+  errors: [],
+  counts: { error: 0, warning: 0, note: 0 },
 });
 
 const clone = (lines: number): JscpdClone => ({
@@ -371,6 +392,48 @@ describe('fromRadon', () => {
   });
 });
 
+describe('fromCheckstyle', () => {
+  it('grades by the level our config gave the check', () => {
+    const levels: CheckstyleLevel[] = ['error', 'warning', 'note'];
+    const findings = fromCheckstyle(checkstyleReport(levels.map((l) => violation(l, 'EmptyBlock'))));
+
+    expect(findings.map((f) => f.severity)).toEqual(['HIGH', 'MEDIUM', 'LOW']);
+  });
+
+  it('puts complexity and file length in their own categories', () => {
+    const findings = fromCheckstyle(
+      checkstyleReport([
+        violation('warning', 'CyclomaticComplexity'),
+        violation('warning', 'MethodLength'),
+        violation('warning', 'FileLength'),
+        violation('error', 'EqualsHashCode'),
+      ]),
+    );
+
+    expect(findings.map((f) => f.category)).toEqual([
+      'COMPLEXITY',
+      'COMPLEXITY',
+      'MAINTAINABILITY',
+      'CODE_SMELL',
+    ]);
+  });
+
+  it('keeps the position and has no end', () => {
+    const [finding] = fromCheckstyle(checkstyleReport([violation('error', 'EqualsHashCode')]));
+
+    expect(finding).toMatchObject({
+      file: 'src/App.java',
+      line: 12,
+      endLine: null,
+      column: 5,
+      endColumn: null,
+      rule: 'EqualsHashCode',
+      message: 'msg',
+      tool: 'checkstyle',
+    });
+  });
+});
+
 describe('fromJscpd', () => {
   it('grades clones by size', () => {
     const findings = fromJscpd(jscpdReport([clone(29), clone(30), clone(99), clone(100)]));
@@ -399,6 +462,7 @@ const everything: AnalyzerReports = {
   pylint: pylintReport([pylintMessage('warning', 'unused-import')]),
   bandit: banditReport([banditResult('HIGH', 'HIGH')]),
   radon: radonReport([radonBlock('D')], [{ file: 'app.py', mi: 10, rank: 'B' }]),
+  checkstyle: checkstyleReport([violation('warning', 'NestedIfDepth')]),
   jscpd: jscpdReport([clone(40)], 12.5),
   todoScan: report,
 };
@@ -428,7 +492,15 @@ describe('normalize', () => {
   it('sorts by tool first', () => {
     const tools = normalize(everything).findings.map((f) => f.tool);
 
-    expect([...new Set(tools)]).toEqual(['bandit', 'eslint', 'jscpd', 'pylint', 'radon', 'todo-scan']);
+    expect([...new Set(tools)]).toEqual([
+      'bandit',
+      'checkstyle',
+      'eslint',
+      'jscpd',
+      'pylint',
+      'radon',
+      'todo-scan',
+    ]);
   });
 
   it('then by file, line and rule', () => {
