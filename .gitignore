@@ -23,3 +23,6 @@ Thumbs.db
 CLAUDE.md
 # local dev run state (pids + logs)
 .dev/
+
+# checkstyle jar, fetched by hand (see apps/worker/src/analyzers/checkstyle.ts)
+apps/worker/vendor/

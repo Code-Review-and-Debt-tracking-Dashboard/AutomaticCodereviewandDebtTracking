@@ -5,6 +5,7 @@ import type {
 } from '@codehealth/shared';
 
 import type { BanditLevel, BanditReport } from '../analyzers/bandit';
+import type { CheckstyleLevel, CheckstyleReport } from '../analyzers/checkstyle';
 import type { EslintReport } from '../analyzers/eslint';
 import type { JscpdReport } from '../analyzers/jscpd';
 import type { PylintMessageType, PylintReport } from '../analyzers/pylint';
@@ -240,6 +241,42 @@ export function fromRadon(report: RadonReport): AnalysisFinding[] {
   return findings;
 }
 
+// ── Checkstyle ──
+
+// The level is whatever our own config gave each check, so it maps straight across.
+const checkstyleSeverities: Record<CheckstyleLevel, Severity> = {
+  error: 'HIGH',
+  warning: 'MEDIUM',
+  note: 'LOW',
+};
+
+const checkstyleCategories: Record<string, FindingCategory> = {
+  CyclomaticComplexity: 'COMPLEXITY',
+  NPathComplexity: 'COMPLEXITY',
+  NestedIfDepth: 'COMPLEXITY',
+  BooleanExpressionComplexity: 'COMPLEXITY',
+  MethodLength: 'COMPLEXITY',
+  ParameterNumber: 'COMPLEXITY',
+  FileLength: 'MAINTAINABILITY',
+};
+
+export function fromCheckstyle(report: CheckstyleReport): AnalysisFinding[] {
+  return report.violations.map((violation) =>
+    complete({
+      file: violation.file,
+      line: violation.line,
+      endLine: null,
+      column: violation.column,
+      endColumn: null,
+      severity: checkstyleSeverities[violation.level],
+      category: checkstyleCategories[violation.rule] ?? 'CODE_SMELL',
+      rule: violation.rule,
+      message: violation.message,
+      tool: 'checkstyle',
+    }),
+  );
+}
+
 // ── jscpd ──
 
 export function fromJscpd(report: JscpdReport): AnalysisFinding[] {
@@ -294,6 +331,7 @@ export interface AnalyzerReports {
   pylint?: PylintReport;
   bandit?: BanditReport;
   radon?: RadonReport;
+  checkstyle?: CheckstyleReport;
   jscpd?: JscpdReport;
   todoScan?: TodoScanReport;
 }
@@ -309,6 +347,7 @@ export function normalize(reports: AnalyzerReports) {
     ...(reports.pylint ? fromPylint(reports.pylint) : []),
     ...(reports.bandit ? fromBandit(reports.bandit) : []),
     ...(reports.radon ? fromRadon(reports.radon) : []),
+    ...(reports.checkstyle ? fromCheckstyle(reports.checkstyle) : []),
     ...(reports.jscpd ? fromJscpd(reports.jscpd) : []),
     ...(reports.todoScan ? fromTodoScan(reports.todoScan) : []),
   ];
