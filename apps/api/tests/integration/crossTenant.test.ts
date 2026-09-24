@@ -41,6 +41,7 @@ const SCOPED_ROUTES: ScopedRoute[] = [
   { method: 'get', template: '/api/repos/:repoId/debt', path: (t) => `/api/repos/${t.repo.id}/debt` },
   { method: 'get', template: '/api/repos/:repoId/hotspots', path: (t) => `/api/repos/${t.repo.id}/hotspots` },
   { method: 'get', template: '/api/repos/:repoId/pulls', path: (t) => `/api/repos/${t.repo.id}/pulls` },
+  { method: 'get', template: '/api/repos/:repoId/analyses', path: (t) => `/api/repos/${t.repo.id}/analyses` },
   {
     method: 'get',
     template: '/api/repos/:repoId/pulls/:prNumber',

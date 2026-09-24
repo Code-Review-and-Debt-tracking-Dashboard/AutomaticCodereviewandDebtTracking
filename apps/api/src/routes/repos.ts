@@ -6,7 +6,7 @@ import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
 import { linkRepository, listAvailableRepos, unlinkRepository } from '../services/repoLinkService';
-import { getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend } from '../services/repoService';
+import { getRepoAnalyses, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend } from '../services/repoService';
 import { triggerManualAnalysis } from '../services/queueService';
 import { validateRequest } from '../middleware/zodValidate';
 import { linkRepositorySchema, addMemberSchema } from '../schemas/repoSchemas';
@@ -189,6 +189,22 @@ reposRouter.post(
         req.org!.role,
       );
       res.status(202).json({ message: 'Analysis queued', analysisId, jobId });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/repos/:repoId/analyses : latest analysis runs and their status
+reposRouter.get(
+  '/api/repos/:repoId/analyses',
+  requireAuth,
+  validateRequest(repoIdParamsSchema),
+  requireRepoAccess('read'),
+  async (req, res, next) => {
+    try {
+      const data = await getRepoAnalyses(req.params.repoId);
+      res.status(200).json({ data });
     } catch (err) {
       next(err);
     }
