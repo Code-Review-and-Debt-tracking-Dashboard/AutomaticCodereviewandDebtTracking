@@ -12,6 +12,7 @@ import { runJscpd } from '../analyzers/jscpd';
 import { runPmd } from '../analyzers/pmd';
 import { runBandit } from '../analyzers/bandit';
 import { runCheckstyle } from '../analyzers/checkstyle';
+import { runCppcheck } from '../analyzers/cppcheck';
 import { runPylint } from '../analyzers/pylint';
 import { runRadon } from '../analyzers/radon';
 import { runTodoScan } from '../analyzers/todoScan';
@@ -207,6 +208,22 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
           'PMD finished',
         );
         return pmd;
+      });
+    }
+
+    if (detected.analyzers.includes('cppcheck')) {
+      reports.cppcheck = await runAnalyzer('cppcheck', analysisId, async () => {
+        const cppcheck = await runCppcheck(cloned.repoPath);
+        logger.info(
+          {
+            analysisId,
+            findings: cppcheck.findings.length,
+            counts: cppcheck.counts,
+            unparsed: cppcheck.errors.length,
+          },
+          'Cppcheck finished',
+        );
+        return cppcheck;
       });
     }
 

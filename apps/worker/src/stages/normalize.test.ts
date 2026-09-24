@@ -6,6 +6,7 @@ import type {
   CheckstyleReport,
   CheckstyleViolation,
 } from '../analyzers/checkstyle';
+import type { CppcheckFinding, CppcheckReport, CppcheckSeverity } from '../analyzers/cppcheck';
 import type { EslintMessage, EslintReport } from '../analyzers/eslint';
 import type { JscpdClone, JscpdReport } from '../analyzers/jscpd';
 import type { PmdPriority, PmdReport, PmdViolation } from '../analyzers/pmd';
@@ -17,6 +18,7 @@ import {
   DEBT_COST_TABLE,
   fromBandit,
   fromCheckstyle,
+  fromCppcheck,
   fromEslint,
   fromJscpd,
   fromPmd,
@@ -197,6 +199,27 @@ const pmdReport = (violations: PmdViolation[]): PmdReport => ({
   violations,
   errors: [],
   counts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+});
+
+const cppcheckFinding = (
+  severity: CppcheckSeverity,
+  id: string,
+  extra: Partial<CppcheckFinding> = {},
+): CppcheckFinding => ({
+  file: 'src/main.c',
+  line: 7,
+  column: 6,
+  severity,
+  id,
+  cwe: 0,
+  message: 'msg',
+  ...extra,
+});
+
+const cppcheckReport = (findings: CppcheckFinding[]): CppcheckReport => ({
+  findings,
+  errors: [],
+  counts: { error: 0, warning: 0, style: 0, performance: 0, portability: 0, information: 0 },
 });
 
 const clone = (lines: number): JscpdClone => ({
@@ -500,6 +523,64 @@ describe('fromPmd', () => {
   });
 });
 
+describe('fromCppcheck', () => {
+  it('grades by cppcheck severity', () => {
+    const severities: CppcheckSeverity[] = [
+      'error',
+      'warning',
+      'style',
+      'performance',
+      'portability',
+      'information',
+    ];
+    const findings = fromCppcheck(
+      cppcheckReport(severities.map((s) => cppcheckFinding(s, 'nullPointer'))),
+    );
+
+    expect(findings.map((f) => f.severity)).toEqual(['HIGH', 'MEDIUM', 'LOW', 'LOW', 'LOW', 'INFO']);
+  });
+
+  it('only files memory-safety bugs as vulnerabilities', () => {
+    const findings = fromCppcheck(
+      cppcheckReport([
+        cppcheckFinding('error', 'bufferAccessOutOfBounds', { cwe: 788 }),
+        cppcheckFinding('error', 'doubleFree', { cwe: 415 }),
+        // has a CWE, but is a plain bug
+        cppcheckFinding('error', 'nullPointer', { cwe: 476 }),
+        cppcheckFinding('style', 'unreadVariable', { cwe: 563 }),
+      ]),
+    );
+
+    expect(findings.map((f) => f.category)).toEqual([
+      'VULNERABILITY',
+      'VULNERABILITY',
+      'CODE_SMELL',
+      'CODE_SMELL',
+    ]);
+  });
+
+  it('keeps the position, and treats line 0 as the whole file', () => {
+    const findings = fromCppcheck(
+      cppcheckReport([
+        cppcheckFinding('error', 'nullPointer'),
+        cppcheckFinding('style', 'missingOverride', { line: 0, column: 0 }),
+      ]),
+    );
+
+    expect(findings[0]).toMatchObject({
+      file: 'src/main.c',
+      line: 7,
+      endLine: null,
+      column: 6,
+      endColumn: null,
+      rule: 'nullPointer',
+      message: 'msg',
+      tool: 'cppcheck',
+    });
+    expect([findings[1].line, findings[1].column]).toEqual([null, null]);
+  });
+});
+
 describe('fromJscpd', () => {
   it('grades clones by size', () => {
     const findings = fromJscpd(jscpdReport([clone(29), clone(30), clone(99), clone(100)]));
@@ -530,6 +611,7 @@ const everything: AnalyzerReports = {
   radon: radonReport([radonBlock('D')], [{ file: 'app.py', mi: 10, rank: 'B' }]),
   checkstyle: checkstyleReport([violation('warning', 'NestedIfDepth')]),
   pmd: pmdReport([pmdViolation(2, 'CloseResource')]),
+  cppcheck: cppcheckReport([cppcheckFinding('error', 'nullPointer')]),
   jscpd: jscpdReport([clone(40)], 12.5),
   todoScan: report,
 };
@@ -562,6 +644,7 @@ describe('normalize', () => {
     expect([...new Set(tools)]).toEqual([
       'bandit',
       'checkstyle',
+      'cppcheck',
       'eslint',
       'jscpd',
       'pmd',
