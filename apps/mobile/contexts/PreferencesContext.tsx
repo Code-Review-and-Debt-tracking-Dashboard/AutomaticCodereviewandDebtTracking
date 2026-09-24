@@ -26,9 +26,11 @@ interface PreferencesContextValue {
   isDark: boolean;
   colors: ThemeColors;
   notificationsEnabled: boolean;
+  activeOrgId: string | null;
   isLoaded: boolean;
   setThemePreference: (theme: ThemePreference) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setActiveOrgId: (orgId: string) => void;
 }
 
 const PreferencesContext = createContext<PreferencesContextValue | undefined>(undefined);
@@ -80,6 +82,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     (notificationsEnabled: boolean) => update({ notificationsEnabled }),
     [update],
   );
+  const setActiveOrgId = useCallback((activeOrgId: string) => update({ activeOrgId }), [update]);
 
   const scheme: 'light' | 'dark' =
     prefs.theme === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : prefs.theme;
@@ -91,11 +94,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       isDark: scheme === 'dark',
       colors: scheme === 'dark' ? darkColors : lightColors,
       notificationsEnabled: prefs.notificationsEnabled,
+      activeOrgId: prefs.activeOrgId,
       isLoaded,
       setThemePreference,
       setNotificationsEnabled,
+      setActiveOrgId,
     }),
-    [prefs, scheme, isLoaded, setThemePreference, setNotificationsEnabled],
+    [prefs, scheme, isLoaded, setThemePreference, setNotificationsEnabled, setActiveOrgId],
   );
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;

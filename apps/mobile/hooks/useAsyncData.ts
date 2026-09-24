@@ -37,27 +37,35 @@ export function useAsyncData<T>(
 
   // Guards a refresh fired during the initial load, and double-tapped Retry.
   const inFlight = useRef(false);
+  // Bumped when deps change, so a response for the old deps is dropped.
+  const generation = useRef(0);
 
   const load = useCallback(async (isRefresh = false) => {
     if (inFlight.current) return;
     inFlight.current = true;
+    const gen = generation.current;
 
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
 
     try {
-      setData(await fetcherRef.current());
+      const result = await fetcherRef.current();
+      if (gen === generation.current) setData(result);
     } catch (err) {
-      setError(getErrorMessage(err));
+      if (gen === generation.current) setError(getErrorMessage(err));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
-      inFlight.current = false;
+      if (gen === generation.current) {
+        setLoading(false);
+        setRefreshing(false);
+        inFlight.current = false;
+      }
     }
   }, []);
 
   useEffect(() => {
+    generation.current += 1;
+    inFlight.current = false;
     void load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
