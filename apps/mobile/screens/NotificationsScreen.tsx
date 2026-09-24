@@ -8,14 +8,18 @@ import {
   Animated,
   PanResponder,
   RefreshControl,
-  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
-import { EmptyState, ErrorState, LoadingState } from '../components';
-import { colors, radius, spacing } from '../theme';
+import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
+import { EmptyState, ErrorState, LoadingState, ScreenHeader } from '../components';
+import { fonts, radius, spacing } from '../theme';
+import type { ThemeColors } from '../theme';
+
+type NotificationSeverity = 'critical' | 'high' | 'medium' | 'low';
 
 interface NotificationData {
   id: string;
@@ -24,8 +28,34 @@ interface NotificationData {
   readAt: string | null;
   createdAt: string;
   repoName?: string;
-  severity?: 'critical' | 'high' | 'medium' | 'low';
+  severity?: NotificationSeverity;
   type?: string;
+}
+
+// Same tones as the web's NotificationItem.
+const severityColor = (severity: NotificationSeverity | undefined, c: ThemeColors) => {
+  switch (severity) {
+    case 'critical':
+      return c.danger;
+    case 'high':
+      return c.warning;
+    case 'medium':
+      return c.info;
+    default:
+      return c.textMuted;
+  }
+};
+
+function timeAgo(iso: string): string {
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 const SwipeableItem = ({
@@ -37,7 +67,11 @@ const SwipeableItem = ({
   onDismiss: () => void;
   onPress: () => void;
 }) => {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const pan = useRef(new Animated.ValueXY()).current;
+  const tone = severityColor(item.severity, colors);
+  const unread = !item.readAt;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -67,32 +101,40 @@ const SwipeableItem = ({
   return (
     <View style={styles.swipeContainer}>
       <View style={styles.deleteBackground}>
+        <Ionicons name="checkmark-done" size={18} color={colors.white} />
         <Text style={styles.deleteText}>Dismiss</Text>
       </View>
       <Animated.View
-        style={[styles.notificationCard, { transform: [{ translateX: pan.x }] }]}
+        style={[
+          styles.notificationCard,
+          unread && styles.notificationUnread,
+          { transform: [{ translateX: pan.x }] },
+        ]}
         {...panResponder.panHandlers}
       >
-        <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
+        <View style={[styles.severityStripe, { backgroundColor: tone }]} />
+        <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.cardBody}>
           <View style={styles.notificationHeader}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={[styles.title, !unread && styles.titleRead]} numberOfLines={1}>
               {item.title}
             </Text>
-            {!item.readAt && <View style={styles.unreadDot} />}
+            {unread && <View style={styles.unreadDot} />}
           </View>
           <Text style={styles.body} numberOfLines={2}>
             {item.body}
           </Text>
           <View style={styles.footer}>
-            <Text style={styles.time}>
-              {new Date(item.createdAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-            {item.repoName && (
-              <Text style={styles.repoName}>{item.repoName}</Text>
-            )}
+            <View style={styles.footerLeft}>
+              {item.severity ? (
+                <Text style={[styles.severity, { color: tone }]}>{item.severity}</Text>
+              ) : null}
+              {item.repoName ? (
+                <Text style={styles.repoName} numberOfLines={1}>
+                  {item.repoName}
+                </Text>
+              ) : null}
+            </View>
+            <Text style={styles.time}>{timeAgo(item.createdAt)}</Text>
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -101,6 +143,10 @@ const SwipeableItem = ({
 };
 
 export default function NotificationsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { notificationsEnabled, setNotificationsEnabled } = usePreferences();
+
   const { data, loading, refreshing, error, load, setData } = useAsyncData(async () => {
     const res = await api.get<{ data: NotificationData[] }>('/api/notifications');
     return res.data ?? [];
@@ -149,20 +195,52 @@ export default function NotificationsScreen() {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>
-          Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}
-        </Text>
-        {unreadCount > 0 && (
-          <TouchableOpacity activeOpacity={0.8} onPress={() => void markAllRead()}>
+  const header = (
+    <ScreenHeader
+      eyebrow="Inbox"
+      title="Notifications"
+      subtitle={
+        !notificationsEnabled
+          ? 'Paused on this device'
+          : data
+          ? unreadCount > 0
+            ? `${unreadCount} unread`
+            : 'All read'
+          : undefined
+      }
+      right={
+        notificationsEnabled && unreadCount > 0 ? (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => void markAllRead()}
+            style={styles.markAll}
+          >
+            <Ionicons name="checkmark-done" size={15} color={colors.link} />
             <Text style={styles.markAllText}>Mark all read</Text>
           </TouchableOpacity>
-        )}
-      </View>
+        ) : null
+      }
+    />
+  );
+
+  if (!notificationsEnabled) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {header}
+        <EmptyState
+          style={styles.paused}
+          icon="notifications-off-outline"
+          title="Notifications are off"
+          description="You won't see alerts about failed quality gates, score drops or new vulnerabilities until you turn them back on."
+          action={{ label: 'Turn on notifications', onPress: () => setNotificationsEnabled(true) }}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {header}
 
       {loading ? (
         <LoadingState />
@@ -194,19 +272,24 @@ export default function NotificationsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void load(true)}
-              tintColor={colors.success}
-              colors={[colors.success]}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
               progressBackgroundColor={colors.card}
             />
           }
           ListHeaderComponent={
-            error ? (
-              <ErrorState compact message={error} onRetry={() => void load(true)} retrying={refreshing} />
-            ) : null
+            <>
+              {error ? (
+                <ErrorState compact message={error} onRetry={() => void load(true)} retrying={refreshing} />
+              ) : null}
+              {notifications.length > 0 ? (
+                <Text style={styles.hint}>Tap to mark read · swipe to dismiss</Text>
+              ) : null}
+            </>
           }
           ListEmptyComponent={
             <EmptyState
-              icon="🔔"
+              icon="notifications-outline"
               title="You're all caught up"
               description="Alerts about your repositories will show up here."
             />
@@ -217,106 +300,142 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  markAllText: {
-    fontSize: 14,
-    color: colors.link,
-    fontWeight: '600',
-  },
-  listContent: {
-    padding: spacing.lg,
-  },
-  // Without flexGrow an empty list has no height and can't be pulled on Android.
-  listEmpty: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  swipeContainer: {
-    marginBottom: spacing.md,
-    position: 'relative',
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-  },
-  deleteBackground: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.danger,
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-    paddingRight: 20,
-    borderRadius: radius.lg,
-  },
-  deleteText: {
-    color: colors.white,
-    fontWeight: 'bold',
-  },
-  notificationCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-  },
-  notificationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.link,
-  },
-  body: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-    marginBottom: spacing.md,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  time: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  repoName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textMuted,
-    backgroundColor: colors.divider,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-  },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.bg,
+    },
+    paused: {
+      flex: 1,
+    },
+    markAll: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 4,
+    },
+    markAllText: {
+      fontSize: 13,
+      color: c.link,
+      fontWeight: '600',
+    },
+    listContent: {
+      padding: spacing.lg,
+    },
+    // Without flexGrow an empty list has no height and can't be pulled on Android.
+    listEmpty: {
+      flexGrow: 1,
+      justifyContent: 'center',
+    },
+    hint: {
+      fontFamily: fonts.mono,
+      fontSize: 10,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      color: c.textMuted,
+      marginBottom: spacing.md,
+    },
+    swipeContainer: {
+      marginBottom: spacing.md,
+      position: 'relative',
+      borderRadius: radius.lg,
+      overflow: 'hidden',
+    },
+    deleteBackground: {
+      ...StyleSheet.absoluteFill,
+      flexDirection: 'row',
+      gap: 6,
+      backgroundColor: c.primary,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      paddingRight: 20,
+      borderRadius: radius.lg,
+    },
+    deleteText: {
+      color: c.white,
+      fontWeight: 'bold',
+    },
+    notificationCard: {
+      flexDirection: 'row',
+      backgroundColor: c.card,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+    notificationUnread: {
+      borderColor: `${c.primary}66`,
+    },
+    severityStripe: {
+      width: 3,
+    },
+    cardBody: {
+      flex: 1,
+      padding: spacing.lg,
+    },
+    notificationHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    title: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: c.textPrimary,
+      flex: 1,
+      marginRight: spacing.sm,
+    },
+    titleRead: {
+      fontWeight: '500',
+      color: c.text,
+    },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: c.primary,
+    },
+    body: {
+      fontSize: 13,
+      color: c.textMuted,
+      lineHeight: 19,
+      marginBottom: spacing.md,
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    footerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      flexShrink: 1,
+    },
+    severity: {
+      fontFamily: fonts.mono,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    time: {
+      fontFamily: fonts.mono,
+      fontSize: 11,
+      color: c.textMuted,
+    },
+    repoName: {
+      flexShrink: 1,
+      fontFamily: fonts.mono,
+      fontSize: 11,
+      color: c.textMuted,
+      backgroundColor: c.muted,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.sm,
+      overflow: 'hidden',
+    },
+  });

@@ -10,8 +10,10 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
-import { ErrorState, LoadingState } from '../components';
-import { colors } from '../theme';
+import { useThemedStyles, useTheme } from '../contexts/PreferencesContext';
+import { Card, ErrorState, LoadingState } from '../components';
+import { fonts, healthBand, radius, spacing } from '../theme';
+import type { ThemeColors } from '../theme';
 import type { HomeStackParamList } from '../navigation/TabNavigator';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'RepoSummary'>;
@@ -59,26 +61,23 @@ interface RepoSummaryData {
   smells: RepoSmells | null;
 }
 
-const CATEGORIES: { key: DebtCategory; label: string; color: string }[] = [
-  { key: 'vulnerability', label: 'Vulnerability', color: '#EF4444' },
-  { key: 'complexity', label: 'Complexity', color: '#58A6FF' },
-  { key: 'duplication', label: 'Duplication', color: '#F59E0B' },
-  { key: 'code_smell', label: 'Code Smell', color: '#A78BFA' },
-  { key: 'maintainability', label: 'Maintainability', color: '#10B981' },
+// Same series colors as the web's RepositoryOverviewPage donut.
+const CATEGORIES: { key: DebtCategory; label: string; color: (c: ThemeColors) => string }[] = [
+  { key: 'vulnerability', label: 'Vulnerability', color: (c) => c.danger },
+  { key: 'complexity', label: 'Complexity', color: (c) => c.info },
+  { key: 'duplication', label: 'Duplication', color: (c) => c.warning },
+  { key: 'code_smell', label: 'Code Smell', color: (c) => c.purple },
+  { key: 'maintainability', label: 'Maintainability', color: (c) => c.success },
 ];
 
-const SEVERITY_COLORS: Record<Severity, string> = {
-  CRITICAL: '#EF4444',
-  HIGH: '#EF4444',
-  MEDIUM: '#F59E0B',
-  LOW: '#8B949E',
-  INFO: '#8B949E',
-};
+const severityColor = (severity: Severity, c: ThemeColors) =>
+  severity === 'CRITICAL' || severity === 'HIGH'
+    ? c.danger
+    : severity === 'MEDIUM'
+    ? c.warning
+    : c.textMuted;
 
 const TOP_ISSUES_LIMIT = 5;
-
-const scoreColor = (score: number) =>
-  score >= 85 ? '#10B981' : score >= 70 ? '#F59E0B' : '#EF4444';
 
 const formatDebt = (minutes: number) => {
   const h = Math.floor(minutes / 60);
@@ -94,6 +93,8 @@ const formatDate = (iso: string) =>
  */
 export default function RepoSummaryScreen({ route }: Props) {
   const { repoId } = route.params;
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const { data, loading, refreshing, error, load } = useAsyncData<RepoSummaryData>(async () => {
     const [detailRes, trendRes, debtRes, smellsRes] = await Promise.allSettled([
@@ -131,12 +132,13 @@ export default function RepoSummaryScreen({ route }: Props) {
 
   const { detail, trend, debt, smells } = data;
 
-  const color = scoreColor(detail.healthScore);
+  const band = healthBand(detail.healthScore, colors);
+  const color = band.color;
   const delta =
     trend.length >= 2
       ? Math.round(trend[trend.length - 1].healthScore - trend[trend.length - 2].healthScore)
       : 0;
-  const deltaColor = delta > 0 ? '#10B981' : delta < 0 ? '#EF4444' : '#8B949E';
+  const deltaColor = delta > 0 ? colors.success : delta < 0 ? colors.danger : colors.textMuted;
   const deltaLabel = delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : '— no change';
 
   const trendScores = trend.map((p) => p.healthScore);
@@ -158,8 +160,8 @@ export default function RepoSummaryScreen({ route }: Props) {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => void load(true)}
-          tintColor={colors.success}
-          colors={[colors.success]}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
           progressBackgroundColor={colors.card}
         />
       }
@@ -170,12 +172,12 @@ export default function RepoSummaryScreen({ route }: Props) {
       ) : null}
 
       {/* Gauge */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Health Score</Text>
+      <Card title="Health Score">
         <View style={styles.gaugeRow}>
           <View style={[styles.gaugeRing, { borderColor: color, backgroundColor: `${color}15` }]}>
             <Text style={[styles.gaugeScore, { color }]}>{Math.round(detail.healthScore)}</Text>
             <Text style={styles.gaugeOutOf}>/ 100</Text>
+            <Text style={[styles.gaugeBand, { color }]}>{band.label}</Text>
           </View>
           <View style={styles.gaugeMeta}>
             <Text style={[styles.deltaText, { color: deltaColor }]}>{deltaLabel}</Text>
@@ -195,11 +197,10 @@ export default function RepoSummaryScreen({ route }: Props) {
             ? `Last analyzed ${new Date(detail.lastAnalyzedAt).toLocaleString()}`
             : 'Not analyzed yet'}
         </Text>
-      </View>
+      </Card>
 
       {/* Trend */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>30d Trend</Text>
+      <Card title="30d Trend">
         {trend.length === 0 ? (
           <Text style={styles.emptyText}>No scans in the last 30 days.</Text>
         ) : (
@@ -213,7 +214,7 @@ export default function RepoSummaryScreen({ route }: Props) {
                     key={point.date + idx}
                     style={[
                       styles.trendBar,
-                      { height: `${heightPct}%`, backgroundColor: isUp ? '#10B981' : '#F59E0B' },
+                      { height: `${heightPct}%`, backgroundColor: isUp ? colors.success : colors.warning },
                     ]}
                   />
                 );
@@ -228,11 +229,10 @@ export default function RepoSummaryScreen({ route }: Props) {
             </View>
           </>
         )}
-      </View>
+      </Card>
 
       {/* Category bars */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Debt by Category</Text>
+      <Card title="Debt by Category">
         {!debt || !hasBreakdown ? (
           <Text style={styles.emptyText}>No debt breakdown available.</Text>
         ) : (
@@ -249,7 +249,7 @@ export default function RepoSummaryScreen({ route }: Props) {
                     </Text>
                   </View>
                   <View style={styles.barTrack}>
-                    <View style={[styles.barFill, { width: `${widthPct}%`, backgroundColor: cat.color }]} />
+                    <View style={[styles.barFill, { width: `${widthPct}%`, backgroundColor: cat.color(colors) }]} />
                   </View>
                 </View>
               );
@@ -260,17 +260,16 @@ export default function RepoSummaryScreen({ route }: Props) {
             </View>
           </>
         )}
-      </View>
+      </Card>
 
       {/* Top issues */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Top Issues</Text>
+      <Card title="Top Issues">
         {!smells || smells.smells.length === 0 ? (
           <Text style={styles.emptyText}>No issues found.</Text>
         ) : (
           <>
             {smells.smells.map((smell, idx) => {
-              const sevColor = SEVERITY_COLORS[smell.severity] ?? '#8B949E';
+              const sevColor = severityColor(smell.severity, colors);
               return (
                 <View key={`${smell.file}-${smell.line}-${idx}`} style={styles.issueRow}>
                   <View style={styles.issueHeader}>
@@ -300,182 +299,178 @@ export default function RepoSummaryScreen({ route }: Props) {
             </Text>
           </>
         )}
-      </View>
+      </Card>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0D1117',
-  },
-  content: {
-    padding: 16,
-    gap: 14,
-  },
-  card: {
-    backgroundColor: '#161B22',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#30363D',
-  },
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#8B949E',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: '#8B949E',
-  },
-  footnote: {
-    fontSize: 11,
-    color: '#8B949E',
-    marginTop: 12,
-  },
-  gaugeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-  },
-  gaugeRing: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gaugeScore: {
-    fontSize: 34,
-    fontWeight: '800',
-  },
-  gaugeOutOf: {
-    fontSize: 11,
-    color: '#8B949E',
-    marginTop: -2,
-  },
-  gaugeMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  deltaText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  metaBlock: {
-    marginTop: 8,
-  },
-  metaLabel: {
-    fontSize: 11,
-    color: '#8B949E',
-  },
-  metaValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#C9D1D9',
-  },
-  trendChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: 64,
-    gap: 3,
-  },
-  trendBar: {
-    flex: 1,
-    borderRadius: 2,
-  },
-  trendAxis: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  axisText: {
-    fontSize: 10,
-    color: '#8B949E',
-  },
-  categoryRow: {
-    marginBottom: 10,
-  },
-  categoryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  categoryLabel: {
-    fontSize: 13,
-    color: '#C9D1D9',
-  },
-  categoryValue: {
-    fontSize: 12,
-    color: '#8B949E',
-  },
-  barTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#21262D',
-    overflow: 'hidden',
-  },
-  barFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#21262D',
-  },
-  issueRow: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#21262D',
-    gap: 3,
-  },
-  issueHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  severityPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  severityText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  newPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: '#58A6FF20',
-  },
-  newText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#58A6FF',
-  },
-  issueRule: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#C9D1D9',
-  },
-  issueFile: {
-    fontSize: 12,
-    color: '#58A6FF',
-  },
-  issueMessage: {
-    fontSize: 12,
-    color: '#8B949E',
-  },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.bg,
+    },
+    content: {
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    emptyText: {
+      fontSize: 13,
+      color: c.textMuted,
+    },
+    footnote: {
+      fontSize: 11,
+      color: c.textMuted,
+      marginTop: 12,
+    },
+    gaugeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 20,
+    },
+    gaugeRing: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      borderWidth: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    gaugeScore: {
+      fontFamily: fonts.mono,
+      fontSize: 34,
+      fontWeight: '700',
+    },
+    gaugeOutOf: {
+      fontFamily: fonts.mono,
+      fontSize: 11,
+      color: c.textMuted,
+      marginTop: -2,
+    },
+    gaugeBand: {
+      marginTop: 2,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    gaugeMeta: {
+      flex: 1,
+      gap: 2,
+    },
+    deltaText: {
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    metaBlock: {
+      marginTop: 8,
+    },
+    metaLabel: {
+      fontSize: 11,
+      color: c.textMuted,
+    },
+    metaValue: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: c.text,
+    },
+    trendChart: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      height: 64,
+      gap: 3,
+    },
+    trendBar: {
+      flex: 1,
+      borderRadius: 2,
+    },
+    trendAxis: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 6,
+    },
+    axisText: {
+      fontSize: 10,
+      color: c.textMuted,
+    },
+    categoryRow: {
+      marginBottom: 10,
+    },
+    categoryHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    categoryLabel: {
+      fontSize: 13,
+      color: c.text,
+    },
+    categoryValue: {
+      fontSize: 12,
+      color: c.textMuted,
+    },
+    barTrack: {
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: c.divider,
+      overflow: 'hidden',
+    },
+    barFill: {
+      height: '100%',
+      borderRadius: 4,
+    },
+    totalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.divider,
+    },
+    issueRow: {
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: c.divider,
+      gap: 3,
+    },
+    issueHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    severityPill: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.sm,
+    },
+    severityText: {
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    newPill: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.sm,
+      backgroundColor: `${c.link}20`,
+    },
+    newText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: c.link,
+    },
+    issueRule: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.text,
+    },
+    issueFile: {
+      fontFamily: fonts.mono,
+      fontSize: 11,
+      color: c.link,
+    },
+    issueMessage: {
+      fontSize: 12,
+      color: c.textMuted,
+    },
+  });
