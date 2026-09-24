@@ -6,11 +6,14 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 export interface Preferences {
   theme: ThemePreference;
   notificationsEnabled: boolean;
+  /** Org the Repositories tab shows. null → the first org the API returns. */
+  activeOrgId: string | null;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'system',
   notificationsEnabled: true,
+  activeOrgId: null,
 };
 
 const PREFERENCES_KEY = 'ch_preferences';
@@ -34,6 +37,8 @@ export async function loadPreferences(): Promise<Preferences> {
         typeof parsed.notificationsEnabled === 'boolean'
           ? parsed.notificationsEnabled
           : DEFAULT_PREFERENCES.notificationsEnabled,
+      activeOrgId:
+        typeof parsed.activeOrgId === 'string' ? parsed.activeOrgId : DEFAULT_PREFERENCES.activeOrgId,
     };
   } catch {
     // A corrupt or unreadable value shouldn't stop the app from starting.
