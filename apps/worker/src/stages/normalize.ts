@@ -6,6 +6,7 @@ import type {
 
 import type { BanditLevel, BanditReport } from '../analyzers/bandit';
 import type { CheckstyleLevel, CheckstyleReport } from '../analyzers/checkstyle';
+import type { CppcheckReport, CppcheckSeverity } from '../analyzers/cppcheck';
 import type { EslintReport } from '../analyzers/eslint';
 import type { JscpdReport } from '../analyzers/jscpd';
 import type { PmdPriority, PmdReport } from '../analyzers/pmd';
@@ -315,6 +316,54 @@ export function fromPmd(report: PmdReport): AnalysisFinding[] {
   );
 }
 
+// ── Cppcheck ──
+
+// error is a definite bug and warning a likely one. The other three are about
+// how the code is written, not whether it works.
+const cppcheckSeverities: Record<CppcheckSeverity, Severity> = {
+  error: 'HIGH',
+  warning: 'MEDIUM',
+  style: 'LOW',
+  performance: 'LOW',
+  portability: 'LOW',
+  information: 'INFO',
+};
+
+// Memory-safety bugs: out of bounds, freed memory, unchecked format strings.
+// In C these are how code gets exploited, not just how it crashes. Cppcheck
+// puts a CWE on nearly everything, so that can't be used to pick them out.
+const cppcheckVulnerabilities = new Set([
+  'arrayIndexOutOfBounds',
+  'arrayIndexOutOfBoundsCond',
+  'negativeIndex',
+  'bufferAccessOutOfBounds',
+  'pointerOutOfBounds',
+  'doubleFree',
+  'deallocuse',
+  'deallocret',
+  'invalidscanf',
+  'invalidScanfFormatWidth',
+  'wrongPrintfScanfArgNum',
+]);
+
+export function fromCppcheck(report: CppcheckReport): AnalysisFinding[] {
+  return report.findings.map((finding) =>
+    complete({
+      file: finding.file,
+      // 0 means the finding is about the whole file.
+      line: finding.line || null,
+      endLine: null,
+      column: finding.column || null,
+      endColumn: null,
+      severity: cppcheckSeverities[finding.severity],
+      category: cppcheckVulnerabilities.has(finding.id) ? 'VULNERABILITY' : 'CODE_SMELL',
+      rule: finding.id,
+      message: finding.message,
+      tool: 'cppcheck',
+    }),
+  );
+}
+
 // ── jscpd ──
 
 export function fromJscpd(report: JscpdReport): AnalysisFinding[] {
@@ -371,6 +420,7 @@ export interface AnalyzerReports {
   radon?: RadonReport;
   checkstyle?: CheckstyleReport;
   pmd?: PmdReport;
+  cppcheck?: CppcheckReport;
   jscpd?: JscpdReport;
   todoScan?: TodoScanReport;
 }
@@ -388,6 +438,7 @@ export function normalize(reports: AnalyzerReports) {
     ...(reports.radon ? fromRadon(reports.radon) : []),
     ...(reports.checkstyle ? fromCheckstyle(reports.checkstyle) : []),
     ...(reports.pmd ? fromPmd(reports.pmd) : []),
+    ...(reports.cppcheck ? fromCppcheck(reports.cppcheck) : []),
     ...(reports.jscpd ? fromJscpd(reports.jscpd) : []),
     ...(reports.todoScan ? fromTodoScan(reports.todoScan) : []),
   ];
