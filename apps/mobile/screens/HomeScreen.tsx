@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
-import { useThemedStyles, useTheme } from '../contexts/PreferencesContext';
+import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { EmptyState, ErrorState, LoadingState, ScreenHeader } from '../components';
 import { fonts, healthBand, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
@@ -34,10 +34,16 @@ interface MobileRepo {
   isPrivate: boolean;
 }
 
-async function loadRepos(): Promise<MobileRepo[]> {
-  const orgs = await api.get<{ data: { id: string }[] }>('/api/orgs');
-  const orgId = orgs.data[0]?.id;
-  if (!orgId) return [];
+interface RepoList {
+  orgName: string | null;
+  repos: MobileRepo[];
+}
+
+async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
+  const orgs = await api.get<{ data: { id: string; login: string; name: string | null }[] }>('/api/orgs');
+  // Fall back to the first org if the saved one is gone (left the org, other account).
+  const org = orgs.data.find((o) => o.id === activeOrgId) ?? orgs.data[0];
+  if (!org) return { orgName: null, repos: [] };
 
   const response = await api.get<{ data: Array<{
     id: string;
@@ -48,9 +54,9 @@ async function loadRepos(): Promise<MobileRepo[]> {
     openFindings: number;
     debtMinutes: number;
     private: boolean;
-  }> }>(`/api/orgs/${orgId}/repos`);
+  }> }>(`/api/orgs/${org.id}/repos`);
 
-  return Promise.all(response.data.map(async (repo) => {
+  const repos = await Promise.all(response.data.map(async (repo) => {
     // A missing trend shouldn't take the whole list down with it.
     const trend = await api
       .get<{ dataPoints: { healthScore: number }[] }>(`/api/repos/${repo.id}/trend?days=30`)
@@ -67,6 +73,7 @@ async function loadRepos(): Promise<MobileRepo[]> {
       isPrivate: repo.private,
     };
   }));
+  return { orgName: org.name ?? org.login, repos };
 }
 
 /**
@@ -75,11 +82,24 @@ async function loadRepos(): Promise<MobileRepo[]> {
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { colors } = useTheme();
+  const { activeOrgId } = usePreferences();
   const styles = useThemedStyles(makeStyles);
-  const { data, loading, refreshing, error, load } = useAsyncData(loadRepos);
+  const { data, loading, refreshing, error, load } = useAsyncData(
+    () => loadRepos(activeOrgId),
+    [activeOrgId],
+  );
   const [query, setQuery] = useState('');
 
-  const allRepos = data ?? [];
+  // A repo opened before the org switch belongs to the old org — drop back to the list.
+  const shownOrgId = useRef(activeOrgId);
+  useEffect(() => {
+    if (shownOrgId.current === activeOrgId) return;
+    shownOrgId.current = activeOrgId;
+    setQuery('');
+    if (navigation.getState().index > 0) navigation.popToTop();
+  }, [activeOrgId, navigation]);
+
+  const allRepos = data?.repos ?? [];
   const needle = query.trim().toLowerCase();
   const repos = needle
     ? allRepos.filter((r) => r.fullName.toLowerCase().includes(needle))
@@ -181,7 +201,11 @@ export default function HomeScreen() {
       <ScreenHeader
         eyebrow="Workspace"
         title="Repositories"
-        subtitle={data ? `${allRepos.length} linked` : undefined}
+        subtitle={
+          data
+            ? [data.orgName, `${allRepos.length} linked`].filter(Boolean).join(' · ')
+            : undefined
+        }
       />
 
       {loading ? (
