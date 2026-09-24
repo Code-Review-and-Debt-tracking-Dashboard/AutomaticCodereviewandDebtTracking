@@ -8,6 +8,7 @@ import type {
 } from '../analyzers/checkstyle';
 import type { EslintMessage, EslintReport } from '../analyzers/eslint';
 import type { JscpdClone, JscpdReport } from '../analyzers/jscpd';
+import type { PmdPriority, PmdReport, PmdViolation } from '../analyzers/pmd';
 import type { PylintMessage, PylintMessageType, PylintReport } from '../analyzers/pylint';
 import type { RadonBlock, RadonFileMi, RadonRank, RadonReport } from '../analyzers/radon';
 import type { TodoScanReport } from '../analyzers/todoScan';
@@ -18,6 +19,7 @@ import {
   fromCheckstyle,
   fromEslint,
   fromJscpd,
+  fromPmd,
   fromPylint,
   fromRadon,
   fromTodoScan,
@@ -173,6 +175,28 @@ const checkstyleReport = (violations: CheckstyleViolation[]): CheckstyleReport =
   violations,
   errors: [],
   counts: { error: 0, warning: 0, note: 0 },
+});
+
+const pmdViolation = (
+  priority: PmdPriority,
+  rule: string,
+  ruleSet = 'Error Prone',
+): PmdViolation => ({
+  file: 'src/App.java',
+  line: 20,
+  endLine: 24,
+  column: 9,
+  endColumn: 30,
+  rule,
+  ruleSet,
+  priority,
+  message: 'msg',
+});
+
+const pmdReport = (violations: PmdViolation[]): PmdReport => ({
+  violations,
+  errors: [],
+  counts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
 });
 
 const clone = (lines: number): JscpdClone => ({
@@ -434,6 +458,48 @@ describe('fromCheckstyle', () => {
   });
 });
 
+describe('fromPmd', () => {
+  it('grades by the priority our ruleset gave the rule', () => {
+    const priorities: PmdPriority[] = [1, 2, 3, 4, 5];
+    const findings = fromPmd(pmdReport(priorities.map((p) => pmdViolation(p, 'CloseResource'))));
+
+    expect(findings.map((f) => f.severity)).toEqual(['HIGH', 'HIGH', 'MEDIUM', 'LOW', 'INFO']);
+  });
+
+  it('files the security rule set as vulnerabilities and sorts out the design rules', () => {
+    const findings = fromPmd(
+      pmdReport([
+        pmdViolation(1, 'HardCodedCryptoKey', 'Security'),
+        pmdViolation(3, 'CognitiveComplexity', 'Design'),
+        pmdViolation(3, 'GodClass', 'Design'),
+        pmdViolation(2, 'CloseResource'),
+      ]),
+    );
+
+    expect(findings.map((f) => f.category)).toEqual([
+      'VULNERABILITY',
+      'COMPLEXITY',
+      'MAINTAINABILITY',
+      'CODE_SMELL',
+    ]);
+  });
+
+  it('keeps the whole range pmd gives', () => {
+    const [finding] = fromPmd(pmdReport([pmdViolation(2, 'CloseResource')]));
+
+    expect(finding).toMatchObject({
+      file: 'src/App.java',
+      line: 20,
+      endLine: 24,
+      column: 9,
+      endColumn: 30,
+      rule: 'CloseResource',
+      message: 'msg',
+      tool: 'pmd',
+    });
+  });
+});
+
 describe('fromJscpd', () => {
   it('grades clones by size', () => {
     const findings = fromJscpd(jscpdReport([clone(29), clone(30), clone(99), clone(100)]));
@@ -463,6 +529,7 @@ const everything: AnalyzerReports = {
   bandit: banditReport([banditResult('HIGH', 'HIGH')]),
   radon: radonReport([radonBlock('D')], [{ file: 'app.py', mi: 10, rank: 'B' }]),
   checkstyle: checkstyleReport([violation('warning', 'NestedIfDepth')]),
+  pmd: pmdReport([pmdViolation(2, 'CloseResource')]),
   jscpd: jscpdReport([clone(40)], 12.5),
   todoScan: report,
 };
@@ -497,6 +564,7 @@ describe('normalize', () => {
       'checkstyle',
       'eslint',
       'jscpd',
+      'pmd',
       'pylint',
       'radon',
       'todo-scan',

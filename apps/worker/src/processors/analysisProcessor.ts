@@ -9,6 +9,7 @@ import type { Job } from 'bullmq';
 
 import { runEslint } from '../analyzers/eslint';
 import { runJscpd } from '../analyzers/jscpd';
+import { runPmd } from '../analyzers/pmd';
 import { runBandit } from '../analyzers/bandit';
 import { runCheckstyle } from '../analyzers/checkstyle';
 import { runPylint } from '../analyzers/pylint';
@@ -190,6 +191,22 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
           'Checkstyle finished',
         );
         return checkstyle;
+      });
+    }
+
+    if (detected.analyzers.includes('pmd')) {
+      reports.pmd = await runAnalyzer('pmd', analysisId, async () => {
+        const pmd = await runPmd(cloned.repoPath);
+        logger.info(
+          {
+            analysisId,
+            violations: pmd.violations.length,
+            counts: pmd.counts,
+            unparsed: pmd.errors.length,
+          },
+          'PMD finished',
+        );
+        return pmd;
       });
     }
 
