@@ -46,9 +46,6 @@
     <module name="EqualsHashCode">
       <property name="severity" value="error"/>
     </module>
-    <module name="StringLiteralEquality">
-      <property name="severity" value="error"/>
-    </module>
     <module name="CovariantEquals">
       <property name="severity" value="error"/>
     </module>

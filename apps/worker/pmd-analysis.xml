@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<ruleset name="codehealth"
+  xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>
+    The rules the worker runs over every scanned Java repo. Fixed on purpose, same
+    as the checkstyle config.
+
+    Only things checkstyle can't see. Anything it already reports (empty catch,
+    equals/hashCode, switch default, nesting, parameter count...) is left out here,
+    or the same defect would be counted twice.
+  </description>
+
+  <!-- Build output, generated and vendored code isn't the author's work. -->
+  <exclude-pattern>.*/(target|build|out|\.gradle|node_modules)/.*</exclude-pattern>
+
+  <!-- Security -->
+  <rule ref="category/java/security.xml/HardCodedCryptoKey"><priority>1</priority></rule>
+  <rule ref="category/java/security.xml/InsecureCryptoIv"><priority>1</priority></rule>
+
+  <!-- Likely bugs -->
+  <rule ref="category/java/errorprone.xml/CloseResource"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/ReturnFromFinallyBlock"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/DoNotThrowExceptionInFinally"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/BrokenNullCheck"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/MisplacedNullCheck"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/CompareObjectsWithEquals"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/EqualsNull"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/JumbledIncrementer"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/AvoidDecimalLiteralsInBigDecimalConstructor"><priority>2</priority></rule>
+  <rule ref="category/java/errorprone.xml/ReturnEmptyCollectionRatherThanNull"><priority>2</priority></rule>
+  <rule ref="category/java/multithreading.xml/DoubleCheckedLocking"><priority>2</priority></rule>
+  <rule ref="category/java/multithreading.xml/NonThreadSafeSingleton"><priority>2</priority></rule>
+
+  <!-- Smells -->
+  <rule ref="category/java/bestpractices.xml/UnusedPrivateField"><priority>3</priority></rule>
+  <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod"><priority>3</priority></rule>
+  <rule ref="category/java/bestpractices.xml/UnusedLocalVariable"><priority>3</priority></rule>
+  <rule ref="category/java/bestpractices.xml/PreserveStackTrace"><priority>3</priority></rule>
+  <rule ref="category/java/bestpractices.xml/AvoidPrintStackTrace"><priority>4</priority></rule>
+
+  <!-- Design. Cognitive complexity uses the same limit as the eslint sonarjs rule. -->
+  <rule ref="category/java/design.xml/CognitiveComplexity">
+    <priority>3</priority>
+    <properties>
+      <property name="reportLevel" value="15"/>
+    </properties>
+  </rule>
+  <rule ref="category/java/design.xml/GodClass"><priority>3</priority></rule>
+</ruleset>
