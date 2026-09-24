@@ -352,3 +352,26 @@ export async function getRepoPullRequestDetail(repoId: string, prNumber: number)
     snapshots,
   };
 }
+
+// Latest analysis runs for the repo, so the dashboard can show what's queued,
+// running, done or failed.
+export async function getRepoAnalyses(repoId: string) {
+  await getActiveRepo(repoId);
+
+  return prisma.analysisJob.findMany({
+    where: { repoId },
+    orderBy: { queuedAt: 'desc' },
+    take: 10,
+    select: {
+      id: true,
+      status: true,
+      trigger: true,
+      branch: true,
+      commitSha: true,
+      errorMessage: true,
+      queuedAt: true,
+      startedAt: true,
+      completedAt: true,
+    },
+  });
+}

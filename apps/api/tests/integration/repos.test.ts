@@ -351,6 +351,40 @@ describe('GET /api/repos/:repoId/hotspots', () => {
   });
 });
 
+describe('GET /api/repos/:repoId/analyses', () => {
+  it('401 without a token', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get(`/api/repos/${t.repo.id}/analyses`);
+    expect(res.status).toBe(401);
+  });
+
+  it('403 for a bystander', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get(`/api/repos/${t.repo.id}/analyses`).set(bearer(t.bystander));
+    expect(res.status).toBe(403);
+  });
+
+  it('lists the latest jobs newest first, with the failure reason', async () => {
+    const t = await seedTenant('acme');
+    const failed = await createAnalysisJob(t.repo, {
+      status: 'FAILED',
+      trigger: 'MANUAL',
+      errorMessage: 'clone: repository not found',
+      queuedAt: new Date(Date.now() + 1_000),
+    });
+
+    const res = await api().get(`/api/repos/${t.repo.id}/analyses`).set(bearer(t.developer));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((j: { id: string }) => j.id)).toEqual([failed.id, t.snapshot.analysisId]);
+    expect(res.body.data[0]).toMatchObject({
+      status: 'FAILED',
+      trigger: 'MANUAL',
+      errorMessage: 'clone: repository not found',
+    });
+  });
+});
+
 describe('GET /api/repos/:repoId/pulls', () => {
   it('401 without a token', async () => {
     const t = await seedTenant('acme');

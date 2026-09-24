@@ -9,6 +9,7 @@ import { api } from "../../lib/apiClient";
 
 import {
   BackLink,
+  Badge,
   Card,
   CardTitle,
   CardContent,
@@ -31,6 +32,33 @@ const analysisSteps = [
   "Persist HealthSnapshot and return the result",
 ];
 
+type AnalysisRun = {
+  id: string;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  trigger: string;
+  branch: string;
+  commitSha: string;
+  errorMessage: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+const statusBadge = {
+  PENDING: { label: "Queued", variant: "warning" },
+  RUNNING: { label: "Running", variant: "info" },
+  COMPLETED: { label: "Completed", variant: "success" },
+  FAILED: { label: "Failed", variant: "destructive" },
+  CANCELLED: { label: "Cancelled", variant: "muted" },
+} as const;
+
+// how often to re-check while a run is queued or running
+const POLL_MS = 3000;
+
+function formatTime(iso: string | null) {
+  return iso ? new Date(iso).toLocaleString() : "—";
+}
+
 
 /* =========================================================
    COMPONENT
@@ -39,29 +67,33 @@ const analysisSteps = [
 export function RepositoryAnalyzePage() {
   const { repoId } = useParams();
 
-  const [repoInfo, setRepoInfo] = useState<{
-    name: string;
-    defaultBranch?: string;
-    lastAnalyzedAt?: string | null;
-  } | null>(null);
+  const [runs, setRuns] = useState<AnalysisRun[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
+  const latest = runs[0];
+  const inProgress = latest?.status === "PENDING" || latest?.status === "RUNNING";
+
+  const loadRuns = async () => {
+    try {
+      const result = await api.get<{ data: AnalysisRun[] }>(`/api/repos/${repoId}/analyses`);
+      setRuns(result.data);
+    } catch (error) {
+      console.error("Failed to load analysis runs", error);
+    }
+  };
+
   useEffect(() => {
-    if (!repoId) return;
-
-    const loadRepo = async () => {
-      try {
-        const repoData = await api.get<any>(`/repos/${repoId}`);
-        setRepoInfo(repoData);
-      } catch (error) {
-        console.error("Failed to load repo info", error);
-      }
-    };
-
-    loadRepo();
+    if (repoId) loadRuns();
   }, [repoId]);
+
+  // keep checking until the latest run finishes
+  useEffect(() => {
+    if (!inProgress) return;
+    const timer = setTimeout(loadRuns, POLL_MS);
+    return () => clearTimeout(timer);
+  }, [runs]);
 
   const handleRunAnalysis = async () => {
     if (!repoId) return;
@@ -69,8 +101,9 @@ export function RepositoryAnalyzePage() {
     setSuccessMessage(null);
     setRunError(null);
     try {
-      const result = await api.post<any>(`/repos/${repoId}/analyze`);
+      const result = await api.post<any>(`/api/repos/${repoId}/analyze`);
       setSuccessMessage(result?.message || "Analysis queued");
+      await loadRuns();
     } catch (error: any) {
       setRunError(error?.response?.data?.error?.message || "Failed to start analysis.");
     } finally {
@@ -93,7 +126,7 @@ export function RepositoryAnalyzePage() {
         </div>
 
         <PageHeaderActions>
-          <Button onClick={handleRunAnalysis} disabled={isRunning}>
+          <Button onClick={handleRunAnalysis} disabled={isRunning || inProgress}>
             <PlayCircle size={16} />
             {isRunning ? "Running…" : "Run analysis"}
           </Button>
@@ -142,17 +175,42 @@ export function RepositoryAnalyzePage() {
             <CardTitle>Latest run</CardTitle>
           </div>
 
-          <CardContent className="mt-4 p-0">
-            <div className="rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
-              {repoInfo?.lastAnalyzedAt ? (
-                <p>
-                  Last analyzed on branch: {repoInfo.defaultBranch || "main"} &mdash;{" "}
-                  {new Date(repoInfo.lastAnalyzedAt).toLocaleDateString()}
-                </p>
-              ) : (
-                <p>No manual run has been started yet for repository {repoId}.</p>
-              )}
-            </div>
+          <CardContent className="mt-4 space-y-3 p-0">
+            {latest ? (
+              <div className="space-y-2 rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Badge variant={statusBadge[latest.status].variant} dot>
+                    {statusBadge[latest.status].label}
+                  </Badge>
+                  <span>
+                    {latest.trigger.toLowerCase()} run on {latest.branch} @ {latest.commitSha.slice(0, 7)}
+                  </span>
+                </div>
+                <p>Queued: {formatTime(latest.queuedAt)}</p>
+                <p>Started: {formatTime(latest.startedAt)}</p>
+                <p>Finished: {formatTime(latest.completedAt)}</p>
+                {latest.errorMessage && (
+                  <p className="text-destructive">Error: {latest.errorMessage}</p>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
+                No analysis has run yet for this repository.
+              </div>
+            )}
+
+            {runs.length > 1 && (
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {runs.slice(1).map((run) => (
+                  <li key={run.id} className="flex items-center gap-2">
+                    <Badge variant={statusBadge[run.status].variant} size="sm">
+                      {statusBadge[run.status].label}
+                    </Badge>
+                    {run.trigger.toLowerCase()} &middot; {formatTime(run.queuedAt)}
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
