@@ -50,6 +50,8 @@ export default function ProfileScreen() {
     setThemePreference,
     notificationsEnabled,
     setNotificationsEnabled,
+    activeOrgId,
+    setActiveOrgId,
   } = usePreferences();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -80,6 +82,10 @@ export default function ProfileScreen() {
   };
 
   const initials = (user?.username ?? '?').slice(0, 2).toUpperCase();
+
+  // Same fallback as the Repositories tab: no saved (or a stale) choice → first org.
+  const orgList = orgs.data ?? [];
+  const selectedOrgId = orgList.find((o) => o.id === activeOrgId)?.id ?? orgList[0]?.id;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -198,29 +204,50 @@ export default function ProfileScreen() {
             <Text style={styles.help}>Loading…</Text>
           ) : orgs.error && !orgs.data ? (
             <ErrorState compact message={orgs.error} onRetry={() => void orgs.load()} style={styles.noMargin} />
-          ) : (orgs.data ?? []).length === 0 ? (
+          ) : orgList.length === 0 ? (
             <Text style={styles.help}>You are not a member of any organization yet.</Text>
           ) : (
-            (orgs.data ?? []).map((org, idx) => (
-              <View key={org.id} style={[styles.orgRow, idx > 0 && styles.orgRowBorder]}>
-                {org.avatarUrl ? (
-                  <Image source={{ uri: org.avatarUrl }} style={styles.orgAvatar} />
-                ) : (
-                  <View style={[styles.orgAvatar, styles.avatarFallback]}>
-                    <Ionicons name="business-outline" size={14} color={colors.primary} />
-                  </View>
-                )}
-                <View style={styles.orgText}>
-                  <Text style={styles.orgName} numberOfLines={1}>
-                    {org.name ?? org.login}
-                  </Text>
-                  <Text style={styles.orgLogin} numberOfLines={1}>
-                    {org.login}
-                  </Text>
-                </View>
-                <Text style={styles.orgRole}>{formatRole(org.role)}</Text>
+            <>
+              <View style={styles.orgList} accessibilityRole="radiogroup">
+                {orgList.map((org) => {
+                  const selected = org.id === selectedOrgId;
+                  return (
+                    <Pressable
+                      key={org.id}
+                      style={[styles.orgRow, selected && styles.orgRowSelected]}
+                      onPress={() => setActiveOrgId(org.id)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`${org.name ?? org.login}, ${formatRole(org.role)}`}
+                    >
+                      {org.avatarUrl ? (
+                        <Image source={{ uri: org.avatarUrl }} style={styles.orgAvatar} />
+                      ) : (
+                        <View style={[styles.orgAvatar, styles.avatarFallback]}>
+                          <Ionicons name="business-outline" size={14} color={colors.primary} />
+                        </View>
+                      )}
+                      <View style={styles.orgText}>
+                        <Text style={styles.orgName} numberOfLines={1}>
+                          {org.name ?? org.login}
+                        </Text>
+                        <Text style={styles.orgLogin} numberOfLines={1}>
+                          {formatRole(org.role)} · {org.login}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={selected ? colors.primary : colors.border}
+                      />
+                    </Pressable>
+                  );
+                })}
               </View>
-            ))
+              {orgList.length > 1 ? (
+                <Text style={styles.help}>The Repositories tab shows the selected organization.</Text>
+              ) : null}
+            </>
           )}
         </Card>
 
@@ -373,15 +400,23 @@ const makeStyles = (c: ThemeColors) =>
     noMargin: {
       marginBottom: 0,
     },
+    orgList: {
+      gap: 4,
+    },
     orgRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.md,
       paddingVertical: 10,
+      paddingHorizontal: spacing.sm,
+      marginHorizontal: -spacing.sm,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: 'transparent',
     },
-    orgRowBorder: {
-      borderTopWidth: 1,
-      borderTopColor: c.divider,
+    orgRowSelected: {
+      backgroundColor: c.accent,
+      borderColor: `${c.primary}33`,
     },
     orgAvatar: {
       width: 32,
@@ -399,13 +434,6 @@ const makeStyles = (c: ThemeColors) =>
     orgLogin: {
       fontFamily: fonts.mono,
       fontSize: 11,
-      color: c.textMuted,
-    },
-    orgRole: {
-      fontFamily: fonts.mono,
-      fontSize: 10,
-      letterSpacing: 0.8,
-      textTransform: 'uppercase',
       color: c.textMuted,
     },
     signOut: {
