@@ -14,6 +14,19 @@ export const notificationIdParamsSchema = z.object({
   params: z.object({ notificationId: id }),
 });
 
+export const deviceIdParamsSchema = z.object({
+  params: z.object({ deviceId: id }),
+});
+
+export const registerDeviceSchema = z.object({
+  body: z.object({
+    // The shape getExpoPushTokenAsync returns; older SDKs used the Exponent prefix.
+    expoPushToken: z.string().trim().regex(/^Expo(nent)?PushToken\[.+\]$/, 'Not an Expo push token'),
+    platform: z.enum(['ios', 'android']),
+    deviceName: z.string().trim().max(100).optional(),
+  }),
+});
+
 export const orgIdParamsSchema = z.object({
   params: z.object({ orgId: id }),
 });

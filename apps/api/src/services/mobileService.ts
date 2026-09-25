@@ -3,6 +3,53 @@ import { prisma } from '@codehealth/db';
 import { AppError } from '../middleware/errorHandler';
 import { getActiveRepo } from './repoService';
 
+interface RegisterDeviceInput {
+  expoPushToken: string;
+  platform: 'ios' | 'android';
+  deviceName?: string;
+}
+
+/**
+ * Registers the caller's phone for push. The app calls this on every start,
+ * so it has to be idempotent: the token is the key, and a repeat just
+ * refreshes the row.
+ *
+ * A token that belongs to someone else moves to the caller — the same phone
+ * signed out and then signed in as another user, and pushes must follow the
+ * person who is signed in now.
+ */
+export async function registerDevice(userId: string, input: RegisterDeviceInput) {
+  const fields = {
+    userId,
+    platform: input.platform === 'ios' ? ('IOS' as const) : ('ANDROID' as const),
+    deviceName: input.deviceName ?? null,
+    active: true,
+    lastUsedAt: new Date(),
+  };
+
+  const device = await prisma.device.upsert({
+    where: { expoPushToken: input.expoPushToken },
+    create: { expoPushToken: input.expoPushToken, ...fields },
+    update: fields,
+  });
+
+  return {
+    id: device.id,
+    expoPushToken: device.expoPushToken,
+    platform: device.platform.toLowerCase(),
+    active: device.active,
+  };
+}
+
+// Someone else's device reads as missing, not forbidden, so ids can't be probed.
+export async function unregisterDevice(userId: string, deviceId: string): Promise<void> {
+  const deleted = await prisma.device.deleteMany({ where: { id: deviceId, userId } });
+
+  if (deleted.count === 0) {
+    throw new AppError(404, 'NOT_FOUND', 'Device not found');
+  }
+}
+
 export async function getMobileSummary(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
