@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: codehealth-db
+    container_name: codepulse-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -19,7 +19,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: codehealth-redis
+    container_name: codepulse-redis
     restart: unless-stopped
     ports:
       - "6380:6379"

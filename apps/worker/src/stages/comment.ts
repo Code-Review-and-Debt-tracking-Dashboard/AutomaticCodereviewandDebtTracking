@@ -6,7 +6,7 @@ import type {
 } from '@codehealth/shared';
 
 // Lets the poster find its own comment on a PR if botCommentId is ever lost.
-export const COMMENT_MARKER = '<!-- codehealth-bot -->';
+export const COMMENT_MARKER = '<!-- codepulse-bot -->';
 
 export interface CommentInput {
   metrics: SnapshotMetrics;
@@ -78,7 +78,7 @@ export function debtByCategory(
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
 function healthScoreHeading(score: number, baseline: CommentInput['baseline']): string {
-  let heading = `## CodeHealth — Health Score ${score}`;
+  let heading = `## CodePulse — Health Score ${score}`;
   if (baseline) {
     const delta = round1(score - baseline.healthScore);
     if (delta > 0) heading += ` ▲ +${delta}`;

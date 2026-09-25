@@ -24,7 +24,7 @@ queuesRouter.use(
   basicAuth({
     users: { [env.adminBasicAuthUser]: env.adminBasicAuthPassword },
     challenge: true,
-    realm: 'CodeHealth admin',
+    realm: 'CodePulse admin',
   }),
 );
 
