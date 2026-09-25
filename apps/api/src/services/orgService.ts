@@ -285,7 +285,7 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
     const latestJob = pr.analysisJobs[0];
     const snapshot = latestJob?.snapshot;
 
-    const score = snapshot?.healthScore ?? 85;
+    const score = snapshot?.healthScore ?? null;
     const gateStatus = snapshot ? (snapshot.gateResult === 'PASS' ? 'Passed' : 'Needs attention') : 'Pending';
 
     totalAnalyzed++;
@@ -293,7 +293,7 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
     if (gateStatus === 'Needs attention') needsAttention++;
     
     if (snapshot) {
-      totalHealthScore += score;
+      totalHealthScore += snapshot.healthScore;
       healthScoreCount++;
       totalDebtDelta += (snapshot.debtDeltaMinutes ?? 0);
     }
