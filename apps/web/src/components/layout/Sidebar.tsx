@@ -87,6 +87,7 @@ function NavSection({ title, items, collapsed }: NavSectionProps) {
             <NavLink
               key={item.path}
               to={item.path}
+              data-tour={item.path.slice(1)}
               title={collapsed ? item.label : undefined}
               className={({ isActive }) =>
                 [
