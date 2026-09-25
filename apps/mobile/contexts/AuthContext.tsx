@@ -18,6 +18,7 @@ import {
   setStoredRefreshToken,
 } from '../lib/apiClient';
 import { onAuthLost, setAccessToken } from '../lib/authTokenStore';
+import { unregisterFromPush } from '../lib/pushNotifications';
 
 export interface AuthUser {
   id: string;
@@ -118,6 +119,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const logout = useCallback(async () => {
+    // First, while the access token still works — a signed-out phone must
+    // stop getting the previous user's alerts.
+    await unregisterFromPush();
+
     const stored = await getStoredRefreshToken();
     try {
       if (stored) {
