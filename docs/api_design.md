@@ -981,7 +981,7 @@ Lightweight summary designed for the mobile home screen. Single call, no paginat
 Quick-view code smells for a repo (latest snapshot), optimized for mobile card layout.
 
 - **Auth:** Required
-- **Query:** `?limit=20`
+- **Query:** `?limit=20&offset=0` (`limit` 1–100, `offset` ≥ 0; findings are ordered by severity, so `offset` pages through the rest of the list)
 - **Success `200`:**
 
 ```json
