@@ -3,7 +3,7 @@
 #   docker compose -f docker-compose.prod.yml up -d --build
 
 # own project name, so it never touches the dev compose containers or volumes
-name: codehealth-prod
+name: codepulse-prod
 
 # keeps logs from filling the disk
 x-logging: &logging
