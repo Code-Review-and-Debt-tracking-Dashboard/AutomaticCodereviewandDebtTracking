@@ -1,5 +1,5 @@
 import { AnalysisStatus, prisma } from '@codehealth/db';
-import type { QualityGateThresholds } from '@codehealth/shared';
+import type { BaselineSnapshot, QualityGateThresholds } from '@codehealth/shared';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 
@@ -129,6 +129,58 @@ jobsRouter.get('/jobs/:jobId/quality-gate', requireAgent, async (req, res, next)
     };
 
     res.status(200).json(thresholds);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The earlier run this job is compared against. A PR is compared with the
+// branch it merges into, a push with the last run on its own branch. Only
+// non-PR runs count, so one PR is never measured against another.
+jobsRouter.get('/jobs/:jobId/baseline', requireAgent, async (req, res, next) => {
+  try {
+    const job = await loadAgentJob(req, req.params.jobId);
+
+    const pullRequest = job.pullRequestId
+      ? await prisma.pullRequest.findUnique({ where: { id: job.pullRequestId } })
+      : null;
+    const branch = pullRequest?.baseBranch ?? job.branch;
+
+    const snapshot = await prisma.healthSnapshot.findFirst({
+      where: {
+        repoId: job.repoId,
+        analysisId: { not: job.id },
+        analysis: { branch, pullRequestId: null },
+      },
+      orderBy: { calculatedAt: 'desc' },
+      select: {
+        healthScore: true,
+        findings: {
+          select: {
+            file: true,
+            line: true,
+            endLine: true,
+            column: true,
+            endColumn: true,
+            severity: true,
+            category: true,
+            state: true,
+            rule: true,
+            message: true,
+            tool: true,
+            debtMinutes: true,
+          },
+        },
+      },
+    });
+
+    // Nothing to compare against yet — the worker treats it as a first run.
+    if (!snapshot) {
+      return res.status(204).send();
+    }
+
+    const baseline: BaselineSnapshot = snapshot;
+    res.status(200).json(baseline);
   } catch (error) {
     next(error);
   }

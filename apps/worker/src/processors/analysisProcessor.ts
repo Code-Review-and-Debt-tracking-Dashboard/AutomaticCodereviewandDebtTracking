@@ -16,27 +16,19 @@ import { runCppcheck } from '../analyzers/cppcheck';
 import { runPylint } from '../analyzers/pylint';
 import { runRadon } from '../analyzers/radon';
 import { runTodoScan } from '../analyzers/todoScan';
-import { fetchQualityGate, postResults, startJob } from '../lib/apiClient';
+import { fetchBaseline, fetchQualityGate, postResults, startJob } from '../lib/apiClient';
 import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { buildPrComment } from '../stages/comment';
 import { computeDebtDelta } from '../stages/debt';
 import { detectLanguages } from '../stages/detect';
-import { evaluateGate } from '../stages/gate';
+import { DEFAULT_GATE, evaluateGate } from '../stages/gate';
 import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
 import { postPrComment } from '../stages/postComment';
 import { postCommitStatus } from '../stages/postStatus';
 import { type ScoreResult, computeScore } from '../stages/score';
 
-/**
- * Flattens one finished run into the shape the results endpoint accepts. Kept
- * separate from the processor so it can be tested without running a job.
- *
- * The spread is deliberate: the score already carries every metric except the
- * three below, so a field going missing from either side is a compile error
- * rather than a column that quietly stays zero.
- */
 export function buildResultsPayload(input: {
   analysisId: string;
   commitSha: string;
@@ -65,11 +57,6 @@ export function buildResultsPayload(input: {
   };
 }
 
-/**
- * Runs one analyzer and keeps its failure to itself. A tool that falls over on a
- * repo it can't handle should cost us that tool's findings, not the whole
- * analysis — the rest still runs and the score is computed from what came back.
- */
 async function runAnalyzer<T>(
   analyzer: string,
   analysisId: string,
@@ -83,21 +70,6 @@ async function runAnalyzer<T>(
   }
 }
 
-/**
- * Consumes one analysis job. Clones the repo, works out what's in it, runs the
- * analyzers over it, flattens their output into findings, scores them and runs
- * them past the repo's quality gate, and reports the whole lot to the API.
- *
- * Nothing in here touches the database. The worker has no credentials for it —
- * every read and write crosses the API instead, so the same process can run
- * inside a customer's network without holding ours.
- *
- * Only the analyzers are allowed to fail quietly. Everything else throws on
- * purpose: that's how BullMQ is told to retry, and the worker's 'failed'
- * listener is what marks the row FAILED. The stage is attached on the way out
- * so that listener can say where it broke. The temp directory is still removed
- * on that path, because it's in a finally.
- */
 export async function analysisProcessor(job: Job<AnalysisJobData>) {
   const { analysisId, repoId, branch, commitSha } = job.data;
 
@@ -264,8 +236,9 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
 
     stage = 'score';
 
-    // No baseline source yet, so everything comes back NEW.
-    const matched = matchFindings({ findings, baseline: null });
+    // Null on a first run, which marks everything NEW.
+    const baseline = await fetchBaseline(analysisId);
+    const matched = matchFindings({ findings, baseline: baseline?.findings ?? null });
 
     logger.info(
       {
@@ -283,10 +256,9 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       linesOfCode: detected.linesOfCode,
     });
 
-    // Same missing baseline as the matcher above, so there is no delta yet.
     const debtDeltaMinutes = computeDebtDelta({
       currentDebtMinutes: score.debtMinutes,
-      baseline: null,
+      baseline: baseline?.findings ?? null,
     });
 
     logger.info(
@@ -341,8 +313,9 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       body: buildPrComment({
         metrics: payload.metrics,
         findings: matched.findings,
-        baseline: null,
-        gate,
+        baseline,
+        // Same thresholds the verdict was judged on, so a FAIL always shows why.
+        gate: gate ?? DEFAULT_GATE,
       }),
     });
 
