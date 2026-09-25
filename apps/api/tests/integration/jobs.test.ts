@@ -8,12 +8,13 @@ import {
 } from '@codehealth/db';
 import type { AnalysisResultsPayload, SnapshotMetrics } from '@codehealth/shared';
 import crypto from 'crypto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { api } from '../helpers/app';
 import {
   addRepoMember,
   createAnalysisJob,
+  createDevice,
   createOrg,
   createQualityGate,
   createRepo,
@@ -313,6 +314,35 @@ describe('agent job endpoints', () => {
       await ingest();
       await ingest();
       expect(await rows()).toHaveLength(1);
+    });
+
+    describe('push', () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("sends what it notified to the users' phones once the results are stored", async () => {
+        const device = await createDevice(owner);
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+          const messages = JSON.parse(String(init?.body)) as unknown[];
+          return new Response(JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 'receipt' })) }));
+        });
+
+        const res = await ingest();
+        expect(res.status).toBe(200);
+
+        // The push goes out after the response, so it has to be waited for.
+        await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+        const [url, init] = fetchSpy.mock.calls[0];
+        expect(String(url)).toBe('https://exp.host/--/api/v2/push/send');
+        expect(JSON.parse(String(init?.body))).toEqual([
+          expect.objectContaining({
+            to: device.expoPushToken,
+            title: expect.stringContaining(repo.name),
+            data: { type: 'QUALITY_GATE_FAILED', repoId: repo.id },
+          }),
+        ]);
+      });
     });
   });
 

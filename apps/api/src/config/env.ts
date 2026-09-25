@@ -64,4 +64,8 @@ export const env = {
   // what's broken.
   adminBasicAuthUser: required('ADMIN_BASIC_AUTH_USER', 'admin'),
   adminBasicAuthPassword: required('ADMIN_BASIC_AUTH_PASSWORD', 'admin'),
+
+  // Only needed once "enhanced push security" is switched on for the Expo
+  // project; without it the Expo Push API accepts unauthenticated sends.
+  expoAccessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
 };

@@ -1,6 +1,7 @@
 import {
   prisma,
   type AnalysisJob,
+  type Device,
   type Finding,
   type HealthSnapshot,
   type MemberStatus,
@@ -190,6 +191,17 @@ export function createQualityGate(
 ): Promise<QualityGate> {
   return prisma.qualityGate.create({
     data: { repoId: repo.id, minHealthScore: 70, blockPR: true, ...overrides },
+  });
+}
+
+export function createDevice(user: User, overrides: Partial<Device> = {}): Promise<Device> {
+  return prisma.device.create({
+    data: {
+      userId: user.id,
+      expoPushToken: `ExponentPushToken[device-${next()}]`,
+      platform: 'ANDROID',
+      ...overrides,
+    },
   });
 }
 

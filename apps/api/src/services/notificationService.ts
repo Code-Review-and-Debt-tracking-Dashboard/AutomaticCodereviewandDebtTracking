@@ -12,6 +12,12 @@ interface NotificationEvent {
   data: Prisma.InputJsonValue;
 }
 
+/** Who was notified and about what, so the caller can push the same thing. */
+export interface AnalysisNotifications {
+  userIds: string[];
+  events: NotificationEvent[];
+}
+
 // healthScore is a float, so bodies would otherwise read "down 14.299999997".
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -22,6 +28,9 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
  * Runs inside the ingest transaction so the rows land with the snapshot or not
  * at all. That also makes it idempotent for free — a worker retry of a run that
  * was already stored never reaches here.
+ *
+ * Returns what it wrote rather than pushing it: a push can't be taken back if
+ * the transaction then rolls back, so the caller sends it after commit.
  */
 export async function createAnalysisNotifications(
   tx: Prisma.TransactionClient,
@@ -32,7 +41,7 @@ export async function createAnalysisNotifications(
     findings: AnalysisFinding[];
     previousScore: number | null;
   },
-): Promise<void> {
+): Promise<AnalysisNotifications> {
   const { repoId, snapshotId, metrics, findings, previousScore } = input;
 
   const gateFailed = metrics.gateResult === 'FAIL';
@@ -42,7 +51,7 @@ export async function createAnalysisNotifications(
   );
 
   if (!gateFailed && drop <= SCORE_DROP_POINTS && criticals.length === 0) {
-    return;
+    return { userIds: [], events: [] };
   }
 
   const repo = await tx.repository.findUniqueOrThrow({
@@ -90,11 +99,13 @@ export async function createAnalysisNotifications(
 
   // The owner usually has a member row too, so the set is what stops them
   // getting the same notification twice.
-  const userIds = new Set([repo.ownerId, ...repo.members.map((m) => m.userId)]);
+  const userIds = [...new Set([repo.ownerId, ...repo.members.map((m) => m.userId)])];
 
   await tx.notification.createMany({
-    data: [...userIds].flatMap((userId) =>
+    data: userIds.flatMap((userId) =>
       events.map((event) => ({ ...event, userId, repoId, snapshotId })),
     ),
   });
+
+  return { userIds, events };
 }
