@@ -255,7 +255,7 @@ export function GlobalAnalyticsPage() {
 
 
       {/* Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div data-tour="analytics-stats" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Average Health Score"
           value={orgStats.avgHealth}
@@ -291,7 +291,7 @@ export function GlobalAnalyticsPage() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
 
         {/* Health Score vs Tech Debt */}
-        <Card>
+        <Card data-tour="health-debt-chart">
           <CardHeader>
             <div>
               <CardTitle>Health Score vs. Tech Debt (Hours)</CardTitle>
@@ -353,7 +353,7 @@ export function GlobalAnalyticsPage() {
         </Card>
 
         {/* Language Breakdown */}
-        <Card>
+        <Card data-tour="language-chart">
           <CardHeader>
             <div>
               <CardTitle>Language Breakdown & Health</CardTitle>
@@ -400,7 +400,7 @@ export function GlobalAnalyticsPage() {
 
 
       {/* Repository Overview Table */}
-      <Card className="mt-6">
+      <Card data-tour="repo-table" className="mt-6">
         <CardHeader>
           <div>
             <CardTitle>Repository Overview</CardTitle>

@@ -288,7 +288,7 @@ export function RepositoryOverviewPage() {
         </div>
 
         <PageHeaderActions>
-          <Button variant="outline" onClick={() => navigate(`/repositories/${repository.id}/analyze`)}>
+          <Button data-tour="run-analysis" variant="outline" onClick={() => navigate(`/repositories/${repository.id}/analyze`)}>
             <HealthIcon size={16} />
             Run analysis
           </Button>
@@ -302,7 +302,7 @@ export function RepositoryOverviewPage() {
         </PageHeaderActions>
       </PageHeader>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div data-tour="repo-stats" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Health Score"
           value={repository.healthScore === null ? "—" : String(repository.healthScore)}
@@ -329,7 +329,7 @@ export function RepositoryOverviewPage() {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <Card className="p-5">
+        <Card data-tour="health-trend" className="p-5">
           <div className="mb-5 flex items-start justify-between">
             <div>
               <h3 className="font-display text-[15px] font-semibold tracking-tight">
@@ -584,6 +584,7 @@ export function RepositoryOverviewPage() {
           </div>
           <button
             type="button"
+            data-tour="all-findings"
             onClick={() => navigate(`/repositories/${repoId}/findings`)}
             className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
           >
