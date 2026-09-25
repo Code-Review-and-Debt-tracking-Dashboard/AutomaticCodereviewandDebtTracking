@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -14,15 +14,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { Card, ErrorState, Eyebrow, Logo, ScreenHeader } from '../components';
+import { ScreenTour } from '../components/ScreenTour';
 import type { ThemePreference } from '../lib/preferencesStore';
 import { fonts, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
+import type { RootTabParamList } from '../navigation/TabNavigator';
 
 interface Org {
   id: string;
@@ -52,8 +56,18 @@ export default function ProfileScreen() {
     setNotificationsEnabled,
     activeOrgId,
     setActiveOrgId,
+    replayTours,
   } = usePreferences();
   const [signingOut, setSigningOut] = useState(false);
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+  const appearanceRef = useRef<View>(null);
+  const notificationsRef = useRef<View>(null);
+  const orgsRef = useRef<View>(null);
+
+  const replay = () => {
+    replayTours();
+    navigation.navigate('Overview');
+  };
 
   const orgs = useAsyncData(async () => {
     const res = await api.get<{ data: Org[] }>('/api/orgs');
@@ -133,7 +147,7 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Appearance */}
-        <Card title="Appearance">
+        <Card ref={appearanceRef} title="Appearance">
           <View style={styles.segmented} accessibilityRole="radiogroup">
             {THEME_OPTIONS.map((opt) => {
               const selected = themePreference === opt.value;
@@ -166,7 +180,7 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Notifications */}
-        <Card title="Notifications">
+        <Card ref={notificationsRef} title="Notifications">
           <View style={styles.settingRow}>
             <View style={[styles.settingIcon, { backgroundColor: notificationsEnabled ? colors.accent : colors.muted }]}>
               <Ionicons
@@ -199,7 +213,7 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Organizations */}
-        <Card title="Organizations">
+        <Card ref={orgsRef} title="Organizations">
           {orgs.loading ? (
             <Text style={styles.help}>Loading…</Text>
           ) : orgs.error && !orgs.data ? (
@@ -251,6 +265,20 @@ export default function ProfileScreen() {
           )}
         </Card>
 
+        {/* Help */}
+        <Card title="Help">
+          <TouchableOpacity style={styles.settingRow} activeOpacity={0.7} onPress={replay}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.accent }]}>
+              <Ionicons name="help-circle-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.settingText}>
+              <Text style={styles.settingTitle}>Replay tutorial</Text>
+              <Text style={styles.settingHelp}>Walk through the app's screens again.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+        </Card>
+
         <TouchableOpacity
           style={[styles.signOut, signingOut && styles.disabled]}
           activeOpacity={0.8}
@@ -266,6 +294,11 @@ export default function ProfileScreen() {
           <Eyebrow>CodePulse mobile</Eyebrow>
         </View>
       </ScrollView>
+
+      <ScreenTour
+        id="profile"
+        targets={{ appearance: appearanceRef, notifications: notificationsRef, orgs: orgsRef }}
+      />
     </SafeAreaView>
   );
 }

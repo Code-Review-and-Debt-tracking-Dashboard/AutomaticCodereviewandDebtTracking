@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 
 import { useThemedStyles } from '../contexts/PreferencesContext';
@@ -17,13 +17,14 @@ interface CardProps {
   right?: ReactNode;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  ref?: Ref<View>;
 }
 
-export function Card({ title, right, children, style }: CardProps) {
+export function Card({ title, right, children, style, ref }: CardProps) {
   const styles = useThemedStyles(makeStyles);
 
   return (
-    <View style={[styles.card, style]}>
+    <View ref={ref} style={[styles.card, style]}>
       {title || right ? (
         <View style={styles.header}>
           {title ? <Eyebrow>{title}</Eyebrow> : <View />}
