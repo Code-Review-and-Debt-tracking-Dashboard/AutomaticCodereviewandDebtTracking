@@ -11,6 +11,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.codepulse.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,7 +26,20 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#1E7150"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bfc7b88e-15b1-4869-9517-6b96a45f91bf"
+      }
+    },
+    "owner": "vidushidew"
   }
 }
