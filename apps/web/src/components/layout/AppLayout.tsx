@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { MobileSidebar } from "./MobileSidebar";
+import { Tour } from "../tour/Tour";
 
 const COLLAPSE_KEY = "sidebarCollapsed";
 
@@ -57,6 +58,8 @@ export function AppLayout() {
           </AnimatePresence>
         </main>
       </div>
+
+      <Tour />
     </div>
   );
 }

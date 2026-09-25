@@ -171,7 +171,7 @@ export function RepositoryFindingsPage() {
         </div>
       </PageHeader>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div data-tour="finding-stats" className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total Findings"
           value={String(summary?.total ?? 0)}
@@ -202,7 +202,7 @@ export function RepositoryFindingsPage() {
         />
       </div>
 
-      <Card className="mt-6">
+      <Card data-tour="finding-list" className="mt-6">
         <div className="border-b border-border/70 p-5">
           <FilterBar
             searchPlaceholder="Search findings..."
