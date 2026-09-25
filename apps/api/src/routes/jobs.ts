@@ -8,6 +8,7 @@ import { requireAgent } from '../middleware/requireAgent';
 import { validateRequest } from '../middleware/zodValidate';
 import { analysisQueue } from '../lib/queue';
 import { createAnalysisNotifications } from '../services/notificationService';
+import { sendPushNotifications } from '../services/pushService';
 import { Job } from 'bullmq';
 
 export const jobsRouter = Router();
@@ -280,7 +281,7 @@ jobsRouter.post(
       });
 
       // Create snapshot and findings, and update job status in a transaction
-      const snapshot = await prisma.$transaction(async (tx) => {
+      const { snapshot, notified } = await prisma.$transaction(async (tx) => {
         const created = await tx.healthSnapshot.create({
           data: {
             analysisId: job.id,
@@ -300,7 +301,7 @@ jobsRouter.post(
           });
         }
 
-        await createAnalysisNotifications(tx, {
+        const notified = await createAnalysisNotifications(tx, {
           repoId: job.repoId,
           snapshotId: created.id,
           metrics,
@@ -320,10 +321,14 @@ jobsRouter.post(
           },
         });
 
-        return created;
+        return { snapshot: created, notified };
       });
 
       res.status(200).json({ snapshotId: snapshot.id });
+
+      // Only once the rows are committed, and without holding up the worker.
+      // The duplicate-delivery return above means a retry never pushes twice.
+      void sendPushNotifications({ repoId: job.repoId, ...notified });
     } catch (error) {
       next(error);
     }

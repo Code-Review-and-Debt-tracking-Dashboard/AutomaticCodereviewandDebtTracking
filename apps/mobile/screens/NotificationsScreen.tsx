@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { api } from '../lib/apiClient';
+import { onPushActivity } from '../lib/pushNotifications';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { EmptyState, ErrorState, LoadingState, ScreenHeader } from '../components';
@@ -153,6 +154,9 @@ export default function NotificationsScreen() {
     const res = await api.get<{ data: NotificationData[] }>('/api/notifications');
     return res.data ?? [];
   });
+
+  // The tab stays mounted, so without this a push would open a stale list.
+  useEffect(() => onPushActivity(() => void load(true)), [load]);
 
   const notifications = data ?? [];
   const unreadCount = notifications.filter((n) => !n.readAt).length;

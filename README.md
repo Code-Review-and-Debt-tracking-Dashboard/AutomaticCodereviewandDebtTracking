@@ -185,7 +185,7 @@ This is an active university group project. Honest state of play:
 | **Analysis worker** | 🚧 **In progress** | Queue consumer, clone, and analyser orchestration |
 | **Scoring engine** | 📋 **Designed, not built** | Formula fully specified in `docs/scoring_algorithm.md` |
 | PR comments & commit status | 📋 Planned | Depends on the worker |
-| Push notifications | 📋 Planned | Device registration modelled; dispatch not wired |
+| Push notifications | ✅ Implemented | Device registration + Expo Push API dispatch for analysis alerts (Android, EAS development build) |
 
 ---
 
