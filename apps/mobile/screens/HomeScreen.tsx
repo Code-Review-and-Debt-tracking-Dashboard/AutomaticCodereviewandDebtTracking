@@ -18,6 +18,7 @@ import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { EmptyState, ErrorState, LoadingState, ScreenHeader } from '../components';
+import { ScreenTour } from '../components/ScreenTour';
 import { fonts, healthBand, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 import type { HomeStackParamList } from '../navigation/TabNavigator';
@@ -92,6 +93,7 @@ export default function HomeScreen() {
 
   // A repo opened before the org switch belongs to the old org — drop back to the list.
   const shownOrgId = useRef(activeOrgId);
+  const firstRepoRef = useRef<View>(null);
   useEffect(() => {
     if (shownOrgId.current === activeOrgId) return;
     shownOrgId.current = activeOrgId;
@@ -136,11 +138,12 @@ export default function HomeScreen() {
     );
   };
 
-  const renderRepoCard = ({ item }: { item: MobileRepo }) => {
+  const renderRepoCard = ({ item, index }: { item: MobileRepo; index: number }) => {
     const band = healthBand(item.healthScore, colors);
 
     return (
       <TouchableOpacity
+        ref={index === 0 ? firstRepoRef : undefined}
         style={styles.card}
         activeOpacity={0.75}
         onPress={() => navigation.navigate('RepoSummary', { repoId: item.id, repoName: item.name })}
@@ -277,6 +280,8 @@ export default function HomeScreen() {
           }
         />
       )}
+
+      <ScreenTour id="repositories" targets={{ firstRepo: firstRepoRef }} />
     </SafeAreaView>
   );
 }

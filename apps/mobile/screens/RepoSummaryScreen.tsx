@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { Card, ErrorState, LoadingState } from '../components';
+import { ScreenTour } from '../components/ScreenTour';
 import { fonts, healthBand, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 import type { HomeStackParamList } from '../navigation/TabNavigator';
@@ -92,6 +93,8 @@ const formatDate = (iso: string) =>
  * Step 109 (E-06): Mobile repo summary screen — gauge, trend, category bars, top issues
  */
 export default function RepoSummaryScreen({ route }: Props) {
+  const gaugeRef = useRef<View>(null);
+  const trendRef = useRef<View>(null);
   const { repoId } = route.params;
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -151,7 +154,9 @@ export default function RepoSummaryScreen({ route }: Props) {
     : 0;
   const hasBreakdown = maxCategoryMinutes > 0;
 
+  // tour sits beside the ScrollView so it doesn't scroll with the content
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -172,7 +177,7 @@ export default function RepoSummaryScreen({ route }: Props) {
       ) : null}
 
       {/* Gauge */}
-      <Card title="Health Score">
+      <Card ref={gaugeRef} title="Health Score">
         <View style={styles.gaugeRow}>
           <View style={[styles.gaugeRing, { borderColor: color, backgroundColor: `${color}15` }]}>
             <Text style={[styles.gaugeScore, { color }]}>{Math.round(detail.healthScore)}</Text>
@@ -200,7 +205,7 @@ export default function RepoSummaryScreen({ route }: Props) {
       </Card>
 
       {/* Trend */}
-      <Card title="30d Trend">
+      <Card ref={trendRef} title="30d Trend">
         {trend.length === 0 ? (
           <Text style={styles.emptyText}>No scans in the last 30 days.</Text>
         ) : (
@@ -301,6 +306,9 @@ export default function RepoSummaryScreen({ route }: Props) {
         )}
       </Card>
     </ScrollView>
+
+    <ScreenTour id="repoSummary" targets={{ gauge: gaugeRef, trend: trendRef }} />
+    </>
   );
 }
 
