@@ -1,11 +1,13 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
@@ -79,6 +81,9 @@ const severityColor = (severity: Severity, c: ThemeColors) =>
     : c.textMuted;
 
 const TOP_ISSUES_LIMIT = 5;
+const MORE_ISSUES_PAGE = 10;
+// Start fetching the next page of issues this many px before the bottom.
+const LOAD_MORE_THRESHOLD = 200;
 
 const formatDebt = (minutes: number) => {
   const h = Math.floor(minutes / 60);
@@ -99,7 +104,12 @@ export default function RepoSummaryScreen({ route }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  const { data, loading, refreshing, error, load } = useAsyncData<RepoSummaryData>(async () => {
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
+  // State lags a render behind, so fast scroll events need a ref to avoid double-fetching a page.
+  const loadingMoreRef = useRef(false);
+
+  const { data, loading, refreshing, error, load, setData } = useAsyncData<RepoSummaryData>(async () => {
     const [detailRes, trendRes, debtRes, smellsRes] = await Promise.allSettled([
       api.get<RepoDetail>(`/api/repos/${repoId}`),
       api.get<{ dataPoints: TrendPoint[] }>(`/api/repos/${repoId}/trend?days=30`),
@@ -117,6 +127,50 @@ export default function RepoSummaryScreen({ route }: Props) {
       smells: smellsRes.status === 'fulfilled' ? smellsRes.value : null,
     };
   }, [repoId]);
+
+  const loadMoreIssues = async () => {
+    const current = data?.smells;
+    if (!current || current.smells.length >= current.totalSmells) return;
+    if (loadingMoreRef.current || refreshing) return;
+
+    const offset = current.smells.length;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreFailed(false);
+
+    try {
+      const page = await api.get<RepoSmells>(
+        `/api/mobile/repos/${repoId}/smells?limit=${MORE_ISSUES_PAGE}&offset=${offset}`,
+      );
+      setData((prev) => {
+        // A pull-to-refresh replaced the list meanwhile, so this page no longer lines up.
+        if (!prev?.smells || prev.smells.smells.length !== offset) return prev;
+        return {
+          ...prev,
+          smells: { smells: [...prev.smells.smells, ...page.smells], totalSmells: page.totalSmells },
+        };
+      });
+    } catch {
+      setLoadMoreFailed(true);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  };
+
+  const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // After a failure, wait for Retry rather than re-firing on every scroll event.
+    if (loadMoreFailed) return;
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - LOAD_MORE_THRESHOLD) {
+      void loadMoreIssues();
+    }
+  };
+
+  const refresh = () => {
+    setLoadMoreFailed(false);
+    void load(true);
+  };
 
   if (loading) {
     return <LoadingState />;
@@ -161,10 +215,12 @@ export default function RepoSummaryScreen({ route }: Props) {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      onScroll={handleScroll}
+      scrollEventThrottle={100}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
-          onRefresh={() => void load(true)}
+          onRefresh={refresh}
           tintColor={colors.primary}
           colors={[colors.primary]}
           progressBackgroundColor={colors.card}
@@ -173,7 +229,7 @@ export default function RepoSummaryScreen({ route }: Props) {
     >
       {/* Refresh failed, but the data already on screen is still usable */}
       {error ? (
-        <ErrorState compact message={error} onRetry={() => void load(true)} retrying={refreshing} />
+        <ErrorState compact message={error} onRetry={refresh} retrying={refreshing} />
       ) : null}
 
       {/* Gauge */}
@@ -301,6 +357,17 @@ export default function RepoSummaryScreen({ route }: Props) {
                 </View>
               );
             })}
+            {loadingMore ? (
+              <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} />
+            ) : null}
+            {loadMoreFailed ? (
+              <ErrorState
+                compact
+                message="Could not load more issues."
+                onRetry={() => void loadMoreIssues()}
+                style={styles.loadMoreError}
+              />
+            ) : null}
             <Text style={styles.footnote}>
               Showing {smells.smells.length} of {smells.totalSmells}
             </Text>
@@ -482,5 +549,12 @@ const makeStyles = (c: ThemeColors) =>
     issueMessage: {
       fontSize: 12,
       color: c.textMuted,
+    },
+    loadMoreSpinner: {
+      marginTop: 12,
+    },
+    loadMoreError: {
+      marginTop: 12,
+      marginBottom: 0,
     },
   });
