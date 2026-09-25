@@ -6,3 +6,5 @@
 .dev
 docs
 apps/worker/vendor
+**/.env.*
+!**/.env.example
