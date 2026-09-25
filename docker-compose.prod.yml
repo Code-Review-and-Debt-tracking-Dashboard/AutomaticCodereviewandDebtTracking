@@ -1,0 +1,110 @@
+# Production stack. Needs a root .env (see .env.example) plus
+# apps/api/.env.production and apps/worker/.env.production.
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+# own project name, so it never touches the dev compose containers or volumes
+name: codehealth-prod
+
+# keeps logs from filling the disk
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-database-url: &database-url postgresql://postgres:${POSTGRES_PASSWORD:?set it in .env}@postgres:5432/code_review_db
+
+services:
+  caddy:
+    build:
+      context: .
+      dockerfile: deploy/caddy.Dockerfile
+      args:
+        VITE_API_URL: https://api.${DOMAIN:?set it in .env}
+    restart: unless-stopped
+    # the only service reachable from outside
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    logging: *logging
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: apps/api/.env.production
+    environment:
+      DATABASE_URL: *database-url
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # slim image has no curl
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: *logging
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    env_file: apps/worker/.env.production
+    environment:
+      DATABASE_URL: *database-url
+      REDIS_URL: redis://redis:6379
+      API_BASE_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: code_review_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # bullmq breaks if redis evicts its keys
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+volumes:
+  pg_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
