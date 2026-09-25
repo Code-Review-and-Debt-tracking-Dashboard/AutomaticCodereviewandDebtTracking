@@ -19,7 +19,7 @@ import type { HomeStackParamList } from '../navigation/TabNavigator';
 type Props = NativeStackScreenProps<HomeStackParamList, 'RepoSummary'>;
 
 interface RepoDetail {
-  healthScore: number;
+  healthScore: number | null;
   openFindings: number;
   debtMinutes: number;
   lastAnalyzedAt: string | null;
@@ -175,7 +175,9 @@ export default function RepoSummaryScreen({ route }: Props) {
       <Card title="Health Score">
         <View style={styles.gaugeRow}>
           <View style={[styles.gaugeRing, { borderColor: color, backgroundColor: `${color}15` }]}>
-            <Text style={[styles.gaugeScore, { color }]}>{Math.round(detail.healthScore)}</Text>
+            <Text style={[styles.gaugeScore, { color }]}>
+              {detail.healthScore === null ? '—' : Math.round(detail.healthScore)}
+            </Text>
             <Text style={styles.gaugeOutOf}>/ 100</Text>
             <Text style={[styles.gaugeBand, { color }]}>{band.label}</Text>
           </View>

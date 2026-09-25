@@ -47,7 +47,7 @@ export async function getMobileSummary(userId: string) {
         id: repo.id,
         name: repo.name,
         fullName: repo.fullName,
-        healthScore: latest?.healthScore ?? 80,
+        healthScore: latest?.healthScore ?? null,
         scoreChange: latest && previous ? latest.healthScore - previous.healthScore : 0,
         openPRs: openPrByRepo.get(repo.id) ?? 0,
         criticalIssues: latest?.criticalCount ?? 0,
