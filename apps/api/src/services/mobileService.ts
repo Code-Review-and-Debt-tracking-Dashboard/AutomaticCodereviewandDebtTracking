@@ -59,6 +59,7 @@ export async function getMobileSummary(userId: string) {
 
 interface SmellsQuery {
   limit?: unknown;
+  offset?: unknown;
 }
 
 function resolveSmellsLimit(query: SmellsQuery): number {
@@ -72,9 +73,21 @@ function resolveSmellsLimit(query: SmellsQuery): number {
   return limit;
 }
 
+function resolveSmellsOffset(query: SmellsQuery): number {
+  const offsetRaw = typeof query.offset === 'string' ? query.offset : undefined;
+  const offset = offsetRaw === undefined ? 0 : Number(offsetRaw);
+
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', '"offset" must be a non-negative integer');
+  }
+
+  return offset;
+}
+
 export async function getRepoSmells(repoId: string, query: SmellsQuery) {
   const repo = await getActiveRepo(repoId);
   const limit = resolveSmellsLimit(query);
+  const offset = resolveSmellsOffset(query);
 
   const snapshot = await prisma.healthSnapshot.findFirst({
     where: { repoId },
@@ -88,7 +101,9 @@ export async function getRepoSmells(repoId: string, query: SmellsQuery) {
   const [findings, totalSmells, newSmells] = await Promise.all([
     prisma.finding.findMany({
       where: { snapshotId: snapshot.id },
-      orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }],
+      // id tiebreak keeps pages stable: a scan inserts many findings with the same createdAt
+      orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
+      skip: offset,
       take: limit,
       select: { file: true, line: true, severity: true, rule: true, message: true, state: true },
     }),
