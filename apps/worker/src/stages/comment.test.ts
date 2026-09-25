@@ -143,7 +143,7 @@ describe('buildPrComment', () => {
     const lines = body.split('\n');
 
     expect(lines[0]).toBe(COMMENT_MARKER);
-    expect(lines[1]).toBe('## CodeHealth — Health Score 100');
+    expect(lines[1]).toBe('## CodePulse — Health Score 100');
     expect(body).toContain('🟢 **Excellent**');
     expect(body).toContain('### Technical debt: 0m (first analysis, no baseline)');
     expect(body).toContain('No findings — nothing to remediate.');
@@ -190,7 +190,7 @@ describe('buildPrComment', () => {
       baseline: { healthScore: 76.5 },
       gate: null,
     });
-    expect(down).toContain('## CodeHealth — Health Score 72.4 ▼ 4.1');
+    expect(down).toContain('## CodePulse — Health Score 72.4 ▼ 4.1');
 
     const up = buildPrComment({
       metrics: metrics({ healthScore: 80 }),
@@ -198,7 +198,7 @@ describe('buildPrComment', () => {
       baseline: { healthScore: 76.5 },
       gate: null,
     });
-    expect(up).toContain('## CodeHealth — Health Score 80 ▲ +3.5');
+    expect(up).toContain('## CodePulse — Health Score 80 ▲ +3.5');
 
     const same = buildPrComment({
       metrics: metrics({ healthScore: 80 }),
@@ -206,7 +206,7 @@ describe('buildPrComment', () => {
       baseline: { healthScore: 80 },
       gate: null,
     });
-    expect(same).toContain('## CodeHealth — Health Score 80\n');
+    expect(same).toContain('## CodePulse — Health Score 80\n');
   });
 
   it('omits the heading arrow when there is no baseline', () => {
@@ -217,7 +217,7 @@ describe('buildPrComment', () => {
       gate: null,
     });
 
-    expect(body).toContain('## CodeHealth — Health Score 72.4\n');
+    expect(body).toContain('## CodePulse — Health Score 72.4\n');
     expect(body).not.toContain('▼');
     expect(body).not.toContain('▲');
   });

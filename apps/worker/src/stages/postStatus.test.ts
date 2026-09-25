@@ -60,7 +60,7 @@ describe('createGateStatus', () => {
       repo: 'widgets',
       sha: 'abc123',
       state: 'success',
-      context: 'codehealth/quality-gate',
+      context: 'codepulse/quality-gate',
     });
   });
 
