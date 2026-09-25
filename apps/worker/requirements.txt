@@ -1,5 +1,5 @@
-# Python tools the worker shells out to. Not installed by npm — until the worker
-# image exists these have to be on the host:
+# Python tools the worker shells out to. The worker image installs these; to run
+# the worker on the host instead:
 #   python3 -m pip install -r apps/worker/requirements.txt
 #
 # Pinned exactly: a version bump changes which messages fire, and that would move

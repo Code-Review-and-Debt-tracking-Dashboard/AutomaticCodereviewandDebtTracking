@@ -51,8 +51,8 @@ export interface CppcheckReport {
  * Turning it into findings is the normalize stage's job.
  *
  * Needs cppcheck on PATH. Unlike the Java tools it's a native binary, so it
- * can't be dropped in vendor/ — `brew install cppcheck` until the worker image
- * exists.
+ * can't be dropped in vendor/. The worker image has it; on the host,
+ * `brew install cppcheck`.
  */
 export async function runCppcheck(repoPath: string): Promise<CppcheckReport> {
   // information is left out because without the repo's include paths it's
