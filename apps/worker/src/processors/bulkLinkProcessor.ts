@@ -1,16 +1,24 @@
-import { prisma } from '@codehealth/db';
+import { AnalysisTrigger, prisma } from '@codehealth/db';
 import { githubClient, linkRepo, type Octokit } from '@codehealth/github';
-import type {
-  BulkLinkJobData,
-  BulkLinkJobResult,
-  BulkLinkRepoResult,
-  BulkLinkStatus,
+import {
+  ANALYSIS_QUEUE_NAME,
+  type AnalysisJobData,
+  type BulkLinkJobData,
+  type BulkLinkJobResult,
+  type BulkLinkRepoResult,
+  type BulkLinkStatus,
 } from '@codehealth/shared';
-import type { Job } from 'bullmq';
+import { Queue, type Job } from 'bullmq';
 
 import { env } from '../config/env';
 import { decrypt } from '../lib/crypto';
 import { logger } from '../lib/logger';
+import { redis } from '../lib/redis';
+
+const analysisQueue = new Queue<AnalysisJobData>(ANALYSIS_QUEUE_NAME, {
+  connection: redis,
+  skipWaitingForReady: true,
+});
 
 const EMPTY_SUMMARY: Record<BulkLinkStatus, number> = {
   LINKED: 0,
@@ -102,6 +110,50 @@ export async function bulkLinkProcessor(job: Job<BulkLinkJobData>): Promise<Bulk
       { webhookUrl: env.githubWebhookUrl, webhookSecret: env.githubWebhookSecret, orgId },
       logger,
     );
+
+    if (outcome.status === 'LINKED') {
+      try {
+        const repo = await prisma.repository.findUnique({
+          where: { id: outcome.repository.id },
+          select: { id: true, defaultBranch: true, cloneUrl: true, htmlUrl: true },
+        });
+
+        if (repo) {
+          const analysis = await prisma.analysisJob.create({
+            data: {
+              repoId: repo.id,
+              branch: repo.defaultBranch ?? 'main',
+              commitSha: 'HEAD',
+              trigger: AnalysisTrigger.MANUAL,
+            },
+          });
+
+          const analysisJob = await analysisQueue.add('analyze', {
+            analysisId: analysis.id,
+            repoId: repo.id,
+            prNumber: null,
+            branch: repo.defaultBranch ?? 'main',
+            commitSha: 'HEAD',
+            cloneUrl: repo.cloneUrl ?? `${repo.htmlUrl}.git`,
+          });
+
+          await prisma.analysisJob.update({
+            where: { id: analysis.id },
+            data: { bullJobId: analysisJob.id },
+          });
+
+          logger.info(
+            { repoId: repo.id, analysisId: analysis.id, jobId: analysisJob.id },
+            'Initial analysis queued for linked repository',
+          );
+        }
+      } catch (err) {
+        logger.error(
+          { err, repoId: outcome.repository.id },
+          'Could not queue initial analysis for linked repository',
+        );
+      }
+    }
 
     results.push({
       githubRepoId,

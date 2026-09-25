@@ -234,3 +234,11 @@ How each tool is invoked in the worker's analysis pipeline:
 ---
 
 *This document validates the tool matrix as of June 2026. All 10 analysis engine tools are actively maintained. The analysis engine is framework-agnostic — it operates at the language level (JS/TS, Python, Java, C/C++) and works on any framework built on those languages.*
+
+---
+
+## 8. Load Testing
+
+| Tool | Version (Jun 2026) | Status | License | Notes |
+|---|---|---|---|---|
+| k6 | latest | ✅ Active | AGPL-3.0 | API load test (burst webhooks, concurrent users on endpoints) |

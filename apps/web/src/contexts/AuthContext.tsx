@@ -12,18 +12,6 @@ import { useNavigate } from "react-router-dom";
 import { api, refreshAccessToken } from "../lib/apiClient";
 import { onAuthLost, setAccessToken } from "../lib/authTokenStore";
 
-/*
- * =========================================================
- * AUTH CONTEXT
- * =========================================================
- *
- * The access token lives in memory only, so a reload starts with nothing.
- * On mount we trade the refresh cookie for a new access token; if that fails
- * the visitor is simply anonymous.
- *
- * `status` starts as "loading" so ProtectedRoute shows a spinner rather than
- * flashing the login page before we know.
- */
 
 export interface AuthUser {
   id: string;

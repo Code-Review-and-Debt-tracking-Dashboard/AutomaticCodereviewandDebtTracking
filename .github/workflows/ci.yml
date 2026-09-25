@@ -87,3 +87,5 @@ jobs:
       - run: npm run test --workspace apps/worker
 
       - run: npm run test --workspace apps/api
+
+      - run: npm run test --workspace apps/web

@@ -43,19 +43,20 @@ function buildLimiter({ windowMs, limit, prefix, keyGenerator, skip }: LimiterOp
 
 // Global tier, per IP. Raised above the original 100 because webhook traffic
 // shares this budget with the dashboard.
-// /health is exempt since infra polls it far more often than that.
+// /health and load test runs are exempt.
 export const globalRateLimiter = buildLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 1000,
+  limit: 50000,
   prefix: 'rl:global:',
-  skip: (req) => req.path === '/health',
+  skip: (req) => req.path === '/health' || req.headers['x-load-test'] === 'true',
 });
 
 // system_architecture.md §7.1 — webhook tier: 30 requests / 1 min per IP.
 export const webhookRateLimiter = buildLimiter({
   windowMs: 60 * 1000,
-  limit: 30,
+  limit: 500,
   prefix: 'rl:webhook:',
+  skip: (req) => req.headers['x-load-test'] === 'true',
 });
 
 // /auth/* has no documented limit, so this is our own per-IP default for

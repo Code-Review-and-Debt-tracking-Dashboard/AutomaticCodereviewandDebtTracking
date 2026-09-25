@@ -27,11 +27,37 @@ reposRouter.get('/api/repos/available', requireAuth, validateRequest(availableRe
 
 // POST /api/repos : link a repository and register its webhook. Everything
 // else comes from GitHub, and the org is derived from the repo's owner, so
-// the body is just the id.
+// the body can accept a single id or an array of ids.
 reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   try {
-    const repo = await linkRepository(req.user!.id, Number(req.body.githubRepoId));
-    res.status(201).json(repo);
+    const ids = req.body.githubRepoIds;
+    if (Array.isArray(ids)) {
+      const results = [];
+      for (const id of ids) {
+        try {
+          const repo = await linkRepository(req.user!.id, Number(id));
+          try {
+            await triggerManualAnalysis(repo.id, req.user!.id, req.org?.role ?? 'OWNER');
+          } catch {
+            // Ignore if initial analysis trigger fails (e.g. rate limit or already queued)
+          }
+          results.push(repo);
+        } catch (err) {
+          // If a single repo fails in a bulk operation, we log it and continue
+          // The frontend should handle the results array
+          results.push({ error: (err as Error).message, githubRepoId: id });
+        }
+      }
+      res.status(201).json({ results });
+    } else {
+      const repo = await linkRepository(req.user!.id, Number(req.body.githubRepoId));
+      try {
+        await triggerManualAnalysis(repo.id, req.user!.id, req.org?.role ?? 'OWNER');
+      } catch {
+        // Ignore if initial analysis trigger fails (e.g. rate limit or already queued)
+      }
+      res.status(201).json(repo);
+    }
   } catch (err) {
     next(err);
   }

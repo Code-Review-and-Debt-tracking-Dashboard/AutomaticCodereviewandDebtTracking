@@ -148,9 +148,9 @@ describe('analysis pipeline, end to end', () => {
             category: 'VULNERABILITY',
             severity: 'HIGH',
             state: 'NEW',
-            file: 'src/run.js',
+            file: expect.stringMatching(/src[\\/]run\.js/),
           }),
-          expect.objectContaining({ tool: 'todo-scan', file: 'src/run.js', line: 1 }),
+          expect.objectContaining({ tool: 'todo-scan', file: expect.stringMatching(/src[\\/]run\.js/), line: 1 }),
         ]),
       );
 
