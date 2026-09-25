@@ -15,7 +15,9 @@ import {
   addRepoMember,
   createAnalysisJob,
   createDevice,
+  createFinding,
   createOrg,
+  createPullRequest,
   createQualityGate,
   createRepo,
   createSnapshot,
@@ -171,6 +173,52 @@ describe('agent job endpoints', () => {
     it('returns 204 when the repo has no gate, so the worker uses its defaults', async () => {
       const res = await api().get(`/jobs/${job.id}/quality-gate`).set(auth);
       expect(res.status).toBe(204);
+    });
+  });
+
+  describe('GET /jobs/:jobId/baseline', () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+
+    it('returns 204 when there is no earlier run to compare against', async () => {
+      const res = await api().get(`/jobs/${job.id}/baseline`).set(auth);
+      expect(res.status).toBe(204);
+    });
+
+    it('compares a push with the latest run on its own branch', async () => {
+      await createSnapshot(repo, { healthScore: 60, calculatedAt: hoursAgo(3) });
+      const latest = await createSnapshot(repo, { healthScore: 70, calculatedAt: hoursAgo(2) });
+      await createFinding(latest, { rule: 'no-eval', debtMinutes: 30 });
+      const other = await createAnalysisJob(repo, { branch: 'feature/other' });
+      await createSnapshot(repo, { healthScore: 90, calculatedAt: hoursAgo(1) }, other);
+      // A PR opened from main runs on the same branch name, but is not a push.
+      const pr = await createPullRequest(repo, { headBranch: 'main', baseBranch: 'release' });
+      const prRun = await createAnalysisJob(repo, { branch: 'main', pullRequestId: pr.id });
+      await createSnapshot(repo, { healthScore: 95, calculatedAt: hoursAgo(1) }, prRun);
+
+      const res = await api().get(`/jobs/${job.id}/baseline`).set(auth);
+
+      expect(res.status).toBe(200);
+      expect(res.body.healthScore).toBe(70);
+      expect(res.body.findings).toEqual([
+        expect.objectContaining({ rule: 'no-eval', debtMinutes: 30, tool: 'eslint' }),
+      ]);
+    });
+
+    it('compares a PR with its target branch, not with earlier PR runs', async () => {
+      const pr = await createPullRequest(repo, { baseBranch: 'main' });
+      const prJob = await createAnalysisJob(repo, {
+        status: 'PENDING',
+        branch: pr.headBranch,
+        pullRequestId: pr.id,
+      });
+      await createSnapshot(repo, { healthScore: 75, calculatedAt: hoursAgo(2) });
+      const earlierPrRun = await createAnalysisJob(repo, { branch: pr.headBranch, pullRequestId: pr.id });
+      await createSnapshot(repo, { healthScore: 95, calculatedAt: hoursAgo(1) }, earlierPrRun);
+
+      const res = await api().get(`/jobs/${prJob.id}/baseline`).set(auth);
+
+      expect(res.status).toBe(200);
+      expect(res.body.healthScore).toBe(75);
     });
   });
 
@@ -369,13 +417,16 @@ describe('agent job endpoints', () => {
 
       const start = await api().post(`/jobs/${job.id}/start`).set(otherAuth);
       const gate = await api().get(`/jobs/${job.id}/quality-gate`).set(otherAuth);
+      const baseline = await api().get(`/jobs/${job.id}/baseline`).set(otherAuth);
       const ingest = await api().post(`/jobs/${job.id}/results`).set(otherAuth).send(results(job.id));
       const fail = await api()
         .post(`/jobs/${job.id}/fail`)
         .set(otherAuth)
         .send({ analysisId: job.id, stage: 'clone', errorMessage: 'x', retryCount: 0 });
 
-      expect([start.status, gate.status, ingest.status, fail.status]).toEqual([404, 404, 404, 404]);
+      expect([start.status, gate.status, baseline.status, ingest.status, fail.status]).toEqual([
+        404, 404, 404, 404, 404,
+      ]);
       expect(await prisma.healthSnapshot.count({ where: { analysisId: job.id } })).toBe(0);
     });
   });

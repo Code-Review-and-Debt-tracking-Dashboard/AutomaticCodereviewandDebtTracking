@@ -1,6 +1,7 @@
 import type {
   AnalysisFailurePayload,
   AnalysisResultsPayload,
+  BaselineSnapshot,
   QualityGateThresholds,
 } from '@codehealth/shared';
 
@@ -42,6 +43,12 @@ export async function fetchQualityGate(
 ): Promise<QualityGateThresholds | null> {
   const res = await request('GET', `/jobs/${analysisId}/quality-gate`);
   return res.status === 204 ? null : ((await res.json()) as QualityGateThresholds);
+}
+
+// Null when there is no earlier run to compare against.
+export async function fetchBaseline(analysisId: string): Promise<BaselineSnapshot | null> {
+  const res = await request('GET', `/jobs/${analysisId}/baseline`);
+  return res.status === 204 ? null : ((await res.json()) as BaselineSnapshot);
 }
 
 export async function postResults(payload: AnalysisResultsPayload): Promise<void> {
