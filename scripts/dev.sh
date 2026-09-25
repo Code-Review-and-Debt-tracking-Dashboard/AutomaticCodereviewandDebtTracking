@@ -114,7 +114,7 @@ cmd_start() {
 
   # Prisma talks to Postgres immediately, so don't race the container.
   for _ in $(seq 1 30); do
-    docker exec codehealth-db pg_isready -U postgres >/dev/null 2>&1 && break
+    docker exec codepulse-db pg_isready -U postgres >/dev/null 2>&1 && break
     sleep 1
   done
 
@@ -154,7 +154,7 @@ cmd_stop() {
 
 cmd_status() {
   echo "Containers:"
-  docker ps --filter name=codehealth --format '  {{.Names}}  {{.Status}}' 2>/dev/null | grep . \
+  docker ps --filter name=codepulse --format '  {{.Names}}  {{.Status}}' 2>/dev/null | grep . \
     || c_warn "  none running"
 
   echo "Services:"
