@@ -239,7 +239,7 @@ export function RepositoryFindingsPage() {
                 <DataTableRow key={finding.id} className="hover:bg-muted/30">
                   <DataTableCell>
                     <div>
-                      <p className="max-w-[360px] font-medium">{finding.message}</p>
+                      <p className="max-w-[360px] break-words font-medium">{finding.message}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{finding.rule}</p>
                     </div>
                   </DataTableCell>
