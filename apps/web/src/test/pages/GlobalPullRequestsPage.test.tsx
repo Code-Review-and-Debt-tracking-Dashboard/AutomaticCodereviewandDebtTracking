@@ -65,4 +65,19 @@ describe("GlobalPullRequestsPage", () => {
       expect(screen.getByText("85.2")).toBeInTheDocument();
     });
   });
+
+  it("shows a dash instead of a score for a PR that was never analysed", async () => {
+    mockedApi.get.mockResolvedValue({
+      ...mockPRData,
+      pullRequests: [{ ...mockPRData.pullRequests[0], score: null, status: "Pending" }],
+    });
+
+    render(
+      <MemoryRouter>
+        <GlobalPullRequestsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("HEALTH SCORE —")).toBeInTheDocument();
+  });
 });

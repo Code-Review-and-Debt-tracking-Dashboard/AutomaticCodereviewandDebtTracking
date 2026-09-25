@@ -24,12 +24,14 @@ interface SummaryRepo {
   id: string;
   name: string;
   fullName: string;
-  healthScore: number;
+  healthScore: number | null;
   scoreChange: number;
   openPRs: number;
   criticalIssues: number;
   lastAnalyzedAt: string | null;
 }
+
+type AnalyzedRepo = SummaryRepo & { healthScore: number };
 
 interface MobileSummary {
   user: { username: string; avatarUrl: string | null } | null;
@@ -97,9 +99,8 @@ export default function OverviewScreen() {
     );
   }
 
-  // The API reports 80 for a repo that was never analyzed; leave those out of
-  // the averages so they don't flatter the portfolio.
-  const analyzed = data.repos.filter((r) => r.lastAnalyzedAt);
+  // repos that were never analyzed have no score yet, so leave them out of the averages
+  const analyzed = data.repos.filter((r): r is AnalyzedRepo => r.healthScore !== null);
   const average = analyzed.length
     ? Math.round(analyzed.reduce((sum, r) => sum + r.healthScore, 0) / analyzed.length)
     : null;
@@ -140,7 +141,7 @@ export default function OverviewScreen() {
     },
   ];
 
-  const renderRepoRow = (repo: SummaryRepo, detail: React.ReactNode) => {
+  const renderRepoRow = (repo: AnalyzedRepo, detail: React.ReactNode) => {
     const repoBand = healthBand(repo.healthScore, colors);
     return (
       <TouchableOpacity

@@ -34,6 +34,18 @@ describe('GET /api/mobile/summary', () => {
     });
   });
 
+  it('has no score for a repo that was never analysed', async () => {
+    const t = await seedTenant('acme');
+    const fresh = await createRepo(t.org, t.developer, { name: 'fresh' });
+
+    const res = await api().get('/api/mobile/summary').set(bearer(t.developer));
+
+    expect(res.body.repos.find((r: { id: string }) => r.id === fresh.id)).toMatchObject({
+      healthScore: null,
+      lastAnalyzedAt: null,
+    });
+  });
+
   it('only includes repos the caller owns or is an active member of', async () => {
     const t = await seedTenant('acme');
     await createRepo(t.org, t.admin, { name: 'not-mine' });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,6 +53,17 @@ describe("RepositoryPullRequestsPage", () => {
       expect(screen.getByText("dev-one")).toBeInTheDocument();
       expect(screen.getByText("Passed")).toBeInTheDocument();
     });
+  });
+
+  it("shows a dash instead of a score for a PR that was never analysed", async () => {
+    mockedApi.get.mockResolvedValueOnce({
+      data: [{ ...mockPullItem[0], id: 11, title: "Pending one", score: null, status: "Pending" }],
+    });
+
+    renderPage();
+
+    const row = (await screen.findByText("#11 Pending one")).closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
   });
 
   it("filters pull requests using the search bar", async () => {

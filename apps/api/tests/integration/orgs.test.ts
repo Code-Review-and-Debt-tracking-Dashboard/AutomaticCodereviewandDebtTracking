@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { bulkLinkQueue } from '../../src/lib/queue';
 import { api } from '../helpers/app';
 import { bearer } from '../helpers/auth';
-import { addOrgMember, addRepoMember, createOrg, createRepo, createUser } from '../helpers/factories';
+import { addOrgMember, addRepoMember, createOrg, createPullRequest, createRepo, createUser } from '../helpers/factories';
 import { seedTenant } from '../helpers/tenants';
 
 describe('GET /api/orgs', () => {
@@ -35,6 +35,21 @@ describe('GET /api/orgs', () => {
     const user = await createUser();
     const res = await api().get('/api/orgs').set(bearer(user));
     expect(res.body).toEqual({ data: [] });
+  });
+});
+
+describe('GET /api/orgs/:orgId/pulls', () => {
+  it('has no score for a PR that was never analysed', async () => {
+    const t = await seedTenant('acme');
+    const pending = await createPullRequest(t.repo, { title: 'pending' });
+
+    const res = await api().get(`/api/orgs/${t.org.id}/pulls`).set(bearer(t.owner));
+
+    expect(res.status).toBe(200);
+    expect(res.body.pullRequests.find((p: { id: number }) => p.id === pending.prNumber)).toMatchObject({
+      score: null,
+      status: 'Pending',
+    });
   });
 });
 
