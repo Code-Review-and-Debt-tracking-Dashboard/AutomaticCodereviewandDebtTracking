@@ -28,7 +28,7 @@ interface MobileRepo {
   name: string;
   fullName: string;
   language: string;
-  healthScore: number;
+  healthScore: number | null;
   openFindings: number;
   debtHours: number;
   sparkline: number[];
@@ -51,7 +51,7 @@ async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
     name: string;
     fullName: string;
     language: string | null;
-    healthScore: number;
+    healthScore: number | null;
     openFindings: number;
     debtMinutes: number;
     private: boolean;
@@ -148,7 +148,7 @@ export default function HomeScreen() {
         activeOpacity={0.75}
         onPress={() => navigation.navigate('RepoSummary', { repoId: item.id, repoName: item.name })}
         accessibilityRole="button"
-        accessibilityLabel={`${item.name}, health score ${item.healthScore}, ${band.label}`}
+        accessibilityLabel={`${item.name}, health score ${item.healthScore ?? 'none'}, ${band.label}`}
       >
         <View style={styles.cardHeader}>
           <View style={styles.titleBlock}>
@@ -166,7 +166,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.scoreBlock}>
             <Text style={[styles.scoreText, { color: band.color }]}>
-              {Math.round(item.healthScore)}
+              {item.healthScore === null ? '—' : Math.round(item.healthScore)}
             </Text>
             <Text style={[styles.bandText, { color: band.color }]}>{band.label}</Text>
           </View>

@@ -120,11 +120,11 @@ describe('GET /api/repos/:repoId', () => {
     });
   });
 
-  it('falls back to defaults when the repo has never been analysed', async () => {
+  it('has no score when the repo has never been analysed', async () => {
     const t = await seedTenant('acme');
     const fresh = await createRepo(t.org, t.owner);
     const res = await api().get(`/api/repos/${fresh.id}`).set(bearer(t.owner));
-    expect(res.body).toMatchObject({ healthScore: 80, openFindings: 0, debtMinutes: 0, lastAnalyzedAt: null });
+    expect(res.body).toMatchObject({ healthScore: null, openFindings: 0, debtMinutes: 0, lastAnalyzedAt: null });
   });
 });
 
@@ -404,6 +404,7 @@ describe('GET /api/repos/:repoId/pulls', () => {
       id: newer.prNumber,
       author: 'octocat',
       branch: newer.headBranch,
+      score: null,
       status: 'Pending',
       htmlUrl: newer.htmlUrl,
     });
