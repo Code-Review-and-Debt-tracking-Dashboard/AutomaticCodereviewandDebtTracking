@@ -103,3 +103,23 @@ export async function triggerManualAnalysis(repoId: string, userId: string, orgR
     trigger: AnalysisTrigger.MANUAL,
   });
 }
+
+// run once when a repo is linked so the dashboard isn't empty until the next push.
+// a relinked repo already has history, so it's skipped
+export async function queueFirstAnalysis(repoId: string) {
+  const repository = await prisma.repository.findUniqueOrThrow({
+    where: { id: repoId },
+    select: { defaultBranch: true, cloneUrl: true, htmlUrl: true },
+  });
+
+  const existing = await prisma.analysisJob.findFirst({ where: { repoId }, select: { id: true } });
+  if (existing) return null;
+
+  return await enqueueAnalysisJob({
+    repoId,
+    branch: repository.defaultBranch,
+    commitSha: 'HEAD',
+    cloneUrl: repository.cloneUrl ?? `${repository.htmlUrl}.git`,
+    trigger: AnalysisTrigger.MANUAL,
+  });
+}

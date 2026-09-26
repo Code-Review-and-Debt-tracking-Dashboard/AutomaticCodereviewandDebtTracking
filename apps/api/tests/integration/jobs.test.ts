@@ -10,6 +10,7 @@ import type { AnalysisResultsPayload, SnapshotMetrics } from '@codehealth/shared
 import crypto from 'crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { analysisQueue } from '../../src/lib/queue';
 import { api } from '../helpers/app';
 import {
   addRepoMember,
@@ -443,5 +444,58 @@ describe('agent job endpoints', () => {
       ]);
       expect(await prisma.healthSnapshot.count({ where: { analysisId: job.id } })).toBe(0);
     });
+  });
+});
+
+describe('POST /jobs/repos/:repoId/first-analysis', () => {
+  let org: Organization;
+  let owner: User;
+  let repo: Repository;
+  let auth: { authorization: string };
+
+  beforeEach(async () => {
+    owner = await createUser();
+    org = await createOrg();
+    repo = await createRepo(org, owner);
+    auth = await createAgent(org, 'first-analysis-token');
+  });
+
+  it('401 without a token', async () => {
+    const res = await api().post(`/jobs/repos/${repo.id}/first-analysis`);
+    expect(res.status).toBe(401);
+  });
+
+  it('queues a MANUAL run of the default branch for a freshly linked repo', async () => {
+    const res = await api().post(`/jobs/repos/${repo.id}/first-analysis`).set(auth);
+
+    expect(res.status).toBe(202);
+    const job = await prisma.analysisJob.findUniqueOrThrow({ where: { id: res.body.analysisId } });
+    expect(job).toMatchObject({
+      repoId: repo.id,
+      trigger: 'MANUAL',
+      status: 'PENDING',
+      branch: repo.defaultBranch,
+      commitSha: 'HEAD',
+      bullJobId: res.body.jobId,
+    });
+    expect(await analysisQueue.getJob(res.body.jobId)).toBeTruthy();
+  });
+
+  it('skips a repo that already has an analysis, like one being re-linked', async () => {
+    await createAnalysisJob(repo, { status: 'COMPLETED' });
+
+    const res = await api().post(`/jobs/repos/${repo.id}/first-analysis`).set(auth);
+
+    expect(res.status).toBe(204);
+    expect(await prisma.analysisJob.count({ where: { repoId: repo.id } })).toBe(1);
+  });
+
+  it("404 for a repo in another org", async () => {
+    const otherRepo = await createRepo(await createOrg(), await createUser());
+
+    const res = await api().post(`/jobs/repos/${otherRepo.id}/first-analysis`).set(auth);
+
+    expect(res.status).toBe(404);
+    expect(await prisma.analysisJob.count({ where: { repoId: otherRepo.id } })).toBe(0);
   });
 });
