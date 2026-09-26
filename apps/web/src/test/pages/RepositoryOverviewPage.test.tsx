@@ -73,4 +73,33 @@ describe("RepositoryOverviewPage", () => {
       "/repositories/repo-1/analyze",
     );
   });
+
+  it("explains the score and what changed since the last analysis", async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/api/repos/repo-1") {
+        return Promise.resolve({ id: "repo-1", name: "demo", fullName: "acme/demo", healthScore: 45 } as any);
+      }
+      if (url.includes("/trend")) {
+        return Promise.resolve({
+          dataPoints: [
+            { date: "2026-09-20T10:00:00Z", healthScore: 52, totalIssues: 10, vulnerabilityCount: 1 },
+            { date: "2026-09-21T10:00:00Z", healthScore: 45, totalIssues: 14, vulnerabilityCount: 3 },
+          ],
+        } as any);
+      }
+      if (url.endsWith("/analyses")) return Promise.resolve({ data: [] } as any);
+      return Promise.reject({ response: { status: 404 } });
+    });
+
+    renderPage();
+
+    expect(await screen.findByText(/Significant quality problems/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Since the last analysis: score −7 · \+4 findings · \+2 vulnerabilities/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /see findings/i })).toHaveAttribute(
+      "href",
+      "/repositories/repo-1/findings",
+    );
+  });
 });

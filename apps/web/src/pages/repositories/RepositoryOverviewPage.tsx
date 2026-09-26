@@ -36,6 +36,7 @@ import { HotspotTable, type HotspotFile } from "../../components/hotspots/Hotspo
 import { api } from "../../lib/apiClient";
 import { apiErrorMessage } from "../../lib/apiError";
 import { healthBand, METRIC_HELP } from "../../lib/healthBand";
+import { describeChange, type TrendCounts } from "../../lib/scoreChange";
 import { Loader2 } from "lucide-react";
 
 import {
@@ -108,6 +109,7 @@ export function RepositoryOverviewPage() {
   const navigate = useNavigate();
   const [repoDetail, setRepoDetail] = useState<RepoDetail | null>(null);
   const [trendPoints, setTrendPoints] = useState<{ date: string; score: number }[]>([]);
+  const [changes, setChanges] = useState<string[]>([]);
   const [debtData, setDebtData] = useState<{
     totalDebtMinutes: number;
     debtDelta: number;
@@ -130,7 +132,7 @@ export function RepositoryOverviewPage() {
     try {
       const [repoRes, trendRes, debtRes, hotspotsRes, notifRes, runsRes] = await Promise.allSettled([
         api.get<RepoDetail>(`/api/repos/${repoId}`),
-        api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
+        api.get<{ dataPoints: (TrendCounts & { date: string })[] }>(`/api/repos/${repoId}/trend?days=30`),
         api.get<{
           totalDebtMinutes: number;
           debtDelta: number;
@@ -148,12 +150,14 @@ export function RepositoryOverviewPage() {
         setRepoDetail(repoRes.value);
       }
       if (trendRes.status === "fulfilled" && trendRes.value?.dataPoints) {
+        const points = trendRes.value.dataPoints;
         setTrendPoints(
-          trendRes.value.dataPoints.map((dp) => ({
+          points.map((dp) => ({
             date: new Date(dp.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
             score: dp.healthScore,
           }))
         );
+        setChanges(points.length >= 2 ? describeChange(points[points.length - 2], points[points.length - 1]) : []);
       }
       if (debtRes.status === "fulfilled") {
         setDebtData(debtRes.value);
@@ -347,7 +351,7 @@ export function RepositoryOverviewPage() {
           value={repository.healthScore === null ? "—" : String(repository.healthScore)}
           help={METRIC_HELP.healthScore}
           icon={HealthIcon}
-          color="success"
+          color={band.tone}
         />
 
         <StatCard
@@ -366,6 +370,22 @@ export function RepositoryOverviewPage() {
         />
 
       </div>
+
+      {repository.healthScore !== null && (
+        <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+          <p>
+            <span className={`font-medium ${band.textClass}`}>{band.label}.</span> {band.meaning}
+          </p>
+          {changes.length > 0 && (
+            <p>
+              Since the last analysis: {changes.join(" · ")}.{" "}
+              <Link to={`/repositories/${repoId}/findings`} className="font-medium text-primary hover:underline">
+                See findings
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
         <Card data-tour="health-trend" className="p-5">
