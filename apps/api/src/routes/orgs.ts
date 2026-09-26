@@ -16,8 +16,7 @@ import {
 
 export const orgsRouter = Router();
 
-// GET /api/orgs : the tenants the caller belongs to. This is what the UI uses
-// to let them pick which organization to work in.
+// GET /api/orgs : orgs the caller belongs to
 orgsRouter.get('/api/orgs',requireAuth, async (req, res, next) => {
   try {
     const data = await listUserOrganizations(req.user!.id);
@@ -68,9 +67,7 @@ orgsRouter.get(
   },
 );
 
-// Linking a few hundred repos means a webhook call each, so this hands the
-// work to the worker and answers straight away. 'read' access on purpose:
-// linking one repo needs no org role either, and GitHub admin is the real gate.
+// hands the work to the worker. GitHub admin is the real check, so read access is enough
 orgsRouter.post(
   '/api/orgs/:orgId/repos/bulk-link',
   requireAuth,
@@ -87,7 +84,7 @@ orgsRouter.post(
   },
 );
 
-// What the bulk job has done so far, and the per-repo outcome once it's done.
+// bulk link job progress
 orgsRouter.get(
   '/api/orgs/:orgId/repos/bulk-link/:jobId',
   requireAuth,

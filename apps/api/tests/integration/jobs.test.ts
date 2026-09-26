@@ -24,7 +24,6 @@ import {
   createUser,
 } from '../helpers/factories';
 
-// The API stores only the hash, so a test agent is a token plus its hash.
 async function createAgent(org: Organization, token: string, revoked = false) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   await prisma.agent.create({
@@ -33,7 +32,7 @@ async function createAgent(org: Organization, token: string, revoked = false) {
   return { authorization: `Bearer ${token}` };
 }
 
-// orgId null — one worker holds one token, so this is how it services every org.
+// no orgId = serves every org
 async function createPlatformAgent(token: string) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   await prisma.agent.create({ data: { tokenHash, orgId: null } });
@@ -190,7 +189,7 @@ describe('agent job endpoints', () => {
       await createFinding(latest, { rule: 'no-eval', debtMinutes: 30 });
       const other = await createAnalysisJob(repo, { branch: 'feature/other' });
       await createSnapshot(repo, { healthScore: 90, calculatedAt: hoursAgo(1) }, other);
-      // A PR opened from main runs on the same branch name, but is not a push.
+      // same branch name but it's a PR, not a push
       const pr = await createPullRequest(repo, { headBranch: 'main', baseBranch: 'release' });
       const prRun = await createAnalysisJob(repo, { branch: 'main', pullRequestId: pr.id });
       await createSnapshot(repo, { healthScore: 95, calculatedAt: hoursAgo(1) }, prRun);
@@ -291,8 +290,7 @@ describe('agent job endpoints', () => {
       return { ...results(job.id).metrics, ...overrides };
     }
 
-    // The default payload fails the gate, so a test that wants a quiet run has
-    // to pass this in.
+    // default payload fails the gate
     const quiet = () => ({ metrics: metrics({ gateResult: 'PASS' as const }), findings: [] });
 
     function ingest(overrides: Partial<AnalysisResultsPayload> = {}) {
@@ -395,7 +393,7 @@ describe('agent job endpoints', () => {
         const res = await ingest();
         expect(res.status).toBe(200);
 
-        // The push goes out after the response, so it has to be waited for.
+        // push is sent after the response
         await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
         const [url, init] = fetchSpy.mock.calls[0];
         expect(String(url)).toBe('https://exp.host/--/api/v2/push/send');

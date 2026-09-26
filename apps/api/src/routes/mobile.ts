@@ -37,7 +37,7 @@ mobileRouter.get(
 // POST /api/devices : register this phone's Expo push token
 mobileRouter.post('/api/devices', requireAuth, validateRequest(registerDeviceSchema), async (req, res, next) => {
   try {
-    // validateRequest only checks; parse again to get the trimmed values.
+    // parse again to get trimmed values
     const body = registerDeviceSchema.shape.body.parse(req.body);
     const device = await registerDevice(req.user!.id, body);
     res.status(200).json(device);

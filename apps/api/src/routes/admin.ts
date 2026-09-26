@@ -6,8 +6,7 @@ import { revokeAllUserSessions } from '../services/sessionService';
 
 export const adminRouter = Router();
 
-// Kills every session a user has. Their access token still works until it
-// expires, but they can't get a new one.
+// kills all sessions, the current access token still works till it expires
 adminRouter.delete(
   '/api/admin/users/:userId/sessions',
   requireAuth,

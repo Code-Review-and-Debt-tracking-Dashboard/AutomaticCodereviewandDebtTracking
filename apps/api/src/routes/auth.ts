@@ -26,12 +26,9 @@ import {
 import { revokeSessionByToken, rotateSession } from '../services/sessionService';
 
 export const authRouter = Router();
-// scoped to '/auth' — authRouter is itself mounted at the app root, so an
-// unscoped .use() here would rate-limit every route in the app, not just this one
+// scoped to /auth, the router is mounted at root
 authRouter.use('/auth', authRateLimiter);
 
-// Only /auth/refresh and /auth/logout read cookies, and the cookie is scoped
-// to /auth, so this stays off the rest of the app.
 const cookies = cookieParser();
 
 authRouter.get('/auth/github', (req, res) => {
@@ -46,15 +43,13 @@ authRouter.get('/auth/github/callback', cookies, async (req, res, next) => {
   const state = typeof req.query.state === 'string' ? req.query.state : undefined;
   const cookieNonce = req.cookies?.[STATE_COOKIE_NAME] as string | undefined;
 
-  // Single use either way — a failed login has to start over.
+  // single use
   clearStateCookie(res);
 
   try {
     const result = await handleGithubCallback(code, state, cookieNonce);
 
-    // The mobile app can't use cookies, so tokens ride the redirect back to
-    // the app's own deep link as query params — WebBrowser.openAuthSessionAsync
-    // only resolves once it sees that redirect happen.
+    // mobile can't use cookies, so send tokens back on the deep link
     if (result.client === 'native') {
       if (!result.redirectTo) {
         res.status(400).json({
@@ -70,8 +65,6 @@ authRouter.get('/auth/github/callback', cookies, async (req, res, next) => {
       return;
     }
 
-    // Setting the cookie on a top-level navigation is what makes SameSite=Lax
-    // work; an XHR here would be blocked once the app is deployed cross-site.
     setRefreshCookie(res, result.refreshToken, result.expiresAt);
     res.redirect(`${env.webAppUrl}${result.redirectTo ?? '/auth/callback'}`);
   } catch (err) {
@@ -83,7 +76,7 @@ authRouter.get('/auth/github/callback', cookies, async (req, res, next) => {
   }
 });
 
-// No requireAuth — the whole point is that the access token has expired.
+// no requireAuth, the access token has expired
 authRouter.post('/auth/refresh', cookies, validateRequest(refreshTokenBodySchema), async (req, res, next) => {
   const fromCookie: string | undefined = req.cookies?.[REFRESH_COOKIE_NAME];
   const presented = fromCookie ?? req.body?.refreshToken;
@@ -107,8 +100,7 @@ authRouter.post('/auth/refresh', cookies, validateRequest(refreshTokenBodySchema
       user: toPublicUser(rotated.user),
     };
 
-    // Answer on whichever transport asked, so a browser never receives the
-    // refresh token anywhere JavaScript can read it.
+    // browser only ever gets the refresh token as a cookie
     if (fromCookie) {
       setRefreshCookie(res, rotated.refreshToken, rotated.expiresAt);
       res.status(200).json(body);
@@ -121,7 +113,7 @@ authRouter.post('/auth/refresh', cookies, validateRequest(refreshTokenBodySchema
   }
 });
 
-// Also no requireAuth: an expired access token must not stop someone logging out.
+// no requireAuth here either
 authRouter.post('/auth/logout', cookies, validateRequest(refreshTokenBodySchema), async (req, res, next) => {
   const presented: unknown = req.cookies?.[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
 
@@ -130,7 +122,7 @@ authRouter.post('/auth/logout', cookies, validateRequest(refreshTokenBodySchema)
       await revokeSessionByToken(presented);
     }
     clearRefreshCookie(res);
-    // Always 204, so this can't be used to probe which tokens exist.
+    // always 204
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -146,7 +138,7 @@ authRouter.get('/auth/me', requireAuth, async (req, res, next) => {
   }
 });
 
-// Registered from app.ts only when enabled, so it can't exist in production.
+// only registered when enabled
 export const devLoginRouter = Router();
 devLoginRouter.use('/auth', authRateLimiter);
 

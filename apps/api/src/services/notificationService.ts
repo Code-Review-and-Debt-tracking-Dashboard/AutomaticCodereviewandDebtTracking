@@ -1,8 +1,7 @@
 import type { Prisma, NotificationType } from '@codehealth/db';
 import type { AnalysisFinding, SnapshotMetrics } from '@codehealth/shared';
 
-// A fall of more than this many points since the last analysis is worth telling
-// people about.
+// notify when the score drops more than this
 const SCORE_DROP_POINTS = 10;
 
 interface NotificationEvent {
@@ -12,26 +11,16 @@ interface NotificationEvent {
   data: Prisma.InputJsonValue;
 }
 
-/** Who was notified and about what, so the caller can push the same thing. */
 export interface AnalysisNotifications {
   userIds: string[];
   events: NotificationEvent[];
 }
 
-// healthScore is a float, so bodies would otherwise read "down 14.299999997".
+// avoid "14.299999997"
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/**
- * Creates the notification rows for one finished analysis: the quality gate
- * failed, the score fell sharply, or a new critical vulnerability turned up.
- *
- * Runs inside the ingest transaction so the rows land with the snapshot or not
- * at all. That also makes it idempotent for free — a worker retry of a run that
- * was already stored never reaches here.
- *
- * Returns what it wrote rather than pushing it: a push can't be taken back if
- * the transaction then rolls back, so the caller sends it after commit.
- */
+// gate failed, big score drop, or new critical vuln. runs in the ingest transaction,
+// the caller pushes after commit
 export async function createAnalysisNotifications(
   tx: Prisma.TransactionClient,
   input: {
@@ -97,8 +86,7 @@ export async function createAnalysisNotifications(
     });
   }
 
-  // The owner usually has a member row too, so the set is what stops them
-  // getting the same notification twice.
+  // owner is usually a member too
   const userIds = [...new Set([repo.ownerId, ...repo.members.map((m) => m.userId)])];
 
   await tx.notification.createMany({

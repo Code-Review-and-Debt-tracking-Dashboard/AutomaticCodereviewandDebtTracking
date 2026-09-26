@@ -231,7 +231,7 @@ describe('GET /api/orgs/:orgId/repos/bulk-link/:jobId', () => {
   it("404 for another org's job, even for a member of the org in the URL", async () => {
     const a = await seedTenant('acme');
     const b = await seedTenant('globex');
-    // job ids are sequential, so this is exactly the guessing attack the service guards against
+    // guessing another org's job id
     const res = await api().get(`/api/orgs/${a.org.id}/repos/bulk-link/${b.bulkLinkJobId}`).set(bearer(a.owner));
     expect(res.status).toBe(404);
   });

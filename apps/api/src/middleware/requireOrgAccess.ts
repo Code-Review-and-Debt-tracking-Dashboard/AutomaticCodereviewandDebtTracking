@@ -12,8 +12,7 @@ declare global {
   }
 }
 
-// Runs after requireAuth on any :orgId route. Non-members get 404, not 403,
-// so we don't confirm the org exists. Membership is read fresh every request.
+// non-members get 404 so we don't leak that the org exists
 export function requireOrgAccess(level: 'read' | 'write'): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {

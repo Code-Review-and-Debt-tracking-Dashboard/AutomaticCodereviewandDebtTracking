@@ -4,8 +4,7 @@ import jwt from 'jsonwebtoken';
 
 import { env } from '../config/env';
 
-// Access tokens and OAuth state tokens share JWT_SECRET, so each carries a typ
-// and verification checks it. Without this a state token works as a bearer token.
+// both share JWT_SECRET, so typ stops one being used as the other
 type TokenType = 'access' | 'state';
 
 export interface AppJwtPayload {
@@ -38,12 +37,9 @@ export function verifyAccessToken(token: string): AppJwtPayload {
   };
 }
 
-// Which client started the login, so the callback knows whether to set a
-// cookie and redirect (browser) or hand the tokens back as JSON (mobile).
+// web gets a cookie, native gets tokens back
 export type OAuthClient = 'web' | 'native';
 
-// No session exists before login, so the state travels as a signed token
-// instead of server-side storage.
 export interface OAuthStatePayload {
   redirect?: string;
   client: OAuthClient;

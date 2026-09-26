@@ -1,10 +1,5 @@
-// Runs before any src/ module is imported (first entry in vitest setupFiles).
-// index.ts is the only place that loads dotenv, and app.ts is imported
-// directly here, so the test process has to set its own environment.
-//
-// DATABASE_URL and REDIS_URL are always overridden — never inherited from
-// apps/api/.env — because the hooks truncate every table and flush the Redis
-// db before each test. Pointing that at a dev database would wipe it.
+// runs before src is imported. db and redis urls are always overridden
+// so tests never wipe the dev database
 
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5433/code_review_test';
@@ -24,8 +19,7 @@ if (!/_test$/.test(dbName)) {
   );
 }
 
-// db 0 is where a local dev API keeps its BullMQ queue; flushing it mid-test
-// would eat real jobs.
+// don't use db 0, that's the dev queue
 const redisDb = new URL(TEST_REDIS_URL).pathname.replace(/^\//, '');
 if (!redisDb || redisDb === '0') {
   throw new Error('TEST_REDIS_URL must select a non-zero Redis db index, e.g. redis://localhost:6380/1');

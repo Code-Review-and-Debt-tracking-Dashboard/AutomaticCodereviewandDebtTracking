@@ -12,8 +12,7 @@ interface SentMessage {
   data: Record<string, unknown>;
 }
 
-// Stands in for the Expo Push API: one ticket per message, in order, the way
-// the real endpoint answers.
+// fake expo api, one ticket per message
 function mockExpo(ticketFor: (m: SentMessage) => object = () => ({ status: 'ok', id: 'receipt' })) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
     const messages = JSON.parse(String(init?.body)) as SentMessage[];

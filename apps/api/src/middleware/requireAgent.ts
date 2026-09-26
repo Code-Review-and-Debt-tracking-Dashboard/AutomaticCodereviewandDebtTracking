@@ -31,10 +31,9 @@ export async function requireAgent(req: Request, res: Response, next: NextFuncti
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid or revoked agent token');
     }
 
-    // Attach agent to request
     req.agent = agent;
 
-    // Update lastSeenAt asynchronously
+    // don't wait for this
     prisma.agent
       .update({
         where: { id: agent.id },

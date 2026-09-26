@@ -13,8 +13,7 @@ function sign(body: string, secret = TEST_WEBHOOK_SECRET): string {
   return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
 }
 
-// Mounted before express.json(), so the body must go over as raw bytes with
-// the signature computed over exactly those bytes.
+// sends raw bytes signed the same way GitHub does
 function deliver(event: string, payload: unknown, opts: { secret?: string; rawBody?: string } = {}) {
   const body = opts.rawBody ?? JSON.stringify(payload);
   return api()

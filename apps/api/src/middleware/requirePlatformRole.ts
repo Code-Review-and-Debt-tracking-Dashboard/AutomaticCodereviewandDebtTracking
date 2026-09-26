@@ -3,9 +3,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 import { AppError } from './errorHandler';
 
-// Runs after requireAuth. Reads the role from the database rather than the
-// access token, otherwise a demoted admin keeps their powers until the token
-// expires. Only admin routes use this, so the extra query is cheap.
+// reads the role from the db so a demoted admin loses access right away
 export function requirePlatformRole(...roles: PlatformRole[]): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {

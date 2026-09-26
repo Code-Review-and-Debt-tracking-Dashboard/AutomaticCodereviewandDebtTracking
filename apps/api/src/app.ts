@@ -23,12 +23,11 @@ import { jobsRouter } from './routes/jobs';
 export function createApp(): Express {
   const app = express();
 
-  // One proxy hop (tunnel in dev, load balancer in prod), so the rate limiters
-  // key on the real client instead of lumping every forwarded request together.
+  // behind one proxy, so rate limits use the real client ip
   app.set('trust proxy', 1);
 
   app.use(helmet());
-  // Explicit origins, not a wildcard: the refresh cookie needs credentials.
+  // no wildcard, the refresh cookie needs credentials
   app.use(cors({ origin: env.webAppOrigins, credentials: true }));
 
   app.use(globalRateLimiter);

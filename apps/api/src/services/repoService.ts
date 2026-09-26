@@ -100,7 +100,6 @@ export async function getRepoTrend(repoId: string, query: TrendQuery){
 export async function getRepoDebt(repoId: string){
     await getActiveRepo(repoId);
     
-    //findFirst()-Returns the first snapshot after sorting.
     const snapshot =await prisma.healthSnapshot.findFirst({
         where: { repoId },
         orderBy: { calculatedAt: 'desc' },
@@ -117,7 +116,7 @@ export async function getRepoDebt(repoId: string){
         _count: true,
     });
     
-    //maps prisma enum values to the lowercase JSON keys used in the API response
+    // prisma enum -> json key
     const CATEGORY_KEYS: Record<string, string> = {
         VULNERABILITY: 'vulnerability',
         COMPLEXITY: 'complexity',
@@ -130,12 +129,10 @@ export async function getRepoDebt(repoId: string){
     for (const key of Object.values(CATEGORY_KEYS)) {
         breakdown[key] = { count: 0, debtMinutes: 0 };
     }
-    //Replace default values with database results
     for (const g of grouped) {
         const key = CATEGORY_KEYS[g.category];
         breakdown[key] = {
             count: g._count,
-            //use 0 ,uless this is null or undefined, which can happen if there are no findings in this category
             debtMinutes: g._sum.debtMinutes ?? 0,
         };
     }
@@ -356,8 +353,7 @@ export async function getRepoPullRequestDetail(repoId: string, prNumber: number)
   };
 }
 
-// Latest analysis runs for the repo, so the dashboard can show what's queued,
-// running, done or failed.
+// latest analysis runs
 export async function getRepoAnalyses(repoId: string) {
   await getActiveRepo(repoId);
 
