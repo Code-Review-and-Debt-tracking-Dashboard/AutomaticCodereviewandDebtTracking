@@ -36,6 +36,8 @@ export function createApp(): Express {
   // must come before express.json() — signature check needs the raw body
   app.use(webhookRouter);
 
+  // worker results for a big repo go well past the default 100kb
+  app.use('/jobs', express.json({ limit: '5mb' }));
   app.use(express.json());
 
   app.use(authRouter);
