@@ -7,9 +7,14 @@ import { redis } from '../lib/redis';
 function redisStore(prefix: string) {
   return new RedisStore({
     prefix,
-    sendCommand: (...args: string[]) => {
-      const [command, ...rest] = args;
-      return redis.call(command, rest) as Promise<string | number | boolean | (string | number | boolean)[]>;
+    sendCommand: async (...args: string[]) => {
+      try {
+        const [command, ...rest] = args;
+        return (await redis.call(command, rest)) as Promise<string | number | boolean | (string | number | boolean)[]>;
+      } catch (err) {
+        // Fall back gracefully so Redis outages don't break all API endpoints
+        return undefined as any;
+      }
     },
   });
 }

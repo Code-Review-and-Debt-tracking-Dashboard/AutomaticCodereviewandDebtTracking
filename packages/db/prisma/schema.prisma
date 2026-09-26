@@ -85,6 +85,7 @@ model Agent {
   lastSeenAt   DateTime?
   revokedAt    DateTime?
   createdAt    DateTime     @default(now())
+  leasedJobs   AnalysisJob[]
 
   @@index([orgId])
 }
@@ -197,14 +198,17 @@ model AnalysisJob {
   queuedAt       DateTime        @default(now())
   startedAt      DateTime?
   completedAt    DateTime?
-  leaseExpiresAt DateTime?
-  updatedAt      DateTime        @updatedAt
-  pullRequest    PullRequest?    @relation(fields: [pullRequestId], references: [id])
-  repository     Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
-  snapshot       HealthSnapshot?
+  leaseExpiresAt  DateTime?
+  leasedByAgentId String?
+  updatedAt       DateTime        @updatedAt
+  leasedByAgent   Agent?          @relation(fields: [leasedByAgentId], references: [id], onDelete: SetNull)
+  pullRequest     PullRequest?    @relation(fields: [pullRequestId], references: [id])
+  repository      Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  snapshot        HealthSnapshot?
 
   @@index([repoId, status])
   @@index([status, queuedAt])
+  @@index([status, leaseExpiresAt])
   @@index([pullRequestId])
   @@index([repoId, queuedAt(sort: Desc)])
 }

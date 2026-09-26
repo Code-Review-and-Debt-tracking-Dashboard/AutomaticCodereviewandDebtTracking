@@ -2,6 +2,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Building2,
   ChevronDown,
+  Code2,
+  Loader2,
   LogOut,
   Menu,
   Moon,
@@ -11,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useNavigate } from "react-router-dom";
 
@@ -55,6 +57,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
   const notificationRef = useRef<HTMLDivElement>(null);
 
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
+
   const [theme, setTheme] = usePreference<"dark" | "light">("theme", "dark");
 
   const darkMode = theme === "dark";
@@ -70,6 +74,20 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+
+  const [orgRepos, setOrgRepos] = useState<
+    Array<{
+      id: string;
+      name: string;
+      fullName: string;
+      language?: string | null;
+      healthScore?: number | null;
+    }>
+  >([]);
+
+  const [loadingRepos, setLoadingRepos] = useState(false);
 
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
@@ -98,6 +116,57 @@ THEME
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  /*
+==============================
+FETCH REPOS FOR SELECTOR
+==============================
+*/
+
+  useEffect(() => {
+    if (!selectedOrg?.id) {
+      setOrgRepos([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchOrgRepos = async () => {
+      setLoadingRepos(true);
+      try {
+        const response = await api.get<{
+          data: Array<{
+            id: string;
+            name: string;
+            fullName: string;
+            language?: string | null;
+            healthScore?: number | null;
+          }>;
+        }>(`/api/orgs/${selectedOrg.id}/repos`);
+        if (isMounted) {
+          setOrgRepos(response.data || []);
+        }
+      } catch {
+        if (isMounted) setOrgRepos([]);
+      } finally {
+        if (isMounted) setLoadingRepos(false);
+      }
+    };
+
+    fetchOrgRepos();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedOrg?.id]);
+
+  const filteredRepos = useMemo(() => {
+    if (!searchQuery.trim()) return orgRepos;
+    const q = searchQuery.toLowerCase().trim();
+    return orgRepos.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.fullName.toLowerCase().includes(q)
+    );
+  }, [orgRepos, searchQuery]);
 
   /*
 ==============================
@@ -166,6 +235,7 @@ KEYBOARD SHORTCUT
         event.preventDefault();
 
         searchInputRef.current?.focus();
+        setSearchDropdownOpen(true);
       }
 
       if (event.key === "Escape") {
@@ -176,6 +246,8 @@ KEYBOARD SHORTCUT
         setOrgOpen(false);
 
         setSearchOpen(false);
+
+        setSearchDropdownOpen(false);
       }
     };
 
@@ -210,6 +282,13 @@ OUTSIDE CLICK HANDLER
       ) {
         setNotificationsOpen(false);
       }
+
+      if (
+        searchDropdownRef.current &&
+        !searchDropdownRef.current.contains(target)
+      ) {
+        setSearchDropdownOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handleOutsideClick);
@@ -239,9 +318,23 @@ OUTSIDE CLICK HANDLER
     setOrgOpen(false);
   };
 
+  const handleSelectRepo = (repoId: string) => {
+    setSearchDropdownOpen(false);
+    setSearchOpen(false);
+    setSearchQuery("");
+    navigate(`/repositories/${repoId}`);
+  };
+
   const handleSearch = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && searchQuery.trim()) {
-      navigate(`/repositories?search=${searchQuery}`);
+      event.preventDefault();
+      if (filteredRepos.length > 0) {
+        handleSelectRepo(filteredRepos[0].id);
+      } else {
+        setSearchDropdownOpen(false);
+        setSearchOpen(false);
+        navigate(`/repositories?search=${encodeURIComponent(searchQuery.trim())}`);
+      }
     }
   };
 
@@ -345,24 +438,87 @@ OUTSIDE CLICK HANDLER
           </AnimatePresence>
         </div>
 
-        {/* DESKTOP SEARCH */}
+        {/* DESKTOP REPOSITORY SELECTOR / SEARCH */}
 
-        <div className="hidden h-9 items-center gap-2 rounded-md border border-border px-2.5 transition-colors focus-within:border-primary/50 lg:flex lg:w-64">
-          <Search size={15} className="shrink-0 text-muted-foreground" />
+        <div ref={searchDropdownRef} className="relative hidden lg:block lg:w-72">
+          <div className="flex h-9 items-center gap-2 rounded-md border border-border px-2.5 transition-colors focus-within:border-primary/50">
+            <Search size={15} className="shrink-0 text-muted-foreground" />
 
-          <input
-            ref={searchInputRef}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleSearch}
-            type="text"
-            placeholder="Search repositories..."
-            className="w-full bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground"
-          />
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onFocus={() => setSearchDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchDropdownOpen(true);
+              }}
+              onKeyDown={handleSearch}
+              type="text"
+              placeholder="Search or select repository..."
+              className="w-full bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground"
+            />
 
-          <kbd className="rounded-xs border border-border px-1 font-mono text-[10px] text-muted-foreground">
-            /
-          </kbd>
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={14} />
+              </button>
+            ) : (
+              <kbd className="rounded-xs border border-border px-1 font-mono text-[10px] text-muted-foreground">
+                /
+              </kbd>
+            )}
+          </div>
+
+          <AnimatePresence>
+            {searchDropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.12 }}
+                className="absolute left-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border border-border bg-popover shadow-xl"
+              >
+                <div className="flex items-center justify-between border-b border-border px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <span>Select Repository ({filteredRepos.length})</span>
+                  {loadingRepos && <Loader2 size={12} className="animate-spin text-primary" />}
+                </div>
+
+                <div className="max-h-64 overflow-y-auto p-1">
+                  {loadingRepos && orgRepos.length === 0 ? (
+                    <p className="px-3 py-3 text-xs text-muted-foreground">Loading repositories...</p>
+                  ) : filteredRepos.length === 0 ? (
+                    <p className="px-3 py-3 text-xs text-muted-foreground">No matching repositories</p>
+                  ) : (
+                    filteredRepos.map((repo) => (
+                      <button
+                        key={repo.id}
+                        type="button"
+                        onClick={() => handleSelectRepo(repo.id)}
+                        className="group flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[13px] transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <Code2 size={15} className="shrink-0 text-primary" />
+                          <div className="min-w-0">
+                            <p className="truncate font-medium leading-none text-foreground">{repo.name}</p>
+                            <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{repo.fullName}</p>
+                          </div>
+                        </div>
+                        {repo.language && (
+                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground group-hover:bg-background">
+                            {repo.language}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* MOBILE SEARCH BUTTON */}
@@ -619,7 +775,7 @@ OUTSIDE CLICK HANDLER
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="absolute left-0 right-0 top-14 overflow-hidden border-b border-border bg-background px-4 py-3 lg:hidden"
+            className="absolute left-0 right-0 top-14 z-50 overflow-hidden border-b border-border bg-background px-4 py-3 shadow-lg lg:hidden"
           >
             <div className="flex h-9 items-center gap-2 rounded-md border border-border px-2.5">
               <Search size={15} className="text-muted-foreground" />
@@ -630,10 +786,41 @@ OUTSIDE CLICK HANDLER
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearch}
                 type="text"
-                placeholder="Search repositories..."
+                placeholder="Search or select repository..."
                 className="w-full bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground"
               />
+
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
+
+            {filteredRepos.length > 0 && (
+              <div className="mt-2 max-h-60 overflow-y-auto divide-y divide-border/40 rounded-md border border-border bg-popover p-1">
+                {filteredRepos.map((repo) => (
+                  <button
+                    key={repo.id}
+                    type="button"
+                    onClick={() => handleSelectRepo(repo.id)}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors hover:bg-accent"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Code2 size={14} className="shrink-0 text-primary" />
+                      <span className="truncate font-medium text-foreground">{repo.name}</span>
+                    </div>
+                    {repo.language && (
+                      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{repo.language}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

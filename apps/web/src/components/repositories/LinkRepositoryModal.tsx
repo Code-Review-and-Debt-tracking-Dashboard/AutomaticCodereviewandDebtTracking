@@ -279,6 +279,10 @@ export function LinkRepositoryModal({
                         <div className="flex items-center gap-3 min-w-0">
                           <button
                             type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!repo.isAlreadyLinked) toggleSelection(repo.githubRepoId);
+                            }}
                             className={`text-muted-foreground ${
                               repo.isAlreadyLinked ? "invisible" : ""
                             }`}

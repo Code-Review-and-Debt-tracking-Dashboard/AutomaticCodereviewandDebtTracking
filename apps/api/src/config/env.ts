@@ -64,4 +64,8 @@ export const env = {
   // what's broken.
   adminBasicAuthUser: required('ADMIN_BASIC_AUTH_USER', 'admin'),
   adminBasicAuthPassword: required('ADMIN_BASIC_AUTH_PASSWORD', 'admin'),
+
+  // How long an agent has to finish a leased job before it's considered
+  // expired and can be re-leased.
+  jobLeaseVisibilityTimeoutSeconds: Number(process.env.JOB_LEASE_VISIBILITY_TIMEOUT_SECONDS) || 300,
 };

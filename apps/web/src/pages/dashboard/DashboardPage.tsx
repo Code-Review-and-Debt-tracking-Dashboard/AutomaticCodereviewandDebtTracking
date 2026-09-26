@@ -2,7 +2,8 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { ArrowRight, ExternalLink, Plus } from "lucide-react";
+import { ArrowRight, ChevronRight, ExternalLink, Plus } from "lucide-react";
+import { LinkRepositoryModal } from "../../components/repositories/LinkRepositoryModal";
 
 import {
   CheckIcon,
@@ -161,6 +162,7 @@ export function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [languageFilter, setLanguageFilter] = useState("All");
   const [scoreFilter, setScoreFilter] = useState("All");
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     if (!selectedOrg) {
@@ -534,7 +536,7 @@ export function DashboardPage() {
                   { label: "Needs attention", value: "Needs attention" },
                 ]}
               />
-              <Button size="sm" onClick={() => navigate("/repositories")}>
+              <Button size="sm" onClick={() => setIsLinkModalOpen(true)}>
                 <Plus size={15} />
                 Link Repository
               </Button>
@@ -551,9 +553,10 @@ export function DashboardPage() {
                 filteredRepositories.map((repo) => (
                   <div
                     key={repo.id}
+                    onClick={() => navigate(`/repositories/${repo.id}`)}
                     className="
                       group flex flex-col gap-3 rounded-md border border-border
-                      px-4 py-3 transition-colors
+                      px-4 py-3 transition-colors cursor-pointer
                       hover:border-primary/50 hover:bg-accent/40
                       sm:flex-row sm:items-center
                     "
@@ -595,10 +598,15 @@ export function DashboardPage() {
                       </Badge>
 
                       <button
-                        onClick={() => navigate(`/repositories/${repo.id}`)}
-                        className="hidden items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary lg:inline-flex"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/repositories/${repo.id}`);
+                        }}
+                        aria-label={`View ${repo.name}`}
+                        className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
                       >
-                        View <ExternalLink size={12} />
+                        <span className="hidden sm:inline">View</span>
+                        <ChevronRight size={16} />
                       </button>
                     </div>
                   </div>
@@ -617,6 +625,12 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <LinkRepositoryModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onRepoLinked={fetchDashboard}
+      />
     </>
   );
 }

@@ -19,7 +19,7 @@ import {
   TrendIcon,
 } from "../../components/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
@@ -97,13 +97,14 @@ type SortOption = "health" | "findings" | "debt" | "recent";
 
 export function RepositoriesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { selectedOrg } = useOrg();
 
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [language, setLanguage] = useState("All languages");
   const [scoreFilter, setScoreFilter] = useState("All scores");
   const [sortBy, setSortBy] = useState<SortOption>("health");
@@ -112,6 +113,13 @@ export function RepositoriesPage() {
   const [unlinkTarget, setUnlinkTarget] = useState<Repository | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = searchParams.get("search");
+    if (q !== null) {
+      setSearch(q);
+    }
+  }, [searchParams]);
 
   const fetchRepos = useCallback(async () => {
     if (!selectedOrg) {
@@ -511,6 +519,7 @@ function RepositoryCard({
 
   return (
     <Card
+      onClick={onSelect}
       className="group cursor-pointer transition hover:border-primary/30 sm:p-2"
     >
       <div className="p-4 sm:p-5">

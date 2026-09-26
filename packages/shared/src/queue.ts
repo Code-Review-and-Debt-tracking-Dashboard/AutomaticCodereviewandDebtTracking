@@ -12,3 +12,16 @@ export interface AnalysisJobData {
   commitSha: string;
   cloneUrl: string;
 }
+
+// Returned by the HTTP-based lease endpoint so the agent knows what to work on
+// and when the lease expires.
+export interface JobLeaseDescriptor {
+  analysisId: string;
+  repoId: string;
+  prNumber: number | null;
+  branch: string;
+  commitSha: string;
+  cloneUrl: string;
+  leaseExpiresAt: string; // ISO-8601
+  visibilityTimeoutSeconds: number;
+}

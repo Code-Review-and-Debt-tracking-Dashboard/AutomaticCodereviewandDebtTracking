@@ -5,6 +5,7 @@
   "types": "index.ts",
   "scripts": {
     "generate": "prisma generate",
+    "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -26,6 +27,6 @@
     "@types/pg": "^8.20.0",
     "dotenv": "^17.4.2",
     "ts-node": "^10.9.2",
-    "typescript": "^7.0.2"
+    "typescript": "^5.4.5"
   }
 }
