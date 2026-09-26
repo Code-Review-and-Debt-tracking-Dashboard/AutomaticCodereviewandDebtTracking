@@ -61,7 +61,41 @@ const eslintCategories: Record<string, FindingCategory> = {
   'sonarjs/pseudo-random': 'VULNERABILITY',
   'sonarjs/content-security-policy': 'VULNERABILITY',
   'sonarjs/strict-transport-security': 'VULNERABILITY',
+  'sonarjs/x-powered-by': 'VULNERABILITY',
+  'sonarjs/xml-parser-xxe': 'VULNERABILITY',
+  'sonarjs/weak-ssl': 'VULNERABILITY',
+  'sonarjs/unverified-hostname': 'VULNERABILITY',
+  'sonarjs/unverified-certificate': 'VULNERABILITY',
+  'sonarjs/slow-regex': 'VULNERABILITY',
+  'sonarjs/session-regeneration': 'VULNERABILITY',
+  'sonarjs/publicly-writable-directories': 'VULNERABILITY',
+  'sonarjs/production-debug': 'VULNERABILITY',
+  'sonarjs/post-message': 'VULNERABILITY',
+  'sonarjs/no-referrer-policy': 'VULNERABILITY',
+  'sonarjs/no-os-command-from-path': 'VULNERABILITY',
+  'sonarjs/no-hardcoded-ip': 'VULNERABILITY',
+  'sonarjs/no-angular-bypass-sanitization': 'VULNERABILITY',
+  'sonarjs/link-with-target-blank': 'VULNERABILITY',
+  'sonarjs/insecure-cookie': 'VULNERABILITY',
+  'sonarjs/file-uploads': 'VULNERABILITY',
+  'sonarjs/file-permissions': 'VULNERABILITY',
+  'sonarjs/disabled-resource-integrity': 'VULNERABILITY',
+  'sonarjs/disabled-auto-escaping': 'VULNERABILITY',
+  'sonarjs/csrf': 'VULNERABILITY',
+  'sonarjs/cors': 'VULNERABILITY',
+  'sonarjs/cookie-no-httponly': 'VULNERABILITY',
+  'sonarjs/content-length': 'VULNERABILITY',
+  'sonarjs/no-session-cookies-on-static-assets': 'VULNERABILITY',
+  'sonarjs/hardcoded-secret-signatures': 'VULNERABILITY',
+  'sonarjs/dompurify-unsafe-config': 'VULNERABILITY',
+  'sonarjs/dynamically-constructed-templates': 'VULNERABILITY',
+  'sonarjs/no-mime-sniff': 'VULNERABILITY',
+  'sonarjs/review-blockchain-mnemonic': 'VULNERABILITY',
 };
+
+// Whole families of security rules, matched by prefix. sonarjs's aws-* rules are
+// all about exposed or unencrypted cloud resources.
+const eslintSecurityPrefixes = ['security/', 'sonarjs/aws-'];
 
 function eslintSeverity(category: FindingCategory, level: 1 | 2): Severity {
   // Both security rule sets only ever say "make sure this is safe", and they
@@ -91,7 +125,9 @@ export function fromEslint(report: EslintReport): AnalysisFinding[] {
 
       const category =
         eslintCategories[message.ruleId] ??
-        (message.ruleId.startsWith('security/') ? 'VULNERABILITY' : 'CODE_SMELL');
+        (eslintSecurityPrefixes.some((prefix) => message.ruleId!.startsWith(prefix))
+          ? 'VULNERABILITY'
+          : 'CODE_SMELL');
 
       const severity = eslintSeverity(category, message.severity);
 
