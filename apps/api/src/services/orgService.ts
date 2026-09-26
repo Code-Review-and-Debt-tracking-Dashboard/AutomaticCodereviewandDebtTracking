@@ -207,12 +207,18 @@ export async function listOrgRepositories(orgId: string, userId: string) {
           calculatedAt: true,
         },
       },
+      analysisJobs: {
+        orderBy: { queuedAt: 'desc' },
+        take: 1,
+        select: { status: true },
+      },
     },
     orderBy: { name: 'asc' },
   });
 
   return repositories.map((repo) => {
     const latest = repo.snapshots[0];
+    const latestJob = repo.analysisJobs[0];
     return {
       id: repo.id,
       githubRepoId: repo.githubRepoId,
@@ -228,6 +234,7 @@ export async function listOrgRepositories(orgId: string, userId: string) {
       openFindings: latest?.totalIssues ?? null,
       debtMinutes: latest?.debtMinutes ?? null,
       lastAnalyzedAt: latest?.calculatedAt ? latest.calculatedAt.toISOString() : null,
+      analysisInProgress: latestJob?.status === 'PENDING' || latestJob?.status === 'RUNNING',
     };
   });
 }

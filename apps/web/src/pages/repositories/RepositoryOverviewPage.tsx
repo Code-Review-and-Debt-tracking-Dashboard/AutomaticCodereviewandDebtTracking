@@ -30,8 +30,8 @@ import {
 } from "../../components/icons";
 
 import { CHART_TICK, CHART_TOOLTIP } from "../../lib/chartStyle";
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { HotspotTable, type HotspotFile } from "../../components/hotspots/HotspotTable";
 import { api } from "../../lib/apiClient";
 import { apiErrorMessage } from "../../lib/apiError";
@@ -79,6 +79,15 @@ interface ApiNotification {
   repository: { id: string } | null;
 }
 
+interface LatestRun {
+  status: string;
+  branch: string;
+  errorMessage: string | null;
+}
+
+// how often to re-check while an analysis is queued or running
+const POLL_MS = 5000;
+
 const ACTIVITY_ICON: Record<string, { icon: typeof CheckIcon; iconClass: string }> = {
   ANALYSIS_COMPLETE: { icon: CheckIcon, iconClass: "bg-success/10 text-success" },
   PR_ANALYZED: { icon: PullRequestIcon, iconClass: "bg-info/10 text-info" },
@@ -109,62 +118,76 @@ export function RepositoryOverviewPage() {
   } | null>(null);
   const [hotspots, setHotspots] = useState<HotspotFile[]>([]);
   const [activity, setActivity] = useState<ApiNotification[]>([]);
+  const [latestRun, setLatestRun] = useState<LatestRun | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // quiet skips the full-page spinner, for background re-checks
+  const loadData = useCallback(async (quiet = false) => {
     if (!repoId) return;
 
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const [repoRes, trendRes, debtRes, hotspotsRes, notifRes] = await Promise.allSettled([
-          api.get<RepoDetail>(`/api/repos/${repoId}`),
-          api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
-          api.get<{
-            totalDebtMinutes: number;
-            debtDelta: number;
-            breakdown: Record<
-              "vulnerability" | "complexity" | "duplication" | "code_smell" | "maintainability",
-              { count: number; debtMinutes: number }
-            >;
-          }>(`/api/repos/${repoId}/debt`),
-          api.get<{ snapshotId: string; files: HotspotFile[] }>(`/api/repos/${repoId}/hotspots`),
-          api.get<{ data: ApiNotification[] }>(`/api/notifications`),
-        ]);
+    if (!quiet) setIsLoading(true);
+    try {
+      const [repoRes, trendRes, debtRes, hotspotsRes, notifRes, runsRes] = await Promise.allSettled([
+        api.get<RepoDetail>(`/api/repos/${repoId}`),
+        api.get<{ dataPoints: { date: string; healthScore: number }[] }>(`/api/repos/${repoId}/trend?days=30`),
+        api.get<{
+          totalDebtMinutes: number;
+          debtDelta: number;
+          breakdown: Record<
+            "vulnerability" | "complexity" | "duplication" | "code_smell" | "maintainability",
+            { count: number; debtMinutes: number }
+          >;
+        }>(`/api/repos/${repoId}/debt`),
+        api.get<{ snapshotId: string; files: HotspotFile[] }>(`/api/repos/${repoId}/hotspots`),
+        api.get<{ data: ApiNotification[] }>(`/api/notifications`),
+        api.get<{ data: LatestRun[] }>(`/api/repos/${repoId}/analyses`),
+      ]);
 
-        if (repoRes.status === "fulfilled") {
-          setRepoDetail(repoRes.value);
-        }
-        if (trendRes.status === "fulfilled" && trendRes.value?.dataPoints) {
-          setTrendPoints(
-            trendRes.value.dataPoints.map((dp) => ({
-              date: new Date(dp.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-              score: dp.healthScore,
-            }))
-          );
-        }
-        if (debtRes.status === "fulfilled") {
-          setDebtData(debtRes.value);
-        }
-        if (hotspotsRes.status === "fulfilled") {
-          setHotspots(hotspotsRes.value.files);
-        }
-        // notifications aren't repo-scoped on the server, so filter here
-        if (notifRes.status === "fulfilled") {
-          setActivity(
-            (notifRes.value.data || []).filter((n) => n.repository?.id === repoId).slice(0, 3)
-          );
-        }
-      } catch (err: any) {
-        setError(apiErrorMessage(err, "Failed to load repository data."));
-      } finally {
-        setIsLoading(false);
+      if (repoRes.status === "fulfilled") {
+        setRepoDetail(repoRes.value);
       }
-    };
-
-    loadData();
+      if (trendRes.status === "fulfilled" && trendRes.value?.dataPoints) {
+        setTrendPoints(
+          trendRes.value.dataPoints.map((dp) => ({
+            date: new Date(dp.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            score: dp.healthScore,
+          }))
+        );
+      }
+      if (debtRes.status === "fulfilled") {
+        setDebtData(debtRes.value);
+      }
+      if (hotspotsRes.status === "fulfilled") {
+        setHotspots(hotspotsRes.value.files);
+      }
+      // notifications aren't repo-scoped on the server, so filter here
+      if (notifRes.status === "fulfilled") {
+        setActivity(
+          (notifRes.value.data || []).filter((n) => n.repository?.id === repoId).slice(0, 3)
+        );
+      }
+      if (runsRes.status === "fulfilled") {
+        setLatestRun(runsRes.value.data[0] ?? null);
+      }
+    } catch (err: any) {
+      setError(apiErrorMessage(err, "Failed to load repository data."));
+    } finally {
+      setIsLoading(false);
+    }
   }, [repoId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // reload quietly until the queued or running analysis is done
+  const runInProgress = latestRun?.status === "PENDING" || latestRun?.status === "RUNNING";
+  useEffect(() => {
+    if (!runInProgress) return;
+    const timer = setTimeout(() => loadData(true), POLL_MS);
+    return () => clearTimeout(timer);
+  }, [latestRun, runInProgress, loadData]);
 
   const repository = {
     id: repoDetail?.id || repoId || "repo-001",
@@ -302,6 +325,21 @@ export function RepositoryOverviewPage() {
           </Button>
         </PageHeaderActions>
       </PageHeader>
+
+      {runInProgress && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 p-4 text-sm text-info">
+          <Loader2 size={16} className="animate-spin" />
+          Analysis running on {latestRun?.branch}. Results will show here when it finishes.
+        </div>
+      )}
+      {latestRun?.status === "FAILED" && (
+        <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          The last analysis failed{latestRun.errorMessage ? `: ${latestRun.errorMessage}` : "."}{" "}
+          <Link to={`/repositories/${repoId}/analyze`} className="font-medium underline">
+            See details
+          </Link>
+        </div>
+      )}
 
       <div data-tour="repo-stats" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../lib/apiClient";
 import { RepositoriesPage } from "../../pages/repositories/RepositoriesPage";
@@ -52,6 +52,25 @@ const repository = {
 describe("RepositoriesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows Analyzing… and checks again until the first analysis finishes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fresh = { ...repository, healthScore: null, openFindings: null, debtMinutes: null, lastAnalyzedAt: null };
+    mockedApi.get
+      .mockResolvedValueOnce({ data: [{ ...fresh, analysisInProgress: true }] })
+      .mockResolvedValueOnce({ data: [{ ...repository, analysisInProgress: false }] });
+
+    renderPage();
+
+    expect(await screen.findByText("Analyzing…")).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await screen.findByText("Excellent")).toBeInTheDocument();
+    expect(mockedApi.get).toHaveBeenCalledTimes(2);
   });
 
   it("shows loading and then renders repositories from the API", async () => {
