@@ -9,6 +9,7 @@ import type {
 import type { Job } from 'bullmq';
 
 import { env } from '../config/env';
+import { queueFirstAnalysis } from '../lib/apiClient';
 import { decrypt } from '../lib/crypto';
 import { logger } from '../lib/logger';
 
@@ -89,6 +90,13 @@ export async function bulkLinkProcessor(job: Job<BulkLinkJobData>): Promise<Bulk
       { webhookUrl: env.githubWebhookUrl, webhookSecret: env.githubWebhookSecret, orgId },
       logger,
     );
+
+    // the link already worked, so a failure here is only logged
+    if (outcome.status === 'LINKED') {
+      await queueFirstAnalysis(outcome.repository.id).catch((err) =>
+        logger.warn({ err, repoId: outcome.repository.id }, 'Could not queue first analysis'),
+      );
+    }
 
     results.push({
       githubRepoId,
