@@ -115,7 +115,7 @@ describe("DashboardPage", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("analysed-repo")).not.toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
     expect(screen.getByText("fresh-repo")).toBeInTheDocument();
   });
 

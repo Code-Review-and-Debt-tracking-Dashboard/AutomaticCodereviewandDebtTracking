@@ -68,4 +68,6 @@ export const env = {
   // How long an agent has to finish a leased job before it's considered
   // expired and can be re-leased.
   jobLeaseVisibilityTimeoutSeconds: Number(process.env.JOB_LEASE_VISIBILITY_TIMEOUT_SECONDS) || 300,
+
+  expoAccessToken: process.env.EXPO_ACCESS_TOKEN,
 };
