@@ -246,6 +246,19 @@ describe('fromEslint', () => {
     expect(findings.map((f) => f.rule)).toEqual(['no-console']);
   });
 
+  it('skips disable comments naming a rule our config does not load', () => {
+    const findings = fromEslint(
+      eslintReport([
+        lint('react-hooks/exhaustive-deps', 2, {
+          message: "Definition for rule 'react-hooks/exhaustive-deps' was not found.",
+        }),
+        lint('no-console'),
+      ]),
+    );
+
+    expect(findings.map((f) => f.rule)).toEqual(['no-console']);
+  });
+
   it('makes every security rule a high vulnerability, whatever its level', () => {
     const findings = fromEslint(
       eslintReport([
@@ -264,21 +277,25 @@ describe('fromEslint', () => {
   it('puts complexity and duplication rules in their own categories', () => {
     const findings = fromEslint(
       eslintReport([
-        lint('complexity'),
-        lint('sonarjs/cognitive-complexity'),
-        lint('sonarjs/no-identical-functions'),
+        lint('complexity', 1),
+        lint('max-depth', 1),
+        lint('sonarjs/no-identical-functions', 2),
       ]),
     );
 
-    expect(findings.map((f) => f.category)).toEqual(['COMPLEXITY', 'COMPLEXITY', 'DUPLICATION']);
+    expect(findings.map((f) => [f.category, f.severity])).toEqual([
+      ['COMPLEXITY', 'MEDIUM'],
+      ['COMPLEXITY', 'MEDIUM'],
+      ['DUPLICATION', 'HIGH'],
+    ]);
   });
 
-  it('calls anything else a code smell, graded by the eslint level', () => {
+  it('calls anything else a code smell, one step lower than the eslint level', () => {
     const findings = fromEslint(eslintReport([lint('no-console', 2), lint('eqeqeq', 1)]));
 
     expect(findings.map((f) => [f.category, f.severity])).toEqual([
-      ['CODE_SMELL', 'HIGH'],
       ['CODE_SMELL', 'MEDIUM'],
+      ['CODE_SMELL', 'LOW'],
     ]);
   });
 
@@ -685,6 +702,35 @@ describe('normalize', () => {
     const radon = normalize(everything).findings.filter((f) => f.tool === 'radon');
 
     expect(radon.map((f) => f.rule)).toEqual(['maintainability-index', 'cyclomatic-complexity']);
+  });
+
+  it('leaves test code out', () => {
+    const files = [
+      'tests/e2e/pipeline.test.ts',
+      'apps/web/src/test/setup.ts',
+      'src/__tests__/a.ts',
+      'src/a.test.tsx',
+      'src/a.spec.js',
+      'pkg/test_app.py',
+      'pkg/app_test.py',
+      'src/test/java/AppTest.java',
+      'src/latest.ts',
+      'src/contest.py',
+      'src/testing/util.ts',
+    ];
+    const { findings } = normalize({
+      eslint: {
+        results: files.map((filePath) => ({ filePath, messages: [lint('semi')] })),
+        errorCount: 0,
+        warningCount: 0,
+      },
+    });
+
+    expect(findings.map((f) => f.file)).toEqual([
+      'src/contest.py',
+      'src/latest.ts',
+      'src/testing/util.ts',
+    ]);
   });
 
   it('gives the same list whatever order the tools report in', () => {
