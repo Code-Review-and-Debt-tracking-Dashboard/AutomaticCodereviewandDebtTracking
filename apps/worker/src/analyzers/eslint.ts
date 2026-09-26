@@ -4,14 +4,13 @@ import { promisify } from 'util';
 
 const run = promisify(execFile);
 
-// The pipeline allows each analyzer two minutes.
+// 2 min per analyzer
 const timeoutMs = 120_000;
-// A big repo's report goes well past the 1 MB default.
+// big repos go past the 1 MB default
 const maxBuffer = 32 * 1024 * 1024;
 
 const configPath = resolve(__dirname, '../../eslint-analysis.config.mjs');
-// Going through the package entry survives npm's workspace hoisting, which a
-// hardcoded node_modules/.bin path doesn't.
+// resolve via the package so workspace hoisting doesn't break it
 const eslintBin = resolve(require.resolve('eslint/package.json'), '../bin/eslint.js');
 
 export interface EslintMessage {
@@ -36,13 +35,8 @@ export interface EslintReport {
   warningCount: number;
 }
 
-/**
- * Lints a cloned checkout with the worker's own config and hands back eslint's
- * output as it came. Turning it into findings is the normalize stage's job.
- */
 export async function runEslint(repoPath: string): Promise<EslintReport> {
-  // --no-config-lookup keeps the scanned repo's own config out of it, and the
-  // cwd is the repo because --config makes the ignore patterns cwd-relative.
+  // ignore the repo's own config. cwd is the repo so ignore patterns work
   const args = ['--no-config-lookup', '--config', configPath, '--format', 'json', '.'];
 
   let stdout: string;
@@ -54,8 +48,7 @@ export async function runEslint(repoPath: string): Promise<EslintReport> {
       maxBuffer,
     }));
   } catch (err) {
-    // Exit 1 just means it found problems and the report is still on stdout.
-    // Anything else — a broken config, or a timeout kill — is a real failure.
+    // exit 1 just means it found problems
     const failed = err as { code?: number; stdout?: string };
     if (failed.code !== 1 || !failed.stdout) throw err;
     stdout = failed.stdout;
@@ -68,7 +61,7 @@ export async function runEslint(repoPath: string): Promise<EslintReport> {
   let warningCount = 0;
 
   for (const file of files) {
-    // eslint lists every file it looked at, and most of them are clean.
+    // skip clean files
     if (!file.messages.length) continue;
 
     for (const message of file.messages) {
@@ -76,8 +69,7 @@ export async function runEslint(repoPath: string): Promise<EslintReport> {
       else warningCount++;
     }
 
-    // Paths come back absolute, so the temp workspace name would otherwise land
-    // in the findings and change on every run.
+    // make paths relative to the repo
     results.push({ filePath: relative(repoPath, file.filePath), messages: file.messages });
   }
 

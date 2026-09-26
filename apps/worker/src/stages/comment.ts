@@ -5,15 +5,15 @@ import type {
   SnapshotMetrics,
 } from '@codehealth/shared';
 
-// Lets the poster find its own comment on a PR if botCommentId is ever lost.
+// lets us find our own comment again
 export const COMMENT_MARKER = '<!-- codepulse-bot -->';
 
 export interface CommentInput {
   metrics: SnapshotMetrics;
   findings: AnalysisFinding[];
-  // Null on the first analysis of a repo: there is no previous snapshot to diff against.
+  // null on first run
   baseline: { healthScore: number } | null;
-  // Null when the repo has no quality gate configured (mirrors metrics.gateResult).
+  // null = no gate set
   gate: QualityGateThresholds | null;
 }
 
@@ -22,7 +22,7 @@ interface ScoreBand {
   emoji: string;
 }
 
-// Bands from scoring_algorithm.md §7. Same cut-offs the dashboard colours by.
+// same bands as the dashboard
 export function scoreBand(score: number): ScoreBand {
   if (score >= 90) return { label: 'Excellent', emoji: '🟢' };
   if (score >= 70) return { label: 'Good', emoji: '🟡' };
@@ -125,7 +125,7 @@ function maxRow(
   return { label, value: format(value), threshold: `≤ ${format(max)}`, passed: value <= max };
 }
 
-// Only the metrics the gate checks. Failing rows first so the reason shows up top.
+// failing rows first
 export function metricRows(metrics: SnapshotMetrics, gate: QualityGateThresholds): MetricRow[] {
   const candidates: Array<MetricRow | null> = [
     {
@@ -145,8 +145,7 @@ export function metricRows(metrics: SnapshotMetrics, gate: QualityGateThresholds
   return [...rows.filter((row) => !row.passed), ...rows.filter((row) => row.passed)];
 }
 
-// Debt isn't part of the gate, so it never counts as breached. It just
-// shouldn't go up. Left out on a first run since there's nothing to compare.
+// debt isn't gated, skipped on first run
 function debtRow(metrics: SnapshotMetrics, baseline: CommentInput['baseline']): string[] {
   if (!baseline) return [];
 
@@ -173,7 +172,6 @@ function metricsTable(
   ];
 }
 
-// Every count for the run, whether the gate checks it or not.
 function findingsTable(metrics: SnapshotMetrics): string[] {
   return [
     '| Finding | Count |',
@@ -186,11 +184,7 @@ function findingsTable(metrics: SnapshotMetrics): string[] {
   ];
 }
 
-/**
- * Renders the PR comment body from the numbers that go on the health snapshot.
- * Everything is read from the metrics rather than recomputed, so the comment
- * can never disagree with what the dashboard shows for the same run.
- */
+// uses the stored metrics so it matches the dashboard
 export function buildPrComment({ metrics, findings, baseline, gate }: CommentInput): string {
   const band = scoreBand(metrics.healthScore);
   const rows = gate ? metricRows(metrics, gate) : [];
@@ -198,7 +192,6 @@ export function buildPrComment({ metrics, findings, baseline, gate }: CommentInp
   const statusParts = [`${band.emoji} **${band.label}**`];
   if (metrics.gateResult) {
     let verdict = `Quality gate: **${metrics.gateResult === 'PASS' ? 'PASSED' : 'FAILED'}**`;
-    // The verdict restates the stored gateResult; the count only explains it.
     if (gate && metrics.gateResult === 'FAIL') {
       const breached = rows.filter((row) => !row.passed).length;
       verdict += ` — ${breached} of ${rows.length} metrics breached`;

@@ -1,5 +1,4 @@
-// Test code is left out of the score. It's there to exercise the real code, and
-// rules like max-lines-per-function or hardcoded passwords misfire on it.
+// test code isn't scored
 const testDirs = new Set(['test', 'tests', '__tests__']);
 const testFile = /\.(test|spec)\.\w+$|^test_\w*\.py$|_test\.py$/;
 

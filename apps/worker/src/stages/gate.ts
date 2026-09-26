@@ -2,8 +2,6 @@ import type { GateResult } from '@codehealth/shared';
 
 import type { ScoreResult } from './score';
 
-// Thresholds as they come off the repo's quality gate row. Declared here rather
-// than imported from the db package so the stage stays pure.
 export interface GateConfig {
   minHealthScore: number;
   maxCriticalFindings: number | null;
@@ -14,8 +12,7 @@ export interface GateConfig {
   blockPR: boolean;
 }
 
-// What a repo is held to before anyone configures a gate. Same numbers the API
-// hands back from GET /api/repos/:repoId/quality-gate.
+// used when no gate is set, same as the API's defaults
 export const DEFAULT_GATE: GateConfig = {
   minHealthScore: 60,
   maxCriticalFindings: null,
@@ -31,7 +28,7 @@ export interface GateMetric {
   label: string;
   value: number;
   threshold: number;
-  // 'min' means the value has to reach the threshold, 'max' means it has to stay under.
+  // min = must reach it, max = must stay under it
   comparison: 'min' | 'max';
   passed: boolean;
 }
@@ -39,29 +36,16 @@ export interface GateMetric {
 export interface GateEvaluation {
   result: GateResult;
   blockPR: boolean;
-  // Only the metrics that actually have a threshold set.
   metrics: GateMetric[];
 }
 
 export interface GateInput {
-  // Null when the repo has no gate configured, which falls back to the defaults.
+  // null = use defaults
   gate: GateConfig | null;
   score: ScoreResult;
 }
 
-/**
- * Compares this run's numbers against the repo's thresholds and returns PASS or
- * FAIL plus the row behind each comparison, so the PR comment can show why.
- *
- * A null threshold means nobody set that limit, so the metric is left out
- * entirely rather than reported as passing. Critical findings and
- * vulnerabilities are separate checks — one finding can trip both.
- *
- * Debt is deliberately not here. There is no debt threshold to compare against,
- * so it stays a trend number and never decides the verdict.
- *
- * Pure — same score and same config, same verdict, every time.
- */
+// PASS/FAIL against the thresholds. null thresholds are skipped
 export function evaluateGate({ gate, score }: GateInput): GateEvaluation {
   const config = gate ?? DEFAULT_GATE;
 
@@ -124,7 +108,7 @@ export function evaluateGate({ gate, score }: GateInput): GateEvaluation {
     .filter((check): check is Omit<GateMetric, 'passed'> => check !== null)
     .map((check) => ({
       ...check,
-      // Hitting the threshold exactly is fine on both sides.
+      // equal to the threshold passes
       passed:
         check.comparison === 'min'
           ? check.value >= check.threshold

@@ -8,8 +8,6 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-// Hand-rolled stand-in for the two endpoints the poster touches, so the tests
-// never go near the network.
 function fakeOctokit(options: { newId?: number; updateError?: unknown } = {}) {
   const calls: Call[] = [];
   const { newId = 111, updateError } = options;

@@ -3,13 +3,12 @@ import { promisify } from 'util';
 
 const run = promisify(execFile);
 
-// The pipeline allows each analyzer two minutes.
+// 2 min per analyzer
 const timeoutMs = 120_000;
-// A big repo's report goes well past the 1 MB default.
+// big repos go past the 1 MB default
 const maxBuffer = 32 * 1024 * 1024;
 
-// Same list the pylint config ignores: vendored, generated and virtualenv code
-// isn't the author's work, and scanning it buries whatever they did write.
+// vendored, generated and virtualenv code
 const ignoredDirs = [
   '.venv',
   'venv',
@@ -22,8 +21,7 @@ const ignoredDirs = [
   'migrations',
 ];
 
-// Bandit matches these against the whole path it walked, so a bare directory
-// name never hits. The wildcards are what catch the directory at any depth.
+// needs wildcards to match at any depth
 const excludes = ignoredDirs.map((dir) => `*/${dir}/*`).join(',');
 
 export type BanditLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'UNDEFINED';
@@ -62,13 +60,8 @@ interface BanditOutput {
   metrics: { _totals: { nosec: number } };
 }
 
-/**
- * Scans a cloned checkout for security issues and hands back bandit's output as
- * it came. Turning it into findings is the normalize stage's job.
- */
 export async function runBandit(repoPath: string): Promise<BanditReport> {
-  // Run from inside the repo so the temp workspace name never reaches the
-  // paths, the way the other analyzers do it.
+  // run inside the repo so paths stay relative
   const args = ['-m', 'bandit', '-r', '.', '-f', 'json', '-x', excludes];
 
   let stdout: string;
@@ -81,17 +74,14 @@ export async function runBandit(repoPath: string): Promise<BanditReport> {
       maxBuffer,
     }));
   } catch (err) {
-    // Exit 1 just means it found issues and the report is still on stdout.
-    // Anything else — bad arguments, or a timeout kill — is a real failure.
+    // exit 1 just means it found issues
     const failed = err as { code?: number; stdout?: string; stderr?: string };
     if (failed.code !== 1) throw err;
     stdout = failed.stdout ?? '';
     stderr = failed.stderr ?? '';
   }
 
-  // Parsing is the real check that bandit ran — a crash or a missing bandit
-  // leaves something that isn't JSON, and that has to surface rather than read
-  // as a clean repo.
+  // bad JSON means bandit didn't run properly
   let output: BanditOutput;
   try {
     output = JSON.parse(stdout) as BanditOutput;
@@ -101,7 +91,7 @@ export async function runBandit(repoPath: string): Promise<BanditReport> {
 
   const counts: Record<BanditLevel, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, UNDEFINED: 0 };
 
-  // Scanning '.' prefixes every path with './', which the other analyzers don't do.
+  // drop the leading ./
   const strip = (filename: string) => filename.replace(/^\.\//, '');
 
   const results = output.results.map((result) => {
