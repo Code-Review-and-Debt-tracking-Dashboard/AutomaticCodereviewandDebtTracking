@@ -92,6 +92,25 @@ describe("RepositoryFindingsPage", () => {
     expect(link).toHaveAttribute("href", "https://github.com/acme/demo/blob/abc123/src/index.js#L11");
   });
 
+  it("copies only the filtered findings, or a single one, for a coding agent", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("eval with expression detected");
+
+    await user.selectOptions(screen.getByRole("combobox"), "High");
+    await user.click(screen.getByRole("button", { name: "Copy 1 finding" }));
+    const filtered = await navigator.clipboard.readText();
+    expect(filtered).toContain("in acme/demo (at commit abc123");
+    expect(filtered).toContain("1. [HIGH] src/index.js:11 — eval with expression detected");
+    expect(filtered).not.toContain("Unused variable");
+
+    await user.selectOptions(screen.getByRole("combobox"), "All");
+    await user.click(screen.getAllByRole("button", { name: "Copy this finding" })[1]);
+    const single = await navigator.clipboard.readText();
+    expect(single).toContain("1. [MEDIUM] src/users.js:4 — Unused variable detected");
+    expect(single).not.toContain("eval");
+  });
+
   it("filters findings using the search input", async () => {
     const user = userEvent.setup();
     renderPage();
