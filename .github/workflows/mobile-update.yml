@@ -1,0 +1,62 @@
+name: Mobile OTA update
+
+# Publishes the mobile app's JavaScript to installed preview APKs through
+# EAS Update whenever mobile code lands on main. Phones pick it up the next
+# time the app is opened.
+#
+# This only ships JS. Native changes (app icon, app.json native config, a new
+# native package) need "version" bumped in apps/mobile/app.json and a new APK
+# built with `eas build -p android --profile preview`.
+#
+# Needs an EXPO_TOKEN repository secret (expo.dev → Account settings →
+# Access tokens).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Queue publishes instead of running two at once, so the newest commit
+# always ends up as the latest update.
+concurrency:
+  group: mobile-update
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      # Installs the eas CLI and logs it in with EXPO_TOKEN.
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - run: npm run typecheck --workspace apps/mobile
+
+      # The update script pins the preview channel and the preview EAS
+      # environment, which is where EXPO_PUBLIC_API_URL is defined.
+      # The commit message goes through env, not straight into the script,
+      # so quotes or $(...) in a commit message can't run as shell.
+      - name: Publish update
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          title=$(printf '%s\n' "$COMMIT_MESSAGE" | head -n 1)
+          npm run update --workspace apps/mobile -- \
+            --message "${title:-Manual publish} (${GITHUB_SHA::7})" \
+            --non-interactive
