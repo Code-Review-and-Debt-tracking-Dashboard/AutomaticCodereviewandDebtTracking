@@ -153,7 +153,8 @@ export async function getSnapshotFindings(snapshotId: string, userId: string, qu
         prisma.finding.count({ where: dataWhere }),
         prisma.finding.findMany({
             where: dataWhere,
-            orderBy: { createdAt: 'desc' },
+            // findings saved together share a createdAt, so id keeps pages stable
+            orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
             skip: (page - 1) * limit,
             take: limit,
         }),
