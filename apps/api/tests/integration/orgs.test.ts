@@ -4,7 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { bulkLinkQueue } from '../../src/lib/queue';
 import { api } from '../helpers/app';
 import { bearer } from '../helpers/auth';
-import { addOrgMember, addRepoMember, createOrg, createPullRequest, createRepo, createUser } from '../helpers/factories';
+import {
+  addOrgMember,
+  addRepoMember,
+  createAnalysisJob,
+  createOrg,
+  createPullRequest,
+  createRepo,
+  createUser,
+} from '../helpers/factories';
 import { seedTenant } from '../helpers/tenants';
 
 describe('GET /api/orgs', () => {
@@ -155,6 +163,18 @@ describe('GET /api/orgs/:orgId/repos', () => {
       debtMinutes: t.snapshot.debtMinutes,
     });
     expect(main.lastAnalyzedAt).toBe(t.snapshot.calculatedAt.toISOString());
+  });
+
+  it('flags repos whose latest analysis is still queued or running', async () => {
+    const t = await seedTenant('acme');
+    const fresh = await createRepo(t.org, t.owner, { name: 'fresh' });
+    await createAnalysisJob(fresh, { status: 'PENDING', startedAt: null, completedAt: null });
+
+    const res = await api().get(`/api/orgs/${t.org.id}/repos`).set(bearer(t.owner));
+
+    const byName = (name: string) => res.body.data.find((r: { name: string }) => r.name === name);
+    expect(byName('fresh').analysisInProgress).toBe(true);
+    expect(byName(t.repo.name).analysisInProgress).toBe(false);
   });
 });
 

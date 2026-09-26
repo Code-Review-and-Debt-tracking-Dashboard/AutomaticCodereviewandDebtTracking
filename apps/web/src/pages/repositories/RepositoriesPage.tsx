@@ -53,6 +53,7 @@ interface ApiRepository {
   debtMinutes?: number | null;
   lastAnalyzedAt?: string | null;
   private?: boolean;
+  analysisInProgress?: boolean;
 }
 
 type Repository = {
@@ -69,7 +70,11 @@ type Repository = {
   isPrivate: boolean;
   // false until the repo has a snapshot — score/findings/debt are placeholders
   isAnalyzed: boolean;
+  isAnalyzing: boolean;
 };
+
+// how often to re-check while an analysis is queued or running
+const POLL_MS = 5000;
 
 const languages = [
   "All languages",
@@ -115,14 +120,15 @@ export function RepositoriesPage() {
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
 
-  const fetchRepos = useCallback(async () => {
+  // quiet skips the loading state, for background re-checks
+  const fetchRepos = useCallback(async (quiet = false) => {
     if (!selectedOrg) {
       setRepositories([]);
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (!quiet) setIsLoading(true);
     setError(null);
     try {
       const res = await api.get<{ data: ApiRepository[] }>(
@@ -155,6 +161,7 @@ export function RepositoriesPage() {
             : "Never",
           isPrivate: item.private ?? false,
           isAnalyzed,
+          isAnalyzing: item.analysisInProgress ?? false,
         };
       });
 
@@ -172,6 +179,13 @@ export function RepositoriesPage() {
   useEffect(() => {
     fetchRepos();
   }, [fetchRepos]);
+
+  // keep checking until every queued or running analysis is done
+  useEffect(() => {
+    if (!repositories.some((r) => r.isAnalyzing)) return;
+    const timer = setTimeout(() => fetchRepos(true), POLL_MS);
+    return () => clearTimeout(timer);
+  }, [repositories, fetchRepos]);
 
   // also removes the webhook, so confirm first
   const confirmUnlink = async () => {
@@ -417,7 +431,7 @@ export function RepositoriesPage() {
         <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
           <p className="text-sm font-semibold">{error}</p>
           <Button
-            onClick={fetchRepos}
+            onClick={() => fetchRepos()}
             variant="destructive"
             className="mt-4"
           >
@@ -608,7 +622,9 @@ function RepositoryCard({
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Health score</span>
-            <span className={`text-xs font-medium ${band.textClass}`}>{band.label}</span>
+            <span className={`text-xs font-medium ${band.textClass}`}>
+              {repository.isAnalyzing ? "Analyzing…" : band.label}
+            </span>
           </div>
 
           <div className="h-2 overflow-hidden rounded-full bg-muted">
