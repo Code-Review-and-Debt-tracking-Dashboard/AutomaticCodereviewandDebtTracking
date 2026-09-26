@@ -51,7 +51,7 @@ function buildLimiter({ windowMs, limit, prefix, keyGenerator, skip }: LimiterOp
 // /health and load test runs are exempt.
 export const globalRateLimiter = buildLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 50000,
+  limit: 1000,
   prefix: 'rl:global:',
   skip: (req) => req.path === '/health' || req.headers['x-load-test'] === 'true',
 });
