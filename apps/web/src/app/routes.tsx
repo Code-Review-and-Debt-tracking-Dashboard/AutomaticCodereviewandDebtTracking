@@ -1,0 +1,166 @@
+import {
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
+
+import { AppLayout } from "../components/layout/AppLayout";
+import { ProtectedRoute } from "../components/auth/ProtectedRoute";
+
+import { LoginPage } from "../pages/auth/LoginPage";
+import { AuthCallbackPage } from "../pages/auth/AuthCallbackPage";
+import { DashboardPage } from "../pages/dashboard/DashboardPage";
+
+import { RepositoriesPage } from "../pages/repositories/RepositoriesPage";
+import { RepositoryOverviewPage } from "../pages/repositories/RepositoryOverviewPage";
+import { RepositoryTrendsPage } from "../pages/repositories/RepositoryTrendsPage";
+import { RepositoryFindingsPage } from "../pages/repositories/RepositoryFindingsPage";
+import { RepositoryPullRequestsPage } from "../pages/repositories/RepositoryPullRequestsPage";
+import { RepositoryQualityGatePage } from "../pages/repositories/RepositoryQualityGatePage";
+import { RepositoryMembersPage } from "../pages/repositories/RepositoryMembersPage";
+import { RepositoryFilesPage } from "../pages/repositories/RepositoryFilesPage";
+import { RepositoryAnalyzePage } from "../pages/repositories/RepositoryAnalyzePage";
+import { PRFindingDrilldownPage } from "../pages/repositories/PRFindingDrilldownPage";
+
+import { GlobalPullRequestsPage } from "../pages/global/GlobalPullRequestsPage";
+import { GlobalAnalyticsPage } from "../pages/global/GlobalAnalyticsPage";
+import { GlobalNotificationsPage } from "../pages/global/GlobalNotificationsPage";
+import { GlobalMembersPage } from "../pages/global/GlobalMembersPage";
+import { SettingsPage } from "../pages/global/SettingsPage";
+import { ProfilePage } from "../pages/global/ProfilePage";
+
+export function AppRoutes() {
+  return (
+      <Routes>
+        {/* =========================
+            PUBLIC ROUTES
+        ========================== */}
+
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
+
+        <Route
+          path="/auth/callback"
+          element={<AuthCallbackPage />}
+        />
+
+        {/* =========================
+            PROTECTED APPLICATION ROUTES
+        ========================== */}
+
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+
+            {/* Dashboard */}
+            <Route
+              path="/dashboard"
+              element={<DashboardPage />}
+            />
+
+            {/* Repositories List */}
+            <Route
+              path="/repositories"
+              element={<RepositoriesPage />}
+            />
+
+            {/* Global Pages */}
+            <Route
+              path="/pull-requests"
+              element={<GlobalPullRequestsPage />}
+            />
+
+            <Route
+              path="/analytics"
+              element={<GlobalAnalyticsPage />}
+            />
+
+            <Route
+              path="/notifications"
+              element={<GlobalNotificationsPage />}
+            />
+
+            <Route
+              path="/members"
+              element={<GlobalMembersPage />}
+            />
+
+            <Route
+              path="/settings"
+              element={<SettingsPage />}
+            />
+
+            <Route
+              path="/profile"
+              element={<ProfilePage />}
+            />
+
+            {/* =========================
+                REPOSITORY SPECIFIC ROUTES
+            ========================== */}
+
+            <Route
+              path="/repositories/:repoId"
+              element={<RepositoryOverviewPage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/files"
+              element={<RepositoryFilesPage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/analyze"
+              element={<RepositoryAnalyzePage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/trends"
+              element={<RepositoryTrendsPage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/findings"
+              element={<RepositoryFindingsPage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/pull-requests"
+              element={<RepositoryPullRequestsPage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/pull-requests/:prNumber/findings"
+              element={<PRFindingDrilldownPage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/quality-gate"
+              element={<RepositoryQualityGatePage />}
+            />
+
+            <Route
+              path="/repositories/:repoId/members"
+              element={<RepositoryMembersPage />}
+            />
+
+          </Route>
+        </Route>
+
+        {/* =========================
+            FALLBACK ROUTE
+        ========================== */}
+
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to="/dashboard"
+              replace
+            />
+          }
+        />
+      </Routes>
+  );
+}

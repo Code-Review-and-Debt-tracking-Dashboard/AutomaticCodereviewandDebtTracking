@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.env
+**/.venv
+.git
+.dev
+docs
+apps/worker/vendor
+**/.env.*
+!**/.env.example

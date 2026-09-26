@@ -1,0 +1,651 @@
+import { motion } from "framer-motion";
+import {
+  Code2,
+  ExternalLink,
+  Filter,
+  GitBranch,
+  MoreHorizontal,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Unlink,
+  X,
+  Loader2,
+} from "lucide-react";
+
+import {
+  QualityGateIcon,
+  RepositoriesIcon,
+  TrendIcon,
+} from "../../components/icons";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { useOrg } from "../../contexts/OrgContext";
+import { api } from "../../lib/apiClient";
+import { healthBand } from "../../lib/healthBand";
+import { LinkRepositoryModal } from "../../components/repositories/LinkRepositoryModal";
+
+import {
+  Card,
+  Button,
+  StatCard,
+  PageHeader,
+  PageHeaderBadge,
+  PageHeaderTitle,
+  PageHeaderDescription,
+  PageHeaderActions,
+  Select,
+} from "../../components/ui";
+
+/*
+ * =========================================================
+ * REPOSITORIES PAGE (D-06)
+ * =========================================================
+ */
+
+interface ApiRepository {
+  id: string;
+  githubRepoId?: string;
+  name: string;
+  fullName: string;
+  language: string | null;
+  defaultBranch: string;
+  isActive: boolean;
+  orgId: string;
+  healthScore?: number | null;
+  openFindings?: number | null;
+  debtMinutes?: number | null;
+  lastAnalyzedAt?: string | null;
+  private?: boolean;
+}
+
+type Repository = {
+  id: string;
+  name: string;
+  fullName: string;
+  language: string;
+  score: number;
+  findings: number;
+  debt: string;
+  status: string;
+  branch: string;
+  lastAnalyzed: string;
+  isPrivate: boolean;
+  // false until the repo has a snapshot — score/findings/debt are placeholders
+  isAnalyzed: boolean;
+};
+
+const languages = [
+  "All languages",
+  "TypeScript",
+  "Python",
+  "Java",
+  "JavaScript",
+  "C++",
+];
+
+const scoreFilters = [
+  "All scores",
+  "Excellent (90+)",
+  "Good (70-89)",
+  "Fair (50-69)",
+  "Needs attention (<50)",
+];
+
+type SortOption = "health" | "findings" | "debt" | "recent";
+
+export function RepositoriesPage() {
+  const navigate = useNavigate();
+  const { selectedOrg } = useOrg();
+
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [language, setLanguage] = useState("All languages");
+  const [scoreFilter, setScoreFilter] = useState("All scores");
+  const [sortBy, setSortBy] = useState<SortOption>("health");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<Repository | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
+
+  const fetchRepos = useCallback(async () => {
+    if (!selectedOrg) {
+      setRepositories([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<{ data: ApiRepository[] }>(
+        `/api/orgs/${selectedOrg.id}/repos`
+      );
+      const apiList = res.data || [];
+
+      // Map backend schema to UI Repository shape
+      const mapped: Repository[] = apiList.map((item) => {
+        const isAnalyzed = item.healthScore !== null && item.healthScore !== undefined;
+        const score = item.healthScore ?? 0;
+        const status = healthBand(item.healthScore).label;
+
+        const minutes = item.debtMinutes ?? 0;
+        const hrs = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        const debtStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+
+        return {
+          id: item.id,
+          name: item.name,
+          fullName: item.fullName,
+          language: item.language || "TypeScript",
+          score,
+          findings: item.openFindings ?? 0,
+          debt: debtStr,
+          status,
+          branch: item.defaultBranch || "main",
+          lastAnalyzed: item.lastAnalyzedAt
+            ? new Date(item.lastAnalyzedAt).toLocaleDateString()
+            : "Never",
+          isPrivate: item.private ?? false,
+          isAnalyzed,
+        };
+      });
+
+      setRepositories(mapped);
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message || "Failed to load repositories for this organization."
+      );
+      setRepositories([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedOrg]);
+
+  useEffect(() => {
+    fetchRepos();
+  }, [fetchRepos]);
+
+  // Removes the GitHub webhook too, so it has to be confirmed first.
+  const confirmUnlink = async () => {
+    if (!unlinkTarget) return;
+
+    setIsUnlinking(true);
+    setUnlinkError(null);
+    try {
+      await api.delete(`/api/repos/${unlinkTarget.id}`);
+      setUnlinkTarget(null);
+      await fetchRepos();
+    } catch (err: any) {
+      setUnlinkError(err?.response?.data?.message || "Failed to unlink this repository.");
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
+
+  const filteredRepositories = useMemo(() => {
+    let result = [...repositories];
+
+    if (search.trim()) {
+      const query = search.toLowerCase();
+      result = result.filter(
+        (repo) =>
+          repo.name.toLowerCase().includes(query) ||
+          repo.fullName.toLowerCase().includes(query)
+      );
+    }
+
+    if (language !== "All languages") {
+      result = result.filter((repo) => repo.language === language);
+    }
+
+    if (scoreFilter === "Excellent (90+)") {
+      result = result.filter((repo) => repo.score >= 90);
+    } else if (scoreFilter === "Good (70-89)") {
+      result = result.filter((repo) => repo.score >= 70 && repo.score < 90);
+    } else if (scoreFilter === "Fair (50-69)") {
+      result = result.filter((repo) => repo.score >= 50 && repo.score < 70);
+    } else if (scoreFilter === "Needs attention (<50)") {
+      result = result.filter((repo) => repo.score < 50);
+    }
+
+    result.sort((a, b) => {
+      if (sortBy === "health") return b.score - a.score;
+      if (sortBy === "findings") return b.findings - a.findings;
+      if (sortBy === "debt") return b.debt.localeCompare(a.debt);
+      return 0;
+    });
+
+    return result;
+  }, [repositories, search, language, scoreFilter, sortBy]);
+
+  const stats = useMemo(() => {
+    const total = repositories.length;
+    const analyzed = repositories.filter((r) => r.isAnalyzed);
+    const avgHealth =
+      analyzed.length > 0
+        ? (analyzed.reduce((acc, r) => acc + r.score, 0) / analyzed.length).toFixed(1)
+        : "—";
+    const healthyCount = analyzed.filter((r) => r.score >= 70).length;
+    const totalFindings = repositories.reduce((acc, r) => acc + r.findings, 0);
+
+    return {
+      total,
+      avgHealth,
+      healthyCount,
+      totalFindings,
+    };
+  }, [repositories]);
+
+  return (
+    <>
+      
+      <PageHeader>
+        <div>
+          <PageHeaderBadge>
+            <GitBranch size={13} />
+            Organization: {selectedOrg?.name || selectedOrg?.login || "Select Org"}
+          </PageHeaderBadge>
+
+          <PageHeaderTitle>Repositories</PageHeaderTitle>
+
+          <PageHeaderDescription>
+            Monitor code health and technical debt for repositories in this organization.
+          </PageHeaderDescription>
+        </div>
+
+        <PageHeaderActions>
+          <Button
+            data-tour="add-repo"
+            onClick={() => setIsLinkModalOpen(true)}
+            variant="primary"
+          >
+            <Plus size={17} className="mr-2" />
+            Add repository
+          </Button>
+        </PageHeaderActions>
+      </PageHeader>
+
+      {/* SUMMARY CARDS */}
+      <div data-tour="repo-stats" className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={RepositoriesIcon}
+          title="Total repositories"
+          value={String(stats.total)}
+          color="primary"
+        />
+
+        <StatCard
+          icon={TrendIcon}
+          title="Average health"
+          value={String(stats.avgHealth)}
+          color="success"
+        />
+
+        <StatCard
+          icon={QualityGateIcon}
+          title="Healthy repositories"
+          value={String(stats.healthyCount)}
+          color="info"
+        />
+
+        <StatCard
+          icon={RepositoriesIcon}
+          title="Total findings"
+          value={String(stats.totalFindings)}
+          color="warning"
+        />
+      </div>
+
+      {/* SEARCH & FILTERS */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="mb-6 rounded-2xl border border-border/70 bg-card p-4 sm:p-5"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-1 items-center gap-2 rounded-xl border border-border/70 bg-background px-3 py-2.5 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
+            <Search size={17} className="shrink-0 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              type="text"
+              placeholder="Search repositories..."
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          <Button
+            onClick={() => setFiltersOpen((prev) => !prev)}
+            variant="outline"
+            className="lg:hidden"
+          >
+            <Filter size={16} className="mr-2" />
+            Filters
+          </Button>
+
+          <div className="hidden items-center gap-3 lg:flex">
+            <Select
+              value={language}
+              onChange={setLanguage}
+              options={languages}
+            />
+
+            <Select
+              value={scoreFilter}
+              onChange={setScoreFilter}
+              options={scoreFilters}
+            />
+
+            <Select
+              value={sortBy}
+              onChange={(val) => setSortBy(val as SortOption)}
+              options={["health", "findings", "debt", "recent"]}
+            />
+          </div>
+        </div>
+
+        {filtersOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3 lg:hidden"
+          >
+            <Select
+              value={language}
+              onChange={setLanguage}
+              options={languages}
+            />
+
+            <Select
+              value={scoreFilter}
+              onChange={setScoreFilter}
+              options={scoreFilters}
+            />
+
+            <Select
+              value={sortBy}
+              onChange={(val) => setSortBy(val as SortOption)}
+              options={["health", "findings", "debt", "recent"]}
+            />
+          </motion.div>
+        )}
+      </motion.section>
+
+      {/* RESULTS HEADER */}
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">Your repositories</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {filteredRepositories.length} repositories found
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="hidden items-center gap-2 text-xs font-medium text-muted-foreground transition hover:text-primary sm:flex"
+        >
+          <SlidersHorizontal size={14} />
+          Customize view
+        </button>
+      </div>
+
+      {/* CONTENT STATES */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+          <Loader2 size={32} className="animate-spin text-primary" />
+          <p className="text-sm">Loading repositories from Postgres…</p>
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center text-destructive">
+          <p className="text-sm font-semibold">{error}</p>
+          <Button
+            onClick={fetchRepos}
+            variant="destructive"
+            className="mt-4"
+          >
+            Retry
+          </Button>
+        </div>
+      ) : filteredRepositories.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-12 text-center">
+          <Search size={32} className="mx-auto text-muted-foreground" />
+          <h3 className="mt-4 text-sm font-semibold">No repositories found</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            No repositories match your current search or organization selection.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filteredRepositories.map((repository, index) => (
+            <RepositoryCard
+              key={repository.id}
+              repository={repository}
+              index={index}
+              onSelect={() => navigate(`/repositories/${repository.id}`)}
+              onUnlink={() => setUnlinkTarget(repository)}
+            />
+          ))}
+        </div>
+      )}
+
+      <LinkRepositoryModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onRepoLinked={fetchRepos}
+      />
+
+      {unlinkTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <h2 className="text-lg font-bold">Unlink repository</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This removes the CodePulse webhook from{" "}
+              <span className="font-semibold text-foreground">{unlinkTarget.fullName}</span> on
+              GitHub, so it stops being analysed. Past analyses are kept and will come back if you
+              link it again.
+            </p>
+
+            {unlinkError && (
+              <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                {unlinkError}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isUnlinking}
+                onClick={() => {
+                  setUnlinkTarget(null);
+                  setUnlinkError(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive-solid"
+                size="sm"
+                disabled={isUnlinking}
+                onClick={confirmUnlink}
+              >
+                {isUnlinking ? "Unlinking…" : "Unlink"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RepositoryCard({
+  repository,
+  index,
+  onSelect,
+  onUnlink,
+}: {
+  repository: Repository;
+  index: number;
+  onSelect: () => void;
+  onUnlink: () => void;
+}) {
+  const band = healthBand(repository.isAnalyzed ? repository.score : null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <Card
+      className="group cursor-pointer transition hover:border-primary/30 sm:p-2"
+    >
+      <div className="p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Code2 size={21} />
+            </div>
+
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-semibold">{repository.name}</h3>
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {repository.fullName}
+              </p>
+            </div>
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Repository actions"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((open) => !open);
+              }}
+              className="rounded-lg p-2 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+
+            {menuOpen && (
+              <>
+                {/* click-away catcher */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                  }}
+                />
+                <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      onUnlink();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-destructive transition hover:bg-destructive/10"
+                  >
+                    <Unlink size={14} />
+                    Unlink repository
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Health
+            </p>
+            <p
+              className={`mt-1 text-2xl font-bold ${
+                band.textClass
+              }`}
+            >
+              {repository.isAnalyzed ? repository.score : "—"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Findings
+            </p>
+            <p className="mt-1 text-2xl font-bold">
+              {repository.isAnalyzed ? repository.findings : "—"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Debt
+            </p>
+            <p className="mt-1 text-lg font-bold">
+              {repository.isAnalyzed ? repository.debt : "—"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Health score</span>
+            <span className={`text-xs font-medium ${band.textClass}`}>{band.label}</span>
+          </div>
+
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${repository.score}%` }}
+              transition={{ duration: 0.8, delay: index * 0.05 }}
+              className={`h-full rounded-full ${
+                band.tone === "success" ? "bg-success" : band.tone === "info" ? "bg-info" : band.tone === "warning" ? "bg-warning" : "bg-destructive"
+              }`}
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              {repository.language}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {repository.lastAnalyzed}
+            </span>
+          </div>
+
+          <Button
+            data-tour={index === 0 ? "repo-card" : undefined}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+            variant="outline"
+            size="sm"
+          >
+            View repository
+            <ExternalLink size={14} className="ml-2" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
