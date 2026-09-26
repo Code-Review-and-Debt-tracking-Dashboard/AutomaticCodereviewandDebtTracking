@@ -89,7 +89,8 @@ jobs:
       - run: npm run test --workspace apps/api
 
   # Only on main, and only once both jobs above pass. Logs in to AWS with
-  # OIDC (no stored keys) and runs scripts/deploy.sh on the server over SSM.
+  # OIDC (no stored keys), then pulls main and runs scripts/deploy.sh on the
+  # server over SSM.
   deploy:
     needs: [lint-and-typecheck, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -115,7 +116,7 @@ jobs:
           id=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --parameters 'commands=["sudo -iu ubuntu /home/ubuntu/AutomaticCodereviewandDebtTracking/scripts/deploy.sh"]' \
+            --parameters 'commands=["sudo -iu ubuntu git -C /home/ubuntu/AutomaticCodereviewandDebtTracking pull --ff-only origin main && sudo -iu ubuntu /home/ubuntu/AutomaticCodereviewandDebtTracking/scripts/deploy.sh"]' \
             --query Command.CommandId --output text)
 
           # aws ssm wait gives up after ~100s, a worker rebuild takes longer

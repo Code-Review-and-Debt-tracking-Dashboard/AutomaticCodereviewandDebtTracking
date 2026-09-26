@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Pulls main and redeploys the prod stack. CD runs this, it also works by hand.
+# Redeploys the prod stack from the current checkout. Pull first, not in
+# here, since bash would be running this file while git rewrites it:
+#   git pull --ff-only origin main && ./scripts/deploy.sh
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-git pull --ff-only origin main
 C="docker compose -f docker-compose.prod.yml"
 
 # one at a time, 2 GB of RAM can't build all three together
