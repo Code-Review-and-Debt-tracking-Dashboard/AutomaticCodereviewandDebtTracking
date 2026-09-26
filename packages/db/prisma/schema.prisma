@@ -40,8 +40,7 @@ model GitHubCredential {
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// One refresh token. Rotation replaces the row and keeps familyId, so a
-// stolen token that gets replayed can take down every token in its family.
+// one refresh token. reusing an old one revokes the whole family
 model Session {
   id            String               @id @default(cuid())
   familyId      String
@@ -72,14 +71,11 @@ model Organization {
   agents       Agent[]
 }
 
-// One data plane deployment (a worker instance). Authenticated by tokenHash
-// instead of a user session, so a deployment can be revoked on its own
-// without touching anything else.
+// a worker deployment, authenticated by tokenHash
 model Agent {
   id           String        @id @default(cuid())
   tokenHash    String        @unique
-  /// null means the agent is platform-wide and can service every org. A worker
-  /// holds one token, so a per-org agent can only ever analyse that one org.
+  /// null = serves every org
   orgId        String?
   organization Organization? @relation(fields: [orgId], references: [id], onDelete: Restrict)
   lastSeenAt   DateTime?
@@ -325,8 +321,7 @@ enum PlatformRole {
   USER
 }
 
-// ROTATED means the token was spent normally. Anything else means the session
-// is dead for good.
+// ROTATED is normal, anything else means the session is dead
 enum SessionRevokeReason {
   ROTATED
   LOGOUT
