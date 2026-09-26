@@ -454,7 +454,7 @@ export function GlobalAnalyticsPage() {
 
             <DataTableBody>
               {filteredRepos.map((repo) => (
-                <DataTableRow key={repo.name}>
+                <DataTableRow key={repo.name} onClick={() => navigate(`/repositories/${repo.id}`)}>
                   {/* Name */}
                   <DataTableCell>
                     <div className="flex items-center gap-3">

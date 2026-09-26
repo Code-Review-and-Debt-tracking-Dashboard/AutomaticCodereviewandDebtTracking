@@ -241,7 +241,7 @@ OUTSIDE CLICK HANDLER
 
   const handleSearch = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && searchQuery.trim()) {
-      navigate(`/repositories?search=${searchQuery}`);
+      navigate(`/repositories?search=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
