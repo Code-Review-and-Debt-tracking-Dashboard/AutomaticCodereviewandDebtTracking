@@ -54,6 +54,9 @@ async function dispatch({ repoId, userIds, events }: PushBatch): Promise<void> {
     return;
   }
 
+  // the app needs the name to title the repo screen it opens
+  const repo = await prisma.repository.findUnique({ where: { id: repoId }, select: { name: true } });
+
   // tickets come back in the same order as messages
   const outgoing = devices.flatMap((device) =>
     events.map((event) => ({
@@ -64,7 +67,7 @@ async function dispatch({ repoId, userIds, events }: PushBatch): Promise<void> {
         body: event.body,
         sound: 'default' as const,
         channelId: ANDROID_CHANNEL_ID,
-        data: { type: event.type, repoId },
+        data: { type: event.type, repoId, repoName: repo?.name },
       },
     })),
   );

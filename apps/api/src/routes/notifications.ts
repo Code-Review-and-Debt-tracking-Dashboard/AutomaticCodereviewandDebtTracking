@@ -82,3 +82,34 @@ notificationsRouter.put('/api/notifications/read-all', requireAuth, validateRequ
     next(err);
   }
 });
+
+// scoped to the caller, so someone else's id is a 404
+notificationsRouter.delete(
+  '/api/notifications/:notificationId',
+  requireAuth,
+  validateRequest(notificationIdParamsSchema),
+  async (req, res, next) => {
+    try {
+      const deleted = await prisma.notification.deleteMany({
+        where: { id: req.params.notificationId, userId: req.user!.id },
+      });
+
+      if (deleted.count === 0) {
+        throw new AppError(404, 'NOT_FOUND', 'Notification not found');
+      }
+
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+notificationsRouter.delete('/api/notifications', requireAuth, validateRequest(z.object({})), async (req, res, next) => {
+  try {
+    await prisma.notification.deleteMany({ where: { userId: req.user!.id } });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
