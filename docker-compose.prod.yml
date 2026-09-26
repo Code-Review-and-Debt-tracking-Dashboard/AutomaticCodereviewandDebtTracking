@@ -5,12 +5,16 @@
 # own project name, so it never touches the dev compose containers or volumes
 name: codepulse-prod
 
-# keeps logs from filling the disk
+# ships container logs to CloudWatch Logs (needs CloudWatchAgentServerPolicy
+# on the instance role). Docker still keeps a local cache, so `compose logs`
+# keeps working.
 x-logging: &logging
-  driver: json-file
+  driver: awslogs
   options:
-    max-size: 10m
-    max-file: "3"
+    awslogs-region: ap-south-1
+    awslogs-group: /codepulse/prod
+    awslogs-create-group: "true"
+    tag: "{{.Name}}"
 
 x-database-url: &database-url postgresql://postgres:${POSTGRES_PASSWORD:?set it in .env}@postgres:5432/code_review_db
 
