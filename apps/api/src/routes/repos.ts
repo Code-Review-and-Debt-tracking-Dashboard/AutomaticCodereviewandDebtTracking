@@ -4,12 +4,12 @@ import { AppError } from '../middleware/errorHandler';
 import { analyzeRateLimiter } from '../middleware/rateLimit';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
-import { addMember, isRepoRole, listMembers, removeMember } from '../services/memberService';
+import { addMember, listMembers, removeMember } from '../services/memberService';
 import { linkRepository, listAvailableRepos, unlinkRepository } from '../services/repoLinkService';
 import { getRepoAnalyses, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPullRequests, getRepoPullRequestDetail, getRepoTrend } from '../services/repoService';
 import { triggerManualAnalysis } from '../services/queueService';
 import { validateRequest } from '../middleware/zodValidate';
-import { linkRepositorySchema, addMemberSchema } from '../schemas/repoSchemas';
+import { addMemberSchema } from '../schemas/repoSchemas';
 import { availableReposQuerySchema, hotspotsQuerySchema, memberParamsSchema, prParamsSchema, repoIdParamsSchema, trendQuerySchema } from '../schemas/requestSchemas';
 
 export const reposRouter = Router();

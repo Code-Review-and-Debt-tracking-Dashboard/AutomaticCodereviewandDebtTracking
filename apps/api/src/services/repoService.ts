@@ -288,6 +288,9 @@ export async function getRepoPullRequests(repoId: string) {
         const latestJob = pr.analysisJobs[0];
         const snapshot = latestJob?.snapshot;
 
+        let status = 'Pending';
+        if (snapshot) status = snapshot.gateResult === 'PASS' ? 'Passed' : 'Needs attention';
+
         return {
             id: pr.prNumber,
             title: pr.title,
@@ -296,7 +299,7 @@ export async function getRepoPullRequests(repoId: string) {
             score: snapshot?.healthScore ?? null,
             findings: snapshot?.totalIssues ?? 0,
             debtDelta: snapshot?.debtDeltaMinutes ?? 0,
-            status: snapshot ? (snapshot.gateResult === 'PASS' ? 'Passed' : 'Needs attention') : 'Pending',
+            status,
             time: pr.githubUpdatedAt ? pr.githubUpdatedAt.toISOString() : pr.updatedAt.toISOString(),
             htmlUrl: pr.htmlUrl,
         };

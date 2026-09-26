@@ -286,7 +286,8 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
     const snapshot = latestJob?.snapshot;
 
     const score = snapshot?.healthScore ?? null;
-    const gateStatus = snapshot ? (snapshot.gateResult === 'PASS' ? 'Passed' : 'Needs attention') : 'Pending';
+    let gateStatus = 'Pending';
+    if (snapshot) gateStatus = snapshot.gateResult === 'PASS' ? 'Passed' : 'Needs attention';
 
     totalAnalyzed++;
     if (gateStatus === 'Passed') gatePassed++;

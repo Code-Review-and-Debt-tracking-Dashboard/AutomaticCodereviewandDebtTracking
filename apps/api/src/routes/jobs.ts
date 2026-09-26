@@ -1,15 +1,13 @@
 import { AnalysisStatus, prisma } from '@codehealth/db';
-import type { BaselineSnapshot, QualityGateThresholds } from '@codehealth/shared';
+import type { AnalysisResultsPayload, BaselineSnapshot, QualityGateThresholds } from '@codehealth/shared';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 
 import { AppError } from '../middleware/errorHandler';
 import { requireAgent } from '../middleware/requireAgent';
 import { validateRequest } from '../middleware/zodValidate';
-import { analysisQueue } from '../lib/queue';
 import { createAnalysisNotifications } from '../services/notificationService';
 import { sendPushNotifications } from '../services/pushService';
-import { Job } from 'bullmq';
 
 export const jobsRouter = Router();
 
@@ -19,7 +17,7 @@ const LEASE_DURATION_MS = 10 * 60_000;
 // Another org's job is reported as missing rather than forbidden, so a token
 // can't be used to find out which job ids exist.
 async function loadAgentJob(req: Request, jobId: string) {
-  const { orgId } = (req as any).agent;
+  const { orgId } = req.agent!;
 
   const job = await prisma.analysisJob.findFirst({
     // a platform agent (no orgId) services every org; an org-scoped one is
@@ -311,7 +309,8 @@ jobsRouter.post(
   async (req, res, next) => {
     try {
       const job = await loadAgentJob(req, req.params.jobId);
-      const { commitSha, metrics, findings, toolVersions, analysisLimited } = req.body;
+      const { commitSha, metrics, findings, toolVersions, analysisLimited } =
+        req.body as AnalysisResultsPayload;
 
       // A worker retries the whole job, so the same results can arrive twice
       // after a lost response. A snapshot is immutable, so the second delivery
@@ -345,7 +344,7 @@ jobsRouter.post(
 
         if (findings.length > 0) {
           await tx.finding.createMany({
-            data: findings.map((f: any) => ({
+            data: findings.map((f) => ({
               ...f,
               snapshotId: created.id,
               repoId: job.repoId,

@@ -1,8 +1,17 @@
-import { prisma } from '@codehealth/db';
+import { prisma, type Agent } from '@codehealth/db';
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 
 import { AppError } from './errorHandler';
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      agent?: Agent;
+    }
+  }
+}
 
 export async function requireAgent(req: Request, res: Response, next: NextFunction) {
   try {
@@ -23,7 +32,7 @@ export async function requireAgent(req: Request, res: Response, next: NextFuncti
     }
 
     // Attach agent to request
-    (req as any).agent = agent;
+    req.agent = agent;
 
     // Update lastSeenAt asynchronously
     prisma.agent

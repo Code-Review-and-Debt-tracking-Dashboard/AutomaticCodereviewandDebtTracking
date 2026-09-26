@@ -78,7 +78,7 @@ async function exchangeCodeForToken(code: string): Promise<GithubTokenResponse> 
         redirect_uri: env.githubOAuthCallbackUrl,
       }),
     });
-  } catch (err) {
+  } catch {
     throw new AppError(502, 'GITHUB_UNAVAILABLE', 'Could not reach GitHub to exchange the OAuth code');
   }
 
