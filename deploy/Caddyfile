@@ -1,0 +1,10 @@
+api.{$DOMAIN} {
+	reverse_proxy api:4000
+}
+
+app.{$DOMAIN} {
+	root * /srv/web
+	# unknown paths get index.html so react router deep links work
+	try_files {path} /index.html
+	file_server
+}

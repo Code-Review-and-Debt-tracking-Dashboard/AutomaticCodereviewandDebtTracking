@@ -4,6 +4,7 @@ build/
 coverage/
 .cache/
 .turbo/
+.venv/
 
 .env
 .env.*
@@ -17,3 +18,11 @@ pnpm-debug.log*
 
 .DS_Store
 Thumbs.db
+
+.cursor/
+CLAUDE.md
+# local dev run state (pids + logs)
+.dev/
+
+# checkstyle jar, fetched by hand (see apps/worker/src/analyzers/checkstyle.ts)
+apps/worker/vendor/

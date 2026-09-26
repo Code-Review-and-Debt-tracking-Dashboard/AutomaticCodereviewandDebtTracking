@@ -1,0 +1,19 @@
+# The config the worker lints every scanned repo with. Fixed on purpose — the
+# score has to mean the same thing everywhere, so the repo's own pylintrc never
+# gets a say.
+
+[MAIN]
+# Vendored, generated and virtualenv code isn't the author's work, and linting it
+# buries whatever they did write.
+ignore=.venv,venv,env,__pycache__,site-packages,node_modules,build,dist,migrations
+
+# Pylint otherwise keeps a cache between runs, so the same commit could score
+# differently depending on what this worker happened to look at before.
+persistent=no
+
+[MESSAGES CONTROL]
+# We never install the scanned repo's dependencies, so every third-party import
+# comes back as an error. That's a fact about our worker, not about their code.
+# Nothing else is turned off — findings that are merely repetitive are still
+# true, and the scorer already damps a rule that repeats.
+disable=import-error

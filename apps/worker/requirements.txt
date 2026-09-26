@@ -1,0 +1,9 @@
+# Python tools the worker shells out to. The worker image installs these; to run
+# the worker on the host instead:
+#   python3 -m pip install -r apps/worker/requirements.txt
+#
+# Pinned exactly: a version bump changes which messages fire, and that would move
+# the health score of code that never changed.
+pylint==4.0.8
+bandit==1.9.4
+radon==6.0.1

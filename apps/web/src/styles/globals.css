@@ -1,0 +1,381 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-info: hsl(var(--info));
+  --color-warning: hsl(var(--warning));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+
+  /* Each theme swaps the display face, so keep these as live references. */
+  --font-sans: var(--font-ui);
+  --font-display: var(--font-heading);
+  --font-mono: var(--font-code);
+
+  /* Tight corners everywhere — nothing here is a pill. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+  --radius-xl: 9px;
+  --radius-2xl: 10px;
+  --radius-3xl: 12px;
+
+  /* Shadows are reserved for things that float above the page. */
+  --shadow-2xs: none;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: 0 2px 6px hsl(var(--shadow-tint) / 0.1);
+  --shadow-lg: 0 8px 20px -6px hsl(var(--shadow-tint) / 0.18);
+  --shadow-xl: 0 14px 34px -10px hsl(var(--shadow-tint) / 0.24);
+  --shadow-2xl: 0 20px 44px -12px hsl(var(--shadow-tint) / 0.32);
+}
+
+/* ==========================================================
+   LIGHT — editorial paper
+========================================================== */
+
+:root {
+  --font-ui: "Schibsted Grotesk", ui-sans-serif, sans-serif;
+  --font-heading: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-code: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --background: 48 31% 94%;
+  --foreground: 156 30% 12%;
+
+  --card: 48 40% 98%;
+  --card-foreground: 156 30% 12%;
+
+  --popover: 48 40% 98%;
+  --popover-foreground: 156 30% 12%;
+
+  --primary: 156 58% 28%;
+  --primary-foreground: 48 40% 98%;
+
+  --secondary: 48 24% 91%;
+  --secondary-foreground: 156 30% 12%;
+
+  --muted: 48 24% 91%;
+  --muted-foreground: 150 10% 38%;
+
+  --accent: 156 30% 88%;
+  --accent-foreground: 156 58% 25%;
+
+  --success: 156 55% 31%;
+  --warning: 32 78% 38%;
+  --destructive: 4 64% 45%;
+  --info: 196 58% 34%;
+  --destructive-foreground: 48 40% 98%;
+
+  --border: 44 18% 84%;
+  --input: 44 18% 84%;
+  --ring: 156 58% 28%;
+
+  --sidebar: 48 28% 92%;
+  --sidebar-foreground: 156 30% 12%;
+  --sidebar-border: 44 18% 84%;
+
+  --shadow-tint: 150 30% 15%;
+
+  /* Paper grain */
+  --app-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.12'/%3E%3C/svg%3E");
+  --app-texture-size: 140px 140px;
+}
+
+/* ==========================================================
+   DARK — instrument panel
+========================================================== */
+
+.dark {
+  --font-heading: "Schibsted Grotesk", ui-sans-serif, sans-serif;
+
+  --background: 214 24% 7%;
+  --foreground: 214 16% 93%;
+
+  --card: 214 20% 10%;
+  --card-foreground: 214 16% 93%;
+
+  --popover: 214 20% 12%;
+  --popover-foreground: 214 16% 93%;
+
+  --primary: 156 62% 50%;
+  --primary-foreground: 214 30% 8%;
+
+  --secondary: 214 14% 15%;
+  --secondary-foreground: 214 16% 93%;
+
+  --muted: 214 14% 14%;
+  --muted-foreground: 214 10% 62%;
+
+  --accent: 214 16% 17%;
+  --accent-foreground: 156 62% 62%;
+
+  --success: 156 58% 48%;
+  --warning: 38 92% 58%;
+  --destructive: 4 78% 64%;
+  --info: 190 68% 56%;
+  --destructive-foreground: 214 30% 8%;
+
+  --border: 214 14% 19%;
+  --input: 214 14% 19%;
+  --ring: 156 62% 50%;
+
+  --sidebar: 214 26% 5%;
+  --sidebar-foreground: 214 16% 93%;
+  --sidebar-border: 214 14% 16%;
+
+  --shadow-tint: 214 60% 2%;
+
+  /* Faint measurement grid */
+  --app-texture: radial-gradient(
+    circle at center,
+    hsl(214 16% 93% / 0.05) 1px,
+    transparent 1px
+  );
+  --app-texture-size: 22px 22px;
+}
+
+/* ==========================================================
+   LOGIN — always light, whatever the dashboard theme is
+========================================================== */
+
+.login-theme {
+  --font-heading: "Archivo", ui-sans-serif, sans-serif;
+
+  --background: 150 18% 96%;
+  --foreground: 158 40% 8%;
+  --card: 0 0% 100%;
+  --muted: 150 14% 92%;
+  --muted-foreground: 152 8% 38%;
+  --primary: 156 70% 28%;
+  --primary-foreground: 0 0% 100%;
+  --warning: 32 78% 38%;
+  --border: 152 12% 85%;
+  --ring: 156 70% 28%;
+  --shadow-tint: 158 40% 8%;
+}
+
+/* ECG sweep. pathLength is 1000 and each dash sits just behind the head, so
+   the head runs 0 -> 1160 and the longest trail is gone before it loops. */
+.ecg-sweep {
+  animation: ecg-sweep 7s linear infinite;
+}
+
+@keyframes ecg-sweep {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -1160;
+  }
+}
+
+.ecg-head {
+  filter: drop-shadow(0 0 4px hsl(var(--primary)));
+}
+
+/* the dot beats when the sweep head gets back to it, 1000 / 1160 of the loop */
+.ecg-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ecg-dot 7s linear infinite;
+}
+
+@keyframes ecg-dot {
+  0%,
+  84% {
+    transform: scale(1);
+  }
+  87% {
+    transform: scale(1.7);
+  }
+  92%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ==========================================================
+   BASE
+========================================================== */
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+
+  background-color: hsl(var(--background));
+  background-image: var(--app-texture);
+  background-size: var(--app-texture-size);
+  background-attachment: fixed;
+
+  color: hsl(var(--foreground));
+  font-family: var(--font-ui);
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+
+/* Figures should never jitter as they update. */
+.font-mono,
+code,
+kbd {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.28);
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+  background-clip: content-box;
+}
+
+/* ==========================================================
+   HOUSE DETAILS
+========================================================== */
+
+/* Ruler rule that sits under every page title. */
+.rule-ticks {
+  height: 5px;
+  background-image:
+    linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px),
+    repeating-linear-gradient(
+      to right,
+      hsl(var(--border)) 0 1px,
+      transparent 1px 11px
+    );
+  background-size:
+    100% 1px,
+    100% 5px;
+  background-repeat: no-repeat, repeat-x;
+  mask-image: linear-gradient(to right, #000 0, #000 45%, transparent 100%);
+}
+
+/* Small mono label used above titles and on stat cards. */
+.eyebrow {
+  font-family: var(--font-code);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ==========================================================
+   ANIMATIONS
+========================================================== */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.45s ease-out both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

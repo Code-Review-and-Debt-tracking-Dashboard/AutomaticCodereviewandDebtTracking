@@ -1,0 +1,48 @@
+/**
+ * Environment for the worker process. Fails fast at boot if something required
+ * is missing, instead of the first job dying on it.
+ */
+function required(name: string, fallbackDevValue?: string): string {
+  const value = process.env[name];
+  if (!value) {
+    if (process.env.NODE_ENV !== 'production' && fallbackDevValue !== undefined) {
+      return fallbackDevValue;
+    }
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+export const env = {
+  nodeEnv: process.env.NODE_ENV || 'development',
+  logLevel: process.env.LOG_LEVEL || 'info',
+
+  // Has to point at the same Redis as the API, or the worker listens to an
+  // empty queue while jobs pile up in another one.
+  redisUrl: required('REDIS_URL', 'redis://localhost:6380'),
+
+  // How many jobs run at once in this process.
+  concurrency: Number(process.env.WORKER_CONCURRENCY) || 2,
+
+  // Same key the API encrypted the GitHub tokens with — a different value here
+  // means every decrypt fails.
+  tokenEncryptionKey: required('TOKEN_ENCRYPTION_KEY', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+
+  // Upper bound on a single clone. Big repos take a while, but a clone that
+  // hangs shouldn't hold a worker slot until the whole job times out.
+  cloneTimeoutMs: Number(process.env.CLONE_TIMEOUT_MS) || 120_000,
+
+  // Where the worker reports results. It has no database credentials, so every
+  // write it makes goes through this API.
+  apiBaseUrl: required('API_BASE_URL', 'http://localhost:4000'),
+
+  // Identifies this worker deployment to the API. The API stores only its
+  // hash, so a lost token is revoked rather than recovered.
+  agentToken: required('AGENT_TOKEN', 'dev_agent_token'),
+
+  // Both must match the API's. The bulk link job registers webhooks pointing
+  // back at the API, and a different secret here means every delivery it
+  // registers fails the API's signature check.
+  githubWebhookUrl: required('GITHUB_WEBHOOK_URL', 'http://localhost:4000/webhooks/github'),
+  githubWebhookSecret: required('GITHUB_WEBHOOK_SECRET', 'dev_webhook_secret'),
+};
