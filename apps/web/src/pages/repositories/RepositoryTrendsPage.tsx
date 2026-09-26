@@ -24,9 +24,10 @@ import {
 
 import { CHART_TICK, CHART_TOOLTIP } from "../../lib/chartStyle";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api } from "../../lib/apiClient";
-import { METRIC_HELP } from "../../lib/healthBand";
+import { apiErrorMessage } from "../../lib/apiError";
+import { healthBand, METRIC_HELP } from "../../lib/healthBand";
 
 
 import {
@@ -48,6 +49,7 @@ interface TrendPoint {
   vulnerabilityCount: number;
   complexityCount: number;
   duplicationPct: number;
+  snapshotId: string;
 }
 
 function formatMinutes(minutes: number): string {
@@ -62,13 +64,15 @@ export function RepositoryTrendsPage() {
   const [raw, setRaw] = useState<TrendPoint[]>([]);
   const [points, setPoints] = useState<{ date: string; score: number }[]>([]);
   const [latestScore, setLatestScore] = useState<number | null>(null);
-  const [_isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!repoId) return;
 
     const fetchTrend = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const res = await api.get<{ dataPoints: TrendPoint[] }>(
           `/api/repos/${repoId}/trend?days=${days}`
@@ -86,8 +90,8 @@ export function RepositoryTrendsPage() {
         }));
         setPoints(mapped);
         setLatestScore(mapped.length > 0 ? mapped[mapped.length - 1].score : null);
-      } catch {
-        // Fallback
+      } catch (err) {
+        setError(apiErrorMessage(err, "Failed to load trends."));
       } finally {
         setIsLoading(false);
       }
@@ -115,6 +119,8 @@ export function RepositoryTrendsPage() {
   }));
 
   const latest = raw.length > 0 ? raw[raw.length - 1] : null;
+  // change across the selected range
+  const change = latest && raw.length >= 2 ? Math.round((latest.healthScore - raw[0].healthScore) * 10) / 10 : null;
 
   const summaryCards = [
     {
@@ -123,7 +129,7 @@ export function RepositoryTrendsPage() {
       value: latest ? String(latest.healthScore) : "—",
       description: `Across ${raw.length} ${raw.length === 1 ? "analysis" : "analyses"}`,
       icon: Activity,
-      color: "success" as const,
+      color: healthBand(latest?.healthScore).tone,
     },
     {
       help: METRIC_HELP.openFindings,
@@ -186,6 +192,13 @@ export function RepositoryTrendsPage() {
         </div>
       </PageHeader>
 
+      {isLoading && <p className="mt-6 text-sm text-muted-foreground">Loading trends…</p>}
+      {error && (
+        <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => {
           const Icon = card.icon;
@@ -216,8 +229,13 @@ export function RepositoryTrendsPage() {
             </p>
           </div>
           <div className="text-left sm:text-right">
-            <p className="text-3xl font-bold text-success">{latestScore}</p>
-            <p className="text-xs text-success">+16 points</p>
+            <p className={`text-3xl font-bold ${healthBand(latestScore).textClass}`}>{latestScore}</p>
+            {change !== null && (
+              <p className="text-xs text-muted-foreground">
+                {change >= 0 ? "+" : "−"}
+                {Math.abs(change)} points
+              </p>
+            )}
           </div>
         </div>
 
@@ -239,6 +257,28 @@ export function RepositoryTrendsPage() {
           </ResponsiveContainer>
         </div>
       </Card>
+
+      {raw.length > 0 && (
+        <Card className="mt-6 p-5 sm:p-6">
+          <p className="text-sm font-semibold">Recent analyses</p>
+          <ul className="mt-3 divide-y divide-border/60 text-sm">
+            {[...raw].reverse().slice(0, 5).map((dp) => (
+              <li key={dp.date} className="flex items-center justify-between gap-4 py-2">
+                <span className="text-muted-foreground">{new Date(dp.date).toLocaleString()}</span>
+                <span className="flex items-center gap-4">
+                  <span className={`font-mono ${healthBand(dp.healthScore).textClass}`}>{dp.healthScore}</span>
+                  <Link
+                    to={`/repositories/${repoId}/findings?snapshot=${dp.snapshotId}`}
+                    className="text-primary hover:underline"
+                  >
+                    View findings
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <Card className="p-5 sm:p-6">

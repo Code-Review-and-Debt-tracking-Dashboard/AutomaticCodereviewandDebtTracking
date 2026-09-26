@@ -117,4 +117,15 @@ describe("RepositoryFindingsPage", () => {
 
     expect(await screen.findByText(/came back clean/i)).toBeInTheDocument();
   });
+
+  it("opens an older analysis when given ?snapshot=", async () => {
+    renderPage("/repositories/repo-1/findings?snapshot=snap-old");
+
+    expect(await screen.findByText(/showing an older analysis/i)).toBeInTheDocument();
+    expect(mockedApi.get).toHaveBeenCalledWith("/api/snapshots/snap-old/findings", { limit: 100, page: 1 });
+    expect(screen.getByRole("link", { name: /view latest/i })).toHaveAttribute(
+      "href",
+      "/repositories/repo-1/findings",
+    );
+  });
 });

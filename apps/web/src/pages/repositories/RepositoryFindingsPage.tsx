@@ -15,7 +15,7 @@ import {
   HotspotIcon,
   RepositoriesIcon,
 } from "../../components/icons";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
@@ -63,6 +63,8 @@ export function RepositoryFindingsPage() {
 
   // hotspot rows link here with ?file= so only that file shows
   const [search, setSearch] = useState(searchParams.get("file") ?? "");
+  // trend page links here with ?snapshot= to open an older analysis
+  const snapshotParam = searchParams.get("snapshot");
   const [severity, setSeverity] = useState("All");
   const [result, setResult] = useState<AllFindings | null>(null);
   const [repoName, setRepoName] = useState("");
@@ -82,7 +84,7 @@ export function RepositoryFindingsPage() {
       ]);
       setRepoName(detail.name);
 
-      setResult(await fetchAllFindings(debt.snapshotId));
+      setResult(await fetchAllFindings(snapshotParam ?? debt.snapshotId));
     } catch (err: any) {
       // no snapshot yet is the normal state for a freshly linked repo
       if (err?.response?.status === 404) {
@@ -93,7 +95,7 @@ export function RepositoryFindingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [repoId]);
+  }, [repoId, snapshotParam]);
 
   useEffect(() => {
     loadFindings();
@@ -136,6 +138,15 @@ export function RepositoryFindingsPage() {
           <p className="mt-1 font-semibold">{repoName || "—"}</p>
         </div>
       </PageHeader>
+
+      {snapshotParam && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Showing an older analysis.{" "}
+          <Link to={`/repositories/${repoId}/findings`} className="font-medium text-primary hover:underline">
+            View latest
+          </Link>
+        </p>
+      )}
 
       <div data-tour="finding-stats" className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
