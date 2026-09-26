@@ -1,13 +1,6 @@
 import { Platform } from 'react-native';
 
-/**
- * Shared design tokens for the mobile app.
- *
- * The palettes mirror apps/web/src/styles/globals.css — the HSL triples below
- * are copied from there verbatim, so a change on the web is a copy-paste here.
- * They are converted to hex because screens append alpha suffixes
- * (`${colors.danger}20`), which only works on #RRGGBB strings.
- */
+// colors copied from the web, hex so screens can add alpha like `${c.danger}20`
 
 function hsl(h: number, s: number, l: number): string {
   const sat = s / 100;
@@ -22,7 +15,6 @@ function hsl(h: number, s: number, l: number): string {
 export interface ThemeColors {
   bg: string;
   card: string;
-  /** Sunken surfaces: tracks, chips, input backgrounds. */
   muted: string;
   border: string;
   divider: string;
@@ -62,7 +54,7 @@ export const lightColors: ThemeColors = {
   info: hsl(196, 58, 34),
   warning: hsl(32, 78, 38),
   danger: hsl(4, 64, 45),
-  // The web hardcodes code-smell purple; darkened here so it reads on paper.
+  // darker than the web so it shows on light bg
   purple: '#7C5CD6',
   white: '#FFFFFF',
   tabBar: hsl(48, 28, 92),
@@ -101,7 +93,6 @@ export const spacing = {
   xxl: 32,
 } as const;
 
-// Tight corners, same as the web — nothing here is a pill.
 export const radius = {
   sm: 3,
   md: 5,
@@ -113,10 +104,7 @@ export const fonts = {
   mono: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
 } as const;
 
-/**
- * Health Score bands, identical to apps/web/src/lib/healthBand.ts so a score
- * never reads one way on the phone and another way on the dashboard.
- */
+// same bands as the web
 export function healthBand(score: number | null | undefined, c: ThemeColors) {
   if (score === null || score === undefined) return { label: 'Not analyzed', color: c.textMuted };
   if (score >= 90) return { label: 'Excellent', color: c.success };

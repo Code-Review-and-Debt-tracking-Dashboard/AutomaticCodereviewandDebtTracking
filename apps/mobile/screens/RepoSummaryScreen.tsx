@@ -64,7 +64,7 @@ interface RepoSummaryData {
   smells: RepoSmells | null;
 }
 
-// Same series colors as the web's RepositoryOverviewPage donut.
+// same colors as the web
 const CATEGORIES: { key: DebtCategory; label: string; color: (c: ThemeColors) => string }[] = [
   { key: 'vulnerability', label: 'Vulnerability', color: (c) => c.danger },
   { key: 'complexity', label: 'Complexity', color: (c) => c.info },
@@ -82,7 +82,7 @@ const severityColor = (severity: Severity, c: ThemeColors) =>
 
 const TOP_ISSUES_LIMIT = 5;
 const MORE_ISSUES_PAGE = 10;
-// Start fetching the next page of issues this many px before the bottom.
+// px from the bottom to load the next page
 const LOAD_MORE_THRESHOLD = 200;
 
 const formatDebt = (minutes: number) => {
@@ -94,9 +94,6 @@ const formatDebt = (minutes: number) => {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-/**
- * Step 109 (E-06): Mobile repo summary screen — gauge, trend, category bars, top issues
- */
 export default function RepoSummaryScreen({ route }: Props) {
   const gaugeRef = useRef<View>(null);
   const trendRef = useRef<View>(null);
@@ -106,7 +103,7 @@ export default function RepoSummaryScreen({ route }: Props) {
 
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
-  // State lags a render behind, so fast scroll events need a ref to avoid double-fetching a page.
+  // ref, state is too slow for fast scroll events
   const loadingMoreRef = useRef(false);
 
   const { data, loading, refreshing, error, load, setData } = useAsyncData<RepoSummaryData>(async () => {
@@ -117,7 +114,7 @@ export default function RepoSummaryScreen({ route }: Props) {
       api.get<RepoSmells>(`/api/mobile/repos/${repoId}/smells?limit=${TOP_ISSUES_LIMIT}`),
     ]);
 
-    // The detail call is required; the rest degrade to an empty section.
+    // only the detail call is required
     if (detailRes.status === 'rejected') throw detailRes.reason;
 
     return {
@@ -143,7 +140,7 @@ export default function RepoSummaryScreen({ route }: Props) {
         `/api/mobile/repos/${repoId}/smells?limit=${MORE_ISSUES_PAGE}&offset=${offset}`,
       );
       setData((prev) => {
-        // A pull-to-refresh replaced the list meanwhile, so this page no longer lines up.
+        // list was refreshed meanwhile
         if (!prev?.smells || prev.smells.smells.length !== offset) return prev;
         return {
           ...prev,
@@ -159,7 +156,7 @@ export default function RepoSummaryScreen({ route }: Props) {
   };
 
   const handleScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // After a failure, wait for Retry rather than re-firing on every scroll event.
+    // wait for Retry after a failure
     if (loadMoreFailed) return;
     const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
     if (layoutMeasurement.height + contentOffset.y >= contentSize.height - LOAD_MORE_THRESHOLD) {
@@ -227,7 +224,6 @@ export default function RepoSummaryScreen({ route }: Props) {
         />
       }
     >
-      {/* Refresh failed, but the data already on screen is still usable */}
       {error ? (
         <ErrorState compact message={error} onRetry={refresh} retrying={refreshing} />
       ) : null}

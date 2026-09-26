@@ -7,14 +7,10 @@ import type { ThemeColors } from '../theme';
 
 interface LogoProps {
   size?: number;
-  /** Mark only, without the wordmark. */
   markOnly?: boolean;
 }
 
-/**
- * CodePulse brand lock-up. The web draws the mark as an SVG; the app has no
- * SVG renderer, so the pulse glyph stands in for it on a tinted tile.
- */
+// no svg renderer here, so the pulse icon stands in for the web logo
 export function Logo({ size = 30, markOnly = false }: LogoProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);

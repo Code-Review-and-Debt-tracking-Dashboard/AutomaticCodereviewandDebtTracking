@@ -6,7 +6,6 @@ import { useThemedStyles } from '../contexts/PreferencesContext';
 import { fonts, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 
-/** Small mono label above titles and on stat cards — the web's `.eyebrow`. */
 export function Eyebrow({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
   const styles = useThemedStyles(makeStyles);
   return <Text style={[styles.eyebrow, style]}>{children}</Text>;

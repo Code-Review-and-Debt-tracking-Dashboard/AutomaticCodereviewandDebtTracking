@@ -158,7 +158,7 @@ function TourSteps({ steps, targets, focused, onFinish, onSkip }: TourStepsProps
   const step = steps[index];
   const last = index === steps.length - 1;
 
-  // leaving the screen on a tab step means they tapped the tab, so this guide is done
+  // they tapped the tab, so this guide is done
   useEffect(() => {
     if (!focused && step.tab) onFinish();
   }, [focused]);
@@ -176,7 +176,7 @@ function TourSteps({ steps, targets, focused, onFinish, onSkip }: TourStepsProps
         return;
       }
 
-      // both in window coordinates, so subtracting cancels the status bar and header
+      // both in window coords, so the header cancels out
       overlay.measureInWindow((ox, oy, _ow, oh) => {
         target.measureInWindow((x, y, width, h) => {
           const top = y - oy;

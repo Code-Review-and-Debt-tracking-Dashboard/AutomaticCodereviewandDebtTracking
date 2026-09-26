@@ -1,11 +1,5 @@
 import axios from 'axios';
 
-/**
- * Turns a thrown request error into text we can show the user.
- *
- * 401s never reach here in practice — the response interceptor in apiClient
- * refreshes the token or emits auth-lost, which drops the user back to login.
- */
 export function getErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
