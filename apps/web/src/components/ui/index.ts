@@ -12,6 +12,7 @@ export {
 } from "./Card";
 
 export { Button } from "./Button";
+export { CopyButton } from "./CopyButton";
 
 export { IconBox } from "./IconBox";
 
