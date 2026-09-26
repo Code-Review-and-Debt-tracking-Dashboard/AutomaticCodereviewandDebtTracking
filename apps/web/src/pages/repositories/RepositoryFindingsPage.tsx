@@ -19,6 +19,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
+import { fetchAllFindings, titleCase, type AllFindings } from "../../lib/findings";
 import { METRIC_HELP } from "../../lib/healthBand";
 
 import {
@@ -39,49 +40,16 @@ import {
   DataTableCell,
 } from "../../components/ui";
 
-interface ApiFinding {
-  id: string;
-  file: string | null;
-  line: number | null;
-  severity: string;
-  category: string;
-  rule: string;
-  message: string;
-  tool: string;
-  isNew: boolean;
-  debtMinutes: number;
-}
-
-interface FindingsResponse {
-  snapshotId: string;
-  summary: {
-    total: number;
-    new: number;
-    carryOver: number;
-    bySeverity: Record<string, number>;
-    byCategory: Record<string, number>;
-  };
-  data: ApiFinding[];
-}
-
-// API uses SCREAMING_SNAKE; the table reads better in title case.
-function titleCase(value: string): string {
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 const severityStyles: Record<string, string> = {
   Critical: "bg-danger/10 text-danger border-danger/20",
   High: "bg-warning/10 text-warning border-warning/20",
   Medium: "bg-info/10 text-info border-info/20",
   Low: "bg-muted text-muted-foreground border-border",
+  Info: "bg-muted text-muted-foreground border-border",
 };
 
 const categoryIcons: Record<string, React.ElementType> = {
-  Security: LockKeyhole,
+  Vulnerability: LockKeyhole,
   Complexity: AlertTriangle,
   Duplication: Code2,
   "Code Smell": Bug,
@@ -95,7 +63,7 @@ export function RepositoryFindingsPage() {
   // hotspot rows link here with ?file= so only that file shows
   const [search, setSearch] = useState(searchParams.get("file") ?? "");
   const [severity, setSeverity] = useState("All");
-  const [result, setResult] = useState<FindingsResponse | null>(null);
+  const [result, setResult] = useState<AllFindings | null>(null);
   const [repoName, setRepoName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,10 +81,7 @@ export function RepositoryFindingsPage() {
       ]);
       setRepoName(detail.name);
 
-      const res = await api.get<FindingsResponse>(
-        `/api/snapshots/${debt.snapshotId}/findings`
-      );
-      setResult(res);
+      setResult(await fetchAllFindings(debt.snapshotId));
     } catch (err: any) {
       // no snapshot yet is the normal state for a freshly linked repo
       if (err?.response?.status === 404) {
@@ -212,7 +177,7 @@ export function RepositoryFindingsPage() {
               {
                 value: severity,
                 onChange: setSeverity,
-                options: ["All", "Critical", "High", "Medium", "Low"],
+                options: ["All", "Critical", "High", "Medium", "Low", "Info"],
               },
             ]}
           />

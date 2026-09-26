@@ -99,6 +99,25 @@ describe('GET /api/snapshots/:snapshotId/findings', () => {
     expect(paged.body.pagination).toEqual({ page: 2, limit: 2, total: 3, totalPages: 2 });
   });
 
+  it('pages through findings saved in one batch without repeats or gaps', async () => {
+    const t = await seedTenant('acme');
+    const createdAt = new Date('2026-01-01T00:00:00Z');
+    for (let i = 0; i < 5; i++) {
+      await createFinding(t.snapshot, { createdAt });
+    }
+    const base = `/api/snapshots/${t.snapshot.id}/findings`;
+
+    const ids: string[] = [];
+    for (let page = 1; page <= 3; page++) {
+      const res = await api().get(base).query({ limit: '2', page: String(page) }).set(bearer(t.owner));
+      ids.push(...res.body.data.map((f: { id: string }) => f.id));
+    }
+
+    const all = await prisma.finding.findMany({ where: { snapshotId: t.snapshot.id }, select: { id: true } });
+    expect(ids).toHaveLength(all.length);
+    expect(new Set(ids)).toEqual(new Set(all.map((f) => f.id)));
+  });
+
   it('the org ADMIN can read a snapshot for a repo they are not a member of', async () => {
     const t = await seedTenant('acme');
     const other = await createRepo(t.org, t.owner);

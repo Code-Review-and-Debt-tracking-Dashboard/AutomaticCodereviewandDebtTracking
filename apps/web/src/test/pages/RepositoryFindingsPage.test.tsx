@@ -51,6 +51,7 @@ function mockApi(data = findings) {
           byCategory: {},
         },
         data,
+        pagination: { totalPages: 1 },
       } as any);
     }
     return Promise.resolve({ name: "codehealth-pipeline-demo" } as any);

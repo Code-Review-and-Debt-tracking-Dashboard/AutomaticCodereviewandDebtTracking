@@ -144,7 +144,7 @@ describe('analysis pipeline, end to end', () => {
         expect.arrayContaining([
           expect.objectContaining({
             tool: 'eslint',
-            rule: 'security/detect-eval-with-expression',
+            rule: 'sonarjs/code-eval',
             category: 'VULNERABILITY',
             severity: 'HIGH',
             state: 'NEW',
