@@ -50,6 +50,7 @@ import { CHART_CURSOR, CHART_TICK, CHART_TOOLTIP } from "../../lib/chartStyle";
 import { healthBand, METRIC_HELP } from "../../lib/healthBand";
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 
 
 // health/findings/debt are null until the repo has been analysed
@@ -201,7 +202,7 @@ export function DashboardPage() {
       setRecentActivity(notifications.slice(0, 3));
     } catch (err: any) {
       setError(
-        err?.response?.data?.message || "Failed to load dashboard for this organization."
+        apiErrorMessage(err, "Failed to load dashboard for this organization.")
       );
       setRepositories([]);
       setHealthTrend([]);

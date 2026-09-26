@@ -294,6 +294,7 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
 
     return {
       id: pr.prNumber,
+      repoId: pr.repoId,
       repoName: repoNameMap.get(pr.repoId) || 'Unknown',
       title: pr.title,
       author: pr.authorLogin,

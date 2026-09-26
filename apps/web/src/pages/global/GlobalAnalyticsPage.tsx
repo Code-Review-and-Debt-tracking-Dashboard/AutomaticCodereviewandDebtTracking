@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { healthBand } from "../../lib/healthBand";
 import {
   ArrowUpDown,
@@ -190,7 +191,7 @@ export function GlobalAnalyticsPage() {
         }))
       );
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load analytics for this organization.");
+      setError(apiErrorMessage(err, "Failed to load analytics for this organization."));
       setRepositoryTable([]);
       setTrendData([]);
       setLanguageData([]);

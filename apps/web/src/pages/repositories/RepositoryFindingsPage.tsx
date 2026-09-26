@@ -19,6 +19,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { fetchAllFindings, titleCase, type AllFindings } from "../../lib/findings";
 import { METRIC_HELP } from "../../lib/healthBand";
 
@@ -87,7 +88,7 @@ export function RepositoryFindingsPage() {
       if (err?.response?.status === 404) {
         setResult(null);
       } else {
-        setError(err?.response?.data?.message || "Failed to load findings.");
+        setError(apiErrorMessage(err, "Failed to load findings."));
       }
     } finally {
       setIsLoading(false);

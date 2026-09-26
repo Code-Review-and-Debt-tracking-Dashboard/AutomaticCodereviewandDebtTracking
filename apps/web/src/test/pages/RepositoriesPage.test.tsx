@@ -74,7 +74,7 @@ describe("RepositoriesPage", () => {
 
   it("shows the API error and supports retry", async () => {
     mockedApi.get
-      .mockRejectedValueOnce({ response: { data: { message: "Organization unavailable" } } })
+      .mockRejectedValueOnce({ response: { data: { error: { message: "Organization unavailable" } } } })
       .mockResolvedValueOnce({ data: [repository] });
     const user = userEvent.setup();
     renderPage();

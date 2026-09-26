@@ -47,6 +47,7 @@ describe('GET /api/orgs/:orgId/pulls', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.pullRequests.find((p: { id: number }) => p.id === pending.prNumber)).toMatchObject({
+      repoId: t.repo.id,
       score: null,
       status: 'Pending',
     });

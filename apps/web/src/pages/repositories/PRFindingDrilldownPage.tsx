@@ -19,6 +19,7 @@ import {
   HotspotIcon,
 } from "../../components/icons";
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { fetchAllFindings, titleCase, type FindingsSummary } from "../../lib/findings";
 
 import {
@@ -118,7 +119,7 @@ export function PRFindingDrilldownPage() {
           }))
         );
       } catch (err: any) {
-        setLoadError(err?.response?.data?.message || "Failed to load findings for this pull request.");
+        setLoadError(apiErrorMessage(err, "Failed to load findings for this pull request."));
         setRealFindings([]);
       } finally {
         setIsLoading(false);

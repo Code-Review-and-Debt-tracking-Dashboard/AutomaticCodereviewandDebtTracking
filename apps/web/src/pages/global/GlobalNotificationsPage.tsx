@@ -14,6 +14,7 @@ import {
 } from "../../components/icons";
 
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 
 import {
   Card,
@@ -88,7 +89,7 @@ export function GlobalNotificationsPage() {
         const response = await api.get<{ data: NotificationData[] }>("/api/notifications");
         setNotifications(response.data || []);
       } catch (err: any) {
-        setError(err?.response?.data?.message || "Failed to load notifications.");
+        setError(apiErrorMessage(err, "Failed to load notifications."));
         setNotifications([]);
       } finally {
         setIsLoading(false);
@@ -293,13 +294,6 @@ export function GlobalNotificationsPage() {
               </div>
             </div>
           ))}
-
-          {/* Load Earlier */}
-          <div className="pt-2 text-center">
-            <button className="text-xs font-medium text-primary hover:underline">
-              Load 6 earlier notifications
-            </button>
-          </div>
         </div>
       )}
 

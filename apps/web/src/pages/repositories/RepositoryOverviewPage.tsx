@@ -34,6 +34,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HotspotTable, type HotspotFile } from "../../components/hotspots/HotspotTable";
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { healthBand, METRIC_HELP } from "../../lib/healthBand";
 import { Loader2 } from "lucide-react";
 
@@ -156,7 +157,7 @@ export function RepositoryOverviewPage() {
           );
         }
       } catch (err: any) {
-        setError(err?.response?.data?.message || "Failed to load repository data.");
+        setError(apiErrorMessage(err, "Failed to load repository data."));
       } finally {
         setIsLoading(false);
       }

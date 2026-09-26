@@ -23,6 +23,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { healthBand } from "../../lib/healthBand";
 import { LinkRepositoryModal } from "../../components/repositories/LinkRepositoryModal";
 
@@ -160,7 +161,7 @@ export function RepositoriesPage() {
       setRepositories(mapped);
     } catch (err: any) {
       setError(
-        err?.response?.data?.message || "Failed to load repositories for this organization."
+        apiErrorMessage(err, "Failed to load repositories for this organization.")
       );
       setRepositories([]);
     } finally {
@@ -183,7 +184,7 @@ export function RepositoriesPage() {
       setUnlinkTarget(null);
       await fetchRepos();
     } catch (err: any) {
-      setUnlinkError(err?.response?.data?.message || "Failed to unlink this repository.");
+      setUnlinkError(apiErrorMessage(err, "Failed to unlink this repository."));
     } finally {
       setIsUnlinking(false);
     }
