@@ -19,7 +19,7 @@ import {
   TrendIcon,
 } from "../../components/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
@@ -97,13 +97,20 @@ type SortOption = "health" | "findings" | "debt" | "recent";
 
 export function RepositoriesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { selectedOrg } = useOrg();
 
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
+
+  // topbar search navigates here with a new ?search= param without remounting
+  useEffect(() => {
+    const param = searchParams.get("search");
+    if (param !== null) setSearch(param);
+  }, [searchParams]);
   const [language, setLanguage] = useState("All languages");
   const [scoreFilter, setScoreFilter] = useState("All scores");
   const [sortBy, setSortBy] = useState<SortOption>("health");
