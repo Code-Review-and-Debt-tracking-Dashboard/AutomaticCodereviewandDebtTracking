@@ -28,7 +28,7 @@ export function RepositoryFilesPage() {
     if (!repoId) return;
     const loadFiles = async () => {
       try {
-        const response = await api.get<{ files: any[] }>(`/repos/${repoId}/hotspots`);
+        const response = await api.get<{ files: any[] }>(`/api/repos/${repoId}/hotspots`, { limit: 100 });
         setFiles(response?.files ?? []);
       } catch (error) {
         console.error("Failed to load files", error);
