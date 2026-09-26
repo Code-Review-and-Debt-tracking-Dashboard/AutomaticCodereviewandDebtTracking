@@ -20,7 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
 import { apiErrorMessage } from "../../lib/apiError";
-import { fetchAllFindings, titleCase, type AllFindings } from "../../lib/findings";
+import { fetchAllFindings, githubLineUrl, titleCase, type AllFindings } from "../../lib/findings";
 import { METRIC_HELP } from "../../lib/healthBand";
 
 import {
@@ -228,7 +228,20 @@ export function RepositoryFindingsPage() {
                   </DataTableCell>
 
                   <DataTableCell>
-                    <p className="font-mono text-xs">{finding.file ?? "—"}</p>
+                    <p className="font-mono text-xs">
+                      {finding.file && result ? (
+                        <a
+                          href={githubLineUrl(result, finding.file, finding.line)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {finding.file}
+                        </a>
+                      ) : (
+                        finding.file ?? "—"
+                      )}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {finding.line !== null ? `Line ${finding.line}` : ""}
                     </p>

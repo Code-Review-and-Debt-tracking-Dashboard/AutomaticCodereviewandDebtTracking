@@ -43,6 +43,8 @@ function mockApi(data = findings) {
     if (url.includes("/findings")) {
       return Promise.resolve({
         snapshotId: "snap-1",
+        repoUrl: "https://github.com/acme/demo",
+        commitSha: "abc123",
         summary: {
           total: data.length,
           new: data.filter((f) => f.isNew).length,
@@ -81,6 +83,13 @@ describe("RepositoryFindingsPage", () => {
     expect(await screen.findByText("eval with expression detected")).toBeInTheDocument();
     expect(screen.getByText("src/index.js")).toBeInTheDocument();
     expect(screen.getByText("security/detect-eval-with-expression")).toBeInTheDocument();
+  });
+
+  it("links a finding's location to that line on GitHub", async () => {
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: /src\/index\.js/ });
+    expect(link).toHaveAttribute("href", "https://github.com/acme/demo/blob/abc123/src/index.js#L11");
   });
 
   it("filters findings using the search input", async () => {
