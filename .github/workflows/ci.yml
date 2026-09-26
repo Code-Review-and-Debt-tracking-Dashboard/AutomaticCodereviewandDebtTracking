@@ -22,28 +22,17 @@ jobs:
 
       - run: npm ci
 
-      # Generates the Prisma Client into node_modules/@prisma/client.
-      # That output is gitignored and CI starts from a clean node_modules
-      # each run, so without this, `@codehealth/db` (and anything that
-      # imports it, e.g. apps/api) fails to typecheck with
-      # "Module '@prisma/client' has no exported member 'PrismaClient'".
-      # No DATABASE_URL needed — `generate` only reads the schema.
+      # prisma client isn't committed, so generate it before typechecking
       - run: npm run generate --workspace packages/db
 
-      # Lint all workspaces. `--include-workspace-root` keeps this a safe
-      # no-op (exit 0) until apps/*, packages/* get a package.json — without
-      # it, `--workspaces` hard-fails with "No workspaces found!" today.
       - run: npm run lint --workspaces --include-workspace-root --if-present
 
-      # TypeScript type checking
       - run: npm run typecheck --workspaces --include-workspace-root --if-present
 
   test:
     runs-on: ubuntu-latest
 
-    # apps/api's integration tests run against real Postgres and Redis.
-    # Ports match the defaults in apps/api/tests/setup/env.ts, which are
-    # the same host ports docker-compose.yml maps locally.
+    # api tests need real postgres and redis
     services:
       postgres:
         image: postgres:16-alpine
@@ -88,9 +77,7 @@ jobs:
 
       - run: npm run test --workspace apps/api
 
-  # Only on main, and only once both jobs above pass. Logs in to AWS with
-  # OIDC (no stored keys), then pulls main and runs scripts/deploy.sh on the
-  # server over SSM.
+  # main only, after both jobs pass. runs scripts/deploy.sh over SSM
   deploy:
     needs: [lint-and-typecheck, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

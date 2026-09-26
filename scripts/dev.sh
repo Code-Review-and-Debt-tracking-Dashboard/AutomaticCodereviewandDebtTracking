@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Starts and stops the whole local stack: Postgres, Redis, API, worker, web and
-# the ngrok tunnel GitHub delivers webhooks to.
-#
+# starts/stops the local stack (postgres, redis, api, worker, web, ngrok)
 #   ./scripts/dev.sh start     containers + all services
 #   ./scripts/dev.sh stop      services (containers stay up, data is kept)
 #   ./scripts/dev.sh stop --all    services and containers
@@ -16,7 +14,7 @@ mkdir -p "$LOG_DIR"
 
 API_PORT=4000
 WEB_PORT=5173
-# Must match GITHUB_WEBHOOK_URL in apps/api/.env, or GitHub delivers to a dead host.
+# taken from GITHUB_WEBHOOK_URL in apps/api/.env
 NGROK_DOMAIN="$(sed -n 's|^GITHUB_WEBHOOK_URL=https://\([^/]*\)/.*|\1|p' "$ROOT/apps/api/.env" 2>/dev/null)"
 
 SERVICES="api worker web ngrok"
@@ -27,7 +25,6 @@ c_err()  { printf '\033[31m%s\033[0m\n' "$1"; }
 
 pidfile() { echo "$RUN_DIR/$1.pid"; }
 
-# A pidfile can outlive its process, so check the pid is actually alive.
 is_running() {
   local pf; pf="$(pidfile "$1")"
   [ -f "$pf" ] || return 1
@@ -35,10 +32,7 @@ is_running() {
   [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
 }
 
-# setsid so the service survives this shell and gets its own process group, which
-# is what stop kills. setsid may fork, so the inner shell records its own pid and
-# then execs — that way the pidfile holds the service itself, not a parent that
-# exits a moment later.
+# setsid gives each service its own process group so stop can kill it
 spawn() {
   local name="$1" dir="$2"; shift 2
   if is_running "$name"; then
@@ -57,8 +51,7 @@ spawn() {
   fi
 }
 
-# Kills the whole process group, since tsx and vite both fork children. Never
-# the group this script is in — that would kill the script and the caller's shell.
+# kills the whole group since tsx and vite fork children
 stop_one() {
   local name="$1" pf; pf="$(pidfile "$name")"
   if ! is_running "$name"; then
@@ -112,7 +105,7 @@ cmd_start() {
     c_err "  docker compose failed"
   fi
 
-  # Prisma talks to Postgres immediately, so don't race the container.
+  # wait for postgres
   for _ in $(seq 1 30); do
     docker exec codepulse-db pg_isready -U postgres >/dev/null 2>&1 && break
     sleep 1
