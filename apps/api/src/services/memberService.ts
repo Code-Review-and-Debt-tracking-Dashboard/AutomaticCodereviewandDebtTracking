@@ -49,8 +49,7 @@ export async function listMembers(repoId: string): Promise<RepoMember[]> {
   return members.map(toRepoMember);
 }
 
-// Re-adding a removed member reactivates the old row. The target must already
-// be in the repo's org — anyone else gets the same 404 as an unknown username.
+// re-adding reactivates the old row. user must be in the repo's org
 export async function addMember(
   repoId: string,
   username: string,

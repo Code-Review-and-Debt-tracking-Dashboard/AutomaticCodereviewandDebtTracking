@@ -4,8 +4,7 @@ import { Octokit } from '@octokit/rest';
 import { decrypt } from '../lib/crypto';
 import { AppError } from '../middleware/errorHandler';
 
-// An organization mirrors a GitHub account owner. Membership always comes
-// from GitHub — nothing in this app grants it.
+// org = a GitHub account, membership always comes from GitHub
 export interface GithubAccount {
   githubId: string;
   login: string;
@@ -28,8 +27,7 @@ function toOrgRole(githubRole: string): 'ADMIN' | 'MEMBER' {
   return githubRole === 'admin' ? 'ADMIN' : 'MEMBER';
 }
 
-// Rebuilds memberships from GitHub. The user's own account is always included
-// so personal repos still belong somewhere.
+// user's own account is always included for personal repos
 export async function syncUserOrganizations(
   userId: string,
   account: GithubAccount,
@@ -181,8 +179,7 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
   }));
 }
 
-// Org membership alone isn't enough — the caller must own the repo or be an
-// active member of it.
+// caller must own the repo or be a member of it
 export async function listOrgRepositories(orgId: string, userId: string) {
   const repositories = await prisma.repository.findMany({
     where: {
@@ -226,8 +223,7 @@ export async function listOrgRepositories(orgId: string, userId: string) {
       private: repo.private,
       isActive: repo.isActive,
       orgId: repo.orgId,
-      // null until the repo has been analysed — callers show "not analysed"
-      // rather than a number nothing measured.
+      // null until analysed
       healthScore: latest?.healthScore ?? null,
       openFindings: latest?.totalIssues ?? null,
       debtMinutes: latest?.debtMinutes ?? null,
@@ -237,7 +233,6 @@ export async function listOrgRepositories(orgId: string, userId: string) {
 }
 
 export async function getOrgPullRequests(orgId: string, userId: string) {
-  // First, verify the user has access to this org
   const orgAccess = await prisma.organizationMember.findUnique({
     where: { orgId_userId: { orgId, userId } },
   });
@@ -246,7 +241,6 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
     throw new AppError(403, 'FORBIDDEN', 'You do not have access to this organization');
   }
 
-  // Find all repos the user can access in this org
   const repositories = await prisma.repository.findMany({
     where: {
       orgId,
@@ -259,7 +253,6 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
   const repoIds = repositories.map((r) => r.id);
   const repoNameMap = new Map(repositories.map((r) => [r.id, r.name]));
 
-  // Get all PRs for these repos
   const pullRequests = await prisma.pullRequest.findMany({
     where: { repoId: { in: repoIds } },
     include: {
@@ -316,10 +309,7 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
 
   const avgHealthScore = healthScoreCount > 0 ? (totalHealthScore / healthScoreCount) : 0;
   
-  // For the UI, debt delta metric is just average of the PR's debt deltas or we could return total.
-  // Using totalDebtDelta as a metric for the "from last week" equivalent if we don't have historical data.
-  // We'll format a placeholder string or real percentage if applicable.
-  // A rough estimate: 
+  // uses total debt delta as a rough "from last week" value
   const avgHealthScoreDelta = totalDebtDelta > 0 ? `-${totalDebtDelta}m` : `+${Math.abs(totalDebtDelta)}m`;
 
   return {

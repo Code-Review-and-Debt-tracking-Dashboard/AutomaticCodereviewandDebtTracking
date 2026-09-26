@@ -4,10 +4,7 @@ import { api } from '../helpers/app';
 import { bearer } from '../helpers/auth';
 import { createUser } from '../helpers/factories';
 
-// The limiters are backed by the test Redis db, which hooks.ts flushes before
-// every test, so each test starts with a clean window.
 describe('rate limiting', () => {
-  // The global limiter is well above this, so the auth limiter is what stops it.
   it('/auth/* allows 100 requests per window per IP, then 429s', async () => {
     for (let i = 0; i < 100; i++) {
       const res = await api().post('/auth/logout');
@@ -29,8 +26,7 @@ describe('rate limiting', () => {
     expect(res.headers['x-ratelimit-limit']).toBeUndefined();
   });
 
-  // Exhausting 1000 requests per test is too slow to be worth it, so this just
-  // checks the window counts down off the global budget.
+  // just checks the count goes down
   it('counts API requests against the global budget', async () => {
     const user = await createUser();
     let last;
@@ -41,8 +37,6 @@ describe('rate limiting', () => {
     expect(Number(last!.headers['ratelimit-remaining'])).toBe(997);
   });
 
-  // Without 'trust proxy' every forwarded request shares one key, so webhook
-  // traffic would eat the dashboard's budget.
   it('keys on the forwarded client IP rather than the proxy', async () => {
     const user = await createUser();
 

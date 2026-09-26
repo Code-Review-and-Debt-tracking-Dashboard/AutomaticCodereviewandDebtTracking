@@ -18,11 +18,9 @@ import {
   type User,
 } from '@codehealth/db';
 
-// Row builders with sensible defaults, shaped like packages/db/prisma/seed.js.
-// Every unique column gets a fresh value so tests never collide.
+// row builders, unique columns get fresh values
 
-// Json columns read back as JsonValue but are written as InputJsonValue, so
-// a Partial<Model> override needs those fields retyped for create().
+// json columns need a different type for create()
 type Overrides<M, JsonKeys extends keyof M> = Partial<Omit<M, JsonKeys>> & {
   [K in JsonKeys]?: Prisma.InputJsonValue;
 };
@@ -140,8 +138,7 @@ export function createAnalysisJob(
   });
 }
 
-// A snapshot always hangs off an analysis job (analysisId is unique), so
-// this creates the job too unless one is passed in.
+// creates the job too unless one is passed
 export async function createSnapshot(
   repo: Repository,
   overrides: Overrides<HealthSnapshot, 'rawMetrics'> = {},

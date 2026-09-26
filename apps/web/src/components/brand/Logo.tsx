@@ -4,10 +4,7 @@ interface LogoProps {
   className?: string;
 }
 
-/*
- * CodePulse mark — an open bracket with a health trace running out of it,
- * ending on a commit dot. Inherits colour from the parent via currentColor.
- */
+// bracket + health trace + commit dot, uses currentColor
 export function LogoMark({ size = 28, className = "" }: { size?: number; className?: string }) {
   return (
     <svg

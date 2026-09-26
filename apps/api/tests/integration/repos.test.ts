@@ -27,7 +27,6 @@ describe('GET /api/repos/available', () => {
     expect(res.status).toBe(400);
   });
 
-  // Listing calls GitHub; without a stored credential it stops before that.
   it('401 when the user has no GitHub credential on file', async () => {
     const user = await createUser();
     const res = await api().get('/api/repos/available').set(bearer(user));
@@ -42,9 +41,7 @@ describe('POST /api/repos', () => {
     expect(res.status).toBe(401);
   });
 
-  // The route applies no body validation (linkRepositorySchema is imported
-  // but unused), so a missing id reaches the service and fails on the
-  // credential lookup first. Asserting current behaviour.
+  // no body validation on this route, so it fails on the credential first
   it('401 without a GitHub credential, even for a bad body', async () => {
     const user = await createUser();
     const res = await api().post('/api/repos').send({}).set(bearer(user));
@@ -309,8 +306,7 @@ describe('GET /api/repos/:repoId/hotspots', () => {
     expect(res.status).toBe(401);
   });
 
-  // No zod query schema on this route (hotspotsQuerySchema is applied to
-  // /trend instead), so both come back from the service's own check.
+  // checked by the service, not zod
   it('400 for a non-numeric or out-of-range limit', async () => {
     const t = await seedTenant('acme');
     for (const limit of ['ten', '0', '101']) {
@@ -485,8 +481,7 @@ describe('POST /api/repos/:repoId/analyze', () => {
     expect(queued?.data).toMatchObject({ analysisId: job!.id, repoId: t.repo.id, branch: t.repo.defaultBranch });
   });
 
-  // Deliberately narrower than the route's write guard: triggering an analysis
-  // is limited to the repo owner and org managers.
+  // only owner and org admins can trigger
   it('403 for a TEAM_LEAD', async () => {
     const t = await seedTenant('acme');
     const res = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.teamLead));
@@ -524,8 +519,7 @@ describe('POST /api/repos/:repoId/analyze', () => {
   it('429 after 5 triggers by the same user', async () => {
     const t = await seedTenant('acme');
 
-    // Each job is completed before the next trigger, so it is the rate limiter
-    // that rejects the sixth, not the in-progress guard.
+    // finish each job so it's the rate limiter that blocks the 6th
     for (let i = 0; i < 5; i++) {
       const ok = await api().post(`/api/repos/${t.repo.id}/analyze`).set(bearer(t.owner));
       expect(ok.status).toBe(202);

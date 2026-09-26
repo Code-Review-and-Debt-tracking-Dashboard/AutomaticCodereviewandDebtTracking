@@ -11,17 +11,7 @@ import type { ReactNode } from "react";
 import { api } from "../lib/apiClient";
 import { useAuth } from "./AuthContext";
 
-/*
- * =========================================================
- * ORGANIZATION CONTEXT (D-20)
- * =========================================================
- *
- * Manages the current organization context across the app.
- *
- * - Calls GET /api/orgs to get user organizations.
- * - Persists selected organization in localStorage.
- * - Exposes selectedOrg, orgs list, and setSelectedOrg.
- */
+// selected org is saved in localStorage
 
 export interface Organization {
   id: string;

@@ -13,15 +13,12 @@ export const jobsRouter = Router();
 
 const LEASE_DURATION_MS = 10 * 60_000;
 
-// An agent belongs to one deployment, so it can only touch its own org's jobs.
-// Another org's job is reported as missing rather than forbidden, so a token
-// can't be used to find out which job ids exist.
+// agents only see their own org's jobs, others are a 404
 async function loadAgentJob(req: Request, jobId: string) {
   const { orgId } = req.agent!;
 
   const job = await prisma.analysisJob.findFirst({
-    // a platform agent (no orgId) services every org; an org-scoped one is
-    // still limited to its own, so a leaked per-org token stays contained
+    // no orgId = platform agent, sees every org
     where: { id: jobId, ...(orgId ? { repository: { orgId } } : {}) },
   });
 
@@ -32,11 +29,9 @@ async function loadAgentJob(req: Request, jobId: string) {
   return job;
 }
 
-// A-37: Job Lease Endpoint
 jobsRouter.post('/jobs/lease', requireAgent, async (req, res, next) => {
   try {
-    // An agent that died mid-job leaves its job stuck at RUNNING. Reclaim
-    // anything past its lease before handing out a new one.
+    // put expired leases back to PENDING first
     await prisma.analysisJob.updateMany({
       where: { status: AnalysisStatus.RUNNING, leaseExpiresAt: { lt: new Date() } },
       data: { status: AnalysisStatus.PENDING, leaseExpiresAt: null },
@@ -81,9 +76,7 @@ jobsRouter.post('/jobs/lease', requireAgent, async (req, res, next) => {
   }
 });
 
-// Marks a job as picked up. A worker that took its job off the queue rather
-// than from /jobs/lease still has to say so here, so the same lease sweep above
-// can reclaim it if the worker dies.
+// marks a job as started so the lease sweep can reclaim it
 jobsRouter.post('/jobs/:jobId/start', requireAgent, async (req, res, next) => {
   try {
     const job = await loadAgentJob(req, req.params.jobId);
@@ -104,14 +97,12 @@ jobsRouter.post('/jobs/:jobId/start', requireAgent, async (req, res, next) => {
   }
 });
 
-// The gate config the worker scores this job against. It has no database
-// credentials of its own, so this is the only way it can read the thresholds.
 jobsRouter.get('/jobs/:jobId/quality-gate', requireAgent, async (req, res, next) => {
   try {
     const job = await loadAgentJob(req, req.params.jobId);
     const gate = await prisma.qualityGate.findUnique({ where: { repoId: job.repoId } });
 
-    // No gate configured — the worker falls back to its built-in defaults.
+    // no gate, worker uses its defaults
     if (!gate) {
       return res.status(204).send();
     }
@@ -132,9 +123,7 @@ jobsRouter.get('/jobs/:jobId/quality-gate', requireAgent, async (req, res, next)
   }
 });
 
-// The earlier run this job is compared against. A PR is compared with the
-// branch it merges into, a push with the last run on its own branch. Only
-// non-PR runs count, so one PR is never measured against another.
+// PRs compare against their base branch, pushes against their own branch
 jobsRouter.get('/jobs/:jobId/baseline', requireAgent, async (req, res, next) => {
   try {
     const job = await loadAgentJob(req, req.params.jobId);
@@ -172,7 +161,7 @@ jobsRouter.get('/jobs/:jobId/baseline', requireAgent, async (req, res, next) => 
       },
     });
 
-    // Nothing to compare against yet — the worker treats it as a first run.
+    // first run
     if (!snapshot) {
       return res.status(204).send();
     }
@@ -184,7 +173,6 @@ jobsRouter.get('/jobs/:jobId/baseline', requireAgent, async (req, res, next) => 
   }
 });
 
-// A-37: Complete Endpoint (if not using ingest)
 jobsRouter.post(
   '/jobs/:jobId/complete',
   requireAgent,
@@ -206,7 +194,6 @@ jobsRouter.post(
   },
 );
 
-// A-37: Fail Endpoint
 const analysisStage = z.enum([
   'clone',
   'detect',
@@ -238,8 +225,7 @@ jobsRouter.post(
         where: { id: leased.id },
         data: {
           status: AnalysisStatus.FAILED,
-          // No column for the stage, so it rides along on the message rather
-          // than being dropped.
+          // no stage column, so put it in the message
           errorMessage: `${stage}: ${errorMessage}`,
           retryCount,
           completedAt: new Date(),
@@ -253,10 +239,7 @@ jobsRouter.post(
   },
 );
 
-// A-36: Results Ingest Endpoint
-// Mirrors AnalysisResultsPayload field for field. Every field here is finding
-// metadata or an aggregate number — there is deliberately nowhere to put source
-// code, so source can't cross the boundary even by mistake.
+// no field can hold source code
 const ingestResultsSchema = z.object({
   analysisId: z.string(),
   commitSha: z.string(),
@@ -294,8 +277,7 @@ const ingestResultsSchema = z.object({
       debtMinutes: z.number(),
     }),
   ),
-  // Tool name to version. Short strings and a key cap, so this can't be used
-  // to smuggle source code through the one free-form field on the payload.
+  // capped so source code can't be sent through here
   toolVersions: z
     .record(z.string(), z.string().max(200))
     .refine((obj) => Object.keys(obj).length <= 20, 'toolVersions accepts at most 20 keys'),
@@ -312,9 +294,7 @@ jobsRouter.post(
       const { commitSha, metrics, findings, toolVersions, analysisLimited } =
         req.body as AnalysisResultsPayload;
 
-      // A worker retries the whole job, so the same results can arrive twice
-      // after a lost response. A snapshot is immutable, so the second delivery
-      // is a no-op instead of a unique-constraint failure.
+      // a retry can send the same results twice, ignore the second one
       const existing = await prisma.healthSnapshot.findUnique({
         where: { analysisId: job.id },
       });
@@ -323,15 +303,13 @@ jobsRouter.post(
         return res.status(200).json({ snapshotId: existing.id });
       }
 
-      // Read before the new snapshot exists, or the ordering below would just
-      // return the row we are about to write. Null on a repo's first analysis.
+      // read before writing the new one, null on first run
       const previous = await prisma.healthSnapshot.findFirst({
         where: { repoId: job.repoId },
         orderBy: { calculatedAt: 'desc' },
         select: { healthScore: true },
       });
 
-      // Create snapshot and findings, and update job status in a transaction
       const { snapshot, notified } = await prisma.$transaction(async (tx) => {
         const created = await tx.healthSnapshot.create({
           data: {
@@ -364,8 +342,7 @@ jobsRouter.post(
           where: { id: job.id },
           data: {
             status: AnalysisStatus.COMPLETED,
-            // Manual runs are queued with a placeholder sha, so this is the
-            // first point the row learns what was actually checked out.
+            // manual runs only get the real sha here
             commitSha,
             completedAt: new Date(),
             progress: 100,
@@ -377,8 +354,7 @@ jobsRouter.post(
 
       res.status(200).json({ snapshotId: snapshot.id });
 
-      // Only once the rows are committed, and without holding up the worker.
-      // The duplicate-delivery return above means a retry never pushes twice.
+      // after commit, don't make the worker wait
       void sendPushNotifications({ repoId: job.repoId, ...notified });
     } catch (error) {
       next(error);

@@ -21,8 +21,7 @@ const axiosInstance: AxiosInstance = axios.create({
   },
 });
 
-// No interceptors — a 401 from /auth/refresh itself must not re-enter the
-// handler below and recurse.
+// no interceptors, or a 401 on refresh would loop
 const refreshClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15_000,
@@ -30,8 +29,7 @@ const refreshClient: AxiosInstance = axios.create({
 
 const REFRESH_TOKEN_KEY = 'ch_refresh_token';
 
-// expo-secure-store has no web implementation, so Expo web falls back to
-// localStorage (dev preview only — not a secure store).
+// secure-store doesn't work on web, use localStorage there (dev only)
 const isWeb = Platform.OS === 'web';
 
 export async function getStoredRefreshToken(): Promise<string | null> {
@@ -89,8 +87,7 @@ export function refreshAccessToken(): Promise<string> {
       refreshToken: stored,
     });
     setAccessToken(data.accessToken);
-    // A body-based refresh (native) always returns a newly-rotated refresh
-    // token — it must be re-persisted every time, not just the access token.
+    // refresh token rotates every time, save the new one
     if (data.refreshToken) {
       await setStoredRefreshToken(data.refreshToken);
     }

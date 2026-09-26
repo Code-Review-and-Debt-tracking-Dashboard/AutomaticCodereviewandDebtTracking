@@ -1,14 +1,5 @@
 import type { ComponentType } from "react";
 
-/*
- * =========================================================
- * ICON BOX — Tinted icon container
- * =========================================================
- *
- * Squared tile holding a single icon, tinted to match the
- * design token palette.
- */
-
 const colorClasses: Record<string, string> = {
   primary: "bg-primary/10 text-primary",
   success: "bg-success/10 text-success",

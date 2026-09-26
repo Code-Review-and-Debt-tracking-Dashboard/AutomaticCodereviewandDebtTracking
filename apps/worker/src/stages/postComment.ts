@@ -8,17 +8,10 @@ export interface CommentTarget {
   owner: string;
   repo: string;
   prNumber: number;
-  // Null until the bot has posted on this PR once.
   botCommentId: string | null;
 }
 
-/**
- * Puts the body on the PR, editing the bot's own comment when we already know
- * its id, and returns the id to store. A 404 on the edit means someone deleted
- * the comment, so post a fresh one rather than lose the report.
- *
- * The client is passed in so this can be tested without going near the network.
- */
+// edits our comment if we have one, 404 means it was deleted so post a new one
 export async function upsertComment(
   octokit: Octokit,
   target: CommentTarget,
@@ -50,11 +43,7 @@ export async function upsertComment(
   return String(created.data.id);
 }
 
-/**
- * Best effort on purpose. The snapshot is already stored by the time this runs,
- * so a rate limit or a revoked token costs the comment, not the analysis — it
- * logs and returns instead of throwing the whole job back to the queue.
- */
+// best effort, a failure here shouldn't fail the job
 export async function postPrComment(input: {
   analysisId: string;
   body: string;
@@ -74,7 +63,7 @@ export async function postPrComment(input: {
     },
   });
 
-  // Manual runs aren't tied to a pull request, so there is nowhere to post.
+  // manual runs have no PR
   if (!job?.pullRequest) return;
   const pr = job.pullRequest;
 

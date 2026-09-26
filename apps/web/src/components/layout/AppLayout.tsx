@@ -39,7 +39,7 @@ export function AppLayout() {
         onClose={() => setMobileSidebarOpen(false)}
       />
 
-      {/* Only this column scrolls, so the sidebar never runs past the viewport */}
+      {/* only this column scrolls */}
       <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
         <Topbar onMenuClick={() => setMobileSidebarOpen((previous) => !previous)} />
 

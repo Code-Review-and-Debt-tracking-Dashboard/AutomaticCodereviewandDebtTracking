@@ -25,8 +25,7 @@ describe('GET /api/repos/:repoId/quality-gate', () => {
     expect(res.status).toBe(404);
   });
 
-  // Unlike every other :repoId route this one skips repoIdParamsSchema, so
-  // a blank id is a 404 from the access check rather than a 400.
+  // this route has no params validation
   it('a blank id is a 404, not a 400 (no params validation on this route)', async () => {
     const t = await seedTenant('acme');
     const res = await api().get('/api/repos/%20/quality-gate').set(bearer(t.owner));

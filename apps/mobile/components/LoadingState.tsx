@@ -10,9 +10,6 @@ interface LoadingStateProps {
   style?: StyleProp<ViewStyle>;
 }
 
-/**
- * Centered spinner shown while a screen's initial fetch is in flight.
- */
 export function LoadingState({ message, style }: LoadingStateProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);

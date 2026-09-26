@@ -1,18 +1,10 @@
-/*
- * One definition of the Health Score bands for the whole dashboard. The same
- * five bands the worker puts in its PR comment, so a score never reads one way
- * on GitHub and another way here.
- *
- * `meaning` is written for someone with no background in code quality — it is
- * what the UI shows on hover.
- */
+// same bands as the worker's PR comment
 
 export type HealthTone = "success" | "info" | "warning" | "destructive" | "muted";
 
 export interface HealthBand {
   label: string;
   tone: HealthTone;
-  /** Tailwind classes for text, used where a Badge variant isn't available. */
   textClass: string;
   meaning: string;
 }
@@ -67,8 +59,7 @@ export function healthBand(score: number | null | undefined): HealthBand {
   };
 }
 
-// Plain-English explanations of the metrics, for readers who do not work in the
-// code. Shown on hover next to each number.
+// shown on hover next to each number
 export const METRIC_HELP = {
   healthScore:
     "A single 0–100 rating of code quality. Higher is better. It falls as more problems are found.",

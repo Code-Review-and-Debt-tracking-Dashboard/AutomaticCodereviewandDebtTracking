@@ -48,7 +48,7 @@ describe("ProfilePage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
-    // "nethmi" appears in both badge and h2 card -- use getAllByText
+    // shows up twice
     expect(screen.getAllByText("nethmi").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("MEMBER")).toBeInTheDocument();
     expect(screen.getByText("nethmi@acme.com")).toBeInTheDocument();

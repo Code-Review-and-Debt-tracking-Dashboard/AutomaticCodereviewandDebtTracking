@@ -49,10 +49,6 @@ function greeting(): string {
   return 'Good evening';
 }
 
-/**
- * Portfolio-level view: one number for the whole workspace, how scores are
- * spread across the health bands, and which repositories need a look first.
- */
 export default function OverviewScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const { colors } = useTheme();

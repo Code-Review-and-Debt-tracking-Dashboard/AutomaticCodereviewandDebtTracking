@@ -4,13 +4,12 @@ import { promisify } from 'util';
 
 const run = promisify(execFile);
 
-// The pipeline allows each analyzer two minutes.
+// 2 min per analyzer
 const timeoutMs = 120_000;
-// A big repo's report goes well past the 1 MB default.
+// big repos go past the 1 MB default
 const maxBuffer = 32 * 1024 * 1024;
 
-// Pylint's exit status is a bitmask of what it found, not a plain code. This bit
-// is the only one that means the run itself went wrong.
+// exit code is a bitmask, only this bit means the run failed
 const usageError = 32;
 
 const configPath = resolve(__dirname, '../../pylint-analysis.rc');
@@ -42,13 +41,8 @@ export interface PylintReport {
   counts: Record<PylintMessageType, number>;
 }
 
-/**
- * Lints a cloned checkout with the worker's own config and hands back pylint's
- * output as it came. Turning it into findings is the normalize stage's job.
- */
 export async function runPylint(repoPath: string): Promise<PylintReport> {
-  // --rcfile keeps the scanned repo's own pylintrc out of it. --recursive is
-  // needed because otherwise pylint only accepts packages, not a source tree.
+  // use our own rcfile, --recursive so it takes a plain folder
   const args = [
     '-m',
     'pylint',
@@ -71,17 +65,13 @@ export async function runPylint(repoPath: string): Promise<PylintReport> {
       maxBuffer,
     }));
   } catch (err) {
-    // Any message pylint reports sets a bit, so a normal run with findings comes
-    // back non-zero. Only the usage bit means it couldn't do its job.
     const failed = err as { code?: number; stdout?: string; stderr?: string };
     if (typeof failed.code !== 'number' || failed.code & usageError) throw err;
     stdout = failed.stdout ?? '';
     stderr = failed.stderr ?? '';
   }
 
-  // Parsing is the real check that pylint ran — a crash or a missing pylint
-  // leaves something that isn't JSON, and that has to surface rather than read
-  // as a clean repo.
+  // bad JSON means pylint didn't run properly
   let messages: PylintMessage[];
   try {
     messages = JSON.parse(stdout) as PylintMessage[];

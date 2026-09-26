@@ -1,5 +1,3 @@
-// TODO(Backend): These types should match your API response schemas from /api/repositories/*
-
 export type Language = "TypeScript" | "JavaScript" | "Python" | "Java" | "Go" | "Rust" | "C#" | "Ruby" | "Swift" | "Kotlin";
 
 export interface Repository {

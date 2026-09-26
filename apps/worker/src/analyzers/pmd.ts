@@ -4,20 +4,19 @@ import { promisify } from 'util';
 
 const run = promisify(execFile);
 
-// The pipeline allows each analyzer two minutes.
+// 2 min per analyzer
 const timeoutMs = 120_000;
-// A big repo's report goes well past the 1 MB default.
+// big repos go past the 1 MB default
 const maxBuffer = 32 * 1024 * 1024;
 
-// Not on npm, and too big to commit. Until the worker image exists, fetch it with:
+// not on npm, download it with:
 //   curl -L -o /tmp/pmd.zip \
 //     https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.27.0/pmd-dist-7.27.0-bin.zip
 //   unzip /tmp/pmd.zip -d apps/worker/vendor
-// Pinned for the same reason as the other tools: a new version changes what fires.
 const pmdPath = resolve(__dirname, '../../vendor/pmd-bin-7.27.0/bin/pmd');
 const rulesetPath = resolve(__dirname, '../../pmd-analysis.xml');
 
-// 1 is the most serious.
+// 1 = most serious
 export type PmdPriority = 1 | 2 | 3 | 4 | 5;
 
 export interface PmdViolation {
@@ -34,7 +33,7 @@ export interface PmdViolation {
 
 export interface PmdReport {
   violations: PmdViolation[];
-  // Files it couldn't parse, so nothing in them got checked.
+  // files it couldn't parse
   errors: { file: string; reason: string }[];
   counts: Record<PmdPriority, number>;
 }
@@ -56,15 +55,8 @@ interface PmdOutput {
   processingErrors: { filename: string; message: string }[];
 }
 
-/**
- * Checks a cloned checkout with the worker's own ruleset and hands back what
- * pmd found, flattened out of its per-file report. Turning it into findings is
- * the normalize stage's job.
- */
 export async function runPmd(repoPath: string): Promise<PmdReport> {
-  // Without the two --no-fail flags pmd exits non-zero for finding anything,
-  // so with them any non-zero exit is a real failure and can just throw.
-  // --no-cache stops it keeping state between runs.
+  // --no-fail flags so finding issues doesn't count as a failed run
   const args = [
     'check',
     '-d',
@@ -85,8 +77,7 @@ export async function runPmd(repoPath: string): Promise<PmdReport> {
     maxBuffer,
   });
 
-  // Parsing is the real check that pmd ran — anything that isn't JSON has to
-  // surface rather than read as a clean repo.
+  // bad JSON means pmd didn't run properly
   let output: PmdOutput;
   try {
     output = JSON.parse(stdout) as PmdOutput;
@@ -94,7 +85,7 @@ export async function runPmd(repoPath: string): Promise<PmdReport> {
     throw new Error(`pmd produced no readable output, is it installed? ${stderr.trim()}`);
   }
 
-  // Scanning '.' prefixes every path with './', which the other analyzers don't do.
+  // drop the leading ./
   const strip = (filename: string) => filename.replace(/^\.\//, '');
 
   const counts: Record<PmdPriority, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -117,7 +108,7 @@ export async function runPmd(repoPath: string): Promise<PmdReport> {
     }
   }
 
-  // The rest of the message is the parser's list of what it expected.
+  // keep only the first line
   const errors = output.processingErrors.map((error) => ({
     file: strip(error.filename),
     reason: error.message.split('\n')[0],

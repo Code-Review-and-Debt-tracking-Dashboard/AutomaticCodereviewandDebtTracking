@@ -14,8 +14,7 @@ import { api, app } from '../helpers/app';
 import { createOrg, createQualityGate, createRepo, createUser } from '../helpers/factories';
 import { TEST_WEBHOOK_SECRET } from '../setup/env';
 
-// Runs the real worker as its own process, the same way it runs in production,
-// so the only things connecting it to the API are Redis and HTTP.
+// runs the real worker as a separate process
 
 const AGENT_TOKEN = 'e2e-agent-token';
 const workerDir = resolve(__dirname, '../../../worker');
@@ -25,7 +24,7 @@ let server: Server;
 let fixtureDir: string;
 let fixtureSha: string;
 
-// A one-file repo with an eval and a TODO, so both analyzers have something to report.
+// one file with an eval and a TODO
 function createFixtureRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'codehealth-e2e-'));
   mkdirSync(join(dir, 'src'));
@@ -57,7 +56,6 @@ function createFixtureRepo(): string {
 function startWorker(apiPort: number): ChildProcess {
   return spawn(process.execPath, [tsxCli, 'src/index.ts'], {
     cwd: workerDir,
-    // The test env already points DATABASE_URL and REDIS_URL at the test db.
     env: {
       ...process.env,
       API_BASE_URL: `http://127.0.0.1:${apiPort}`,
@@ -121,7 +119,7 @@ describe('analysis pipeline, end to end', () => {
       data: { tokenHash: createHash('sha256').update(AGENT_TOKEN).digest('hex'), orgId: null },
     });
 
-    // Started here, after the per-test Redis flush, so it listens on a clean queue.
+    // start after the redis flush
     const worker = startWorker((server.address() as AddressInfo).port);
 
     try {

@@ -38,12 +38,6 @@ import {
   Select,
 } from "../../components/ui";
 
-/*
- * =========================================================
- * REPOSITORIES PAGE (D-06)
- * =========================================================
- */
-
 interface ApiRepository {
   id: string;
   githubRepoId?: string;
@@ -135,7 +129,6 @@ export function RepositoriesPage() {
       );
       const apiList = res.data || [];
 
-      // Map backend schema to UI Repository shape
       const mapped: Repository[] = apiList.map((item) => {
         const isAnalyzed = item.healthScore !== null && item.healthScore !== undefined;
         const score = item.healthScore ?? 0;
@@ -179,7 +172,7 @@ export function RepositoriesPage() {
     fetchRepos();
   }, [fetchRepos]);
 
-  // Removes the GitHub webhook too, so it has to be confirmed first.
+  // also removes the webhook, so confirm first
   const confirmUnlink = async () => {
     if (!unlinkTarget) return;
 

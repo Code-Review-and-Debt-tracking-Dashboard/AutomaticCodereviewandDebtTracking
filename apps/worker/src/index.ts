@@ -1,7 +1,5 @@
 import 'dotenv/config';
 
-// Only for the shutdown disconnect — the bulk link processor and the clone
-// stage still read credentials through Prisma. The analysis pipeline does not.
 import { prisma } from '@codehealth/db';
 import {
   ANALYSIS_QUEUE_NAME,
@@ -19,9 +17,7 @@ import { redis } from './lib/redis';
 import { analysisProcessor } from './processors/analysisProcessor';
 import { bulkLinkProcessor } from './processors/bulkLinkProcessor';
 
-// Consumer side of the analysis queue. Retry and retention options live on the
-// producer in the API — BullMQ stores them per job, so they must not be
-// repeated here.
+// retry options are set by the API when it adds the job
 const worker = new Worker<AnalysisJobData>(ANALYSIS_QUEUE_NAME, analysisProcessor, {
   connection: redis,
   concurrency: env.concurrency,
@@ -49,8 +45,7 @@ worker.on('failed', async (job, err) => {
   try {
     await reportFailure({
       analysisId: job.data.analysisId,
-      // The processor tags the error with the stage it died in. An untagged one
-      // came from a call to the API itself, which is the persist boundary.
+      // untagged errors came from the API call
       stage: (err as { stage?: AnalysisStage }).stage ?? 'persist',
       errorMessage: err.message,
       retryCount: job.attemptsMade,
@@ -64,10 +59,7 @@ worker.on('error', (err) => {
   logger.error({ err }, 'Worker error');
 });
 
-// Its own queue rather than another job type on the analysis one: the handlers
-// above read job.data.analysisId, which a bulk link job hasn't got.
-// Concurrency 1 because each job is already a long sequential run of GitHub
-// calls, and running batches side by side just invites rate limiting.
+// one at a time to avoid github rate limits
 const bulkLinkWorker = new Worker<BulkLinkJobData>(BULK_LINK_QUEUE_NAME, bulkLinkProcessor, {
   connection: redis,
   concurrency: 1,
@@ -86,8 +78,7 @@ logger.info(
   'Worker listening',
 );
 
-// Finish whatever is in flight before exiting, rather than orphaning a job
-// mid-analysis with a half-written temp directory behind it.
+// let running jobs finish before exit
 async function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down worker');
   await Promise.all([worker.close(), bulkLinkWorker.close()]);

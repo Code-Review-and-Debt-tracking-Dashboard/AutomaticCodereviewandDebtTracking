@@ -6,12 +6,6 @@ import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
 import { Button } from "../ui";
 
-/*
- * =========================================================
- * LINK REPOSITORY MODAL (D-07 & D-21)
- * =========================================================
- */
-
 interface AvailableRepo {
   githubRepoId: string;
   name: string;
@@ -390,7 +384,7 @@ export function LinkRepositoryModal({
                 </div>
               )}
 
-              {/* Per-repo error list if finished and there are errors */}
+              {/* per-repo errors */}
               {!isLinking && bulkStatus?.results && (
                 <div className="mt-6 max-h-32 overflow-y-auto space-y-2 border-t border-border/50 pt-4">
                   {bulkStatus.results.map((result) => {

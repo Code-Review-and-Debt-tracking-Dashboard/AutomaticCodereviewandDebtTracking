@@ -15,9 +15,7 @@ interface ScopedRoute {
   body?: (t: Tenant) => object;
 }
 
-// Every route whose params name a tenant-owned resource. The guard test at
-// the bottom walks the live router and fails if a route with :repoId,
-// :orgId or :snapshotId is registered that is not listed here.
+// every tenant-scoped route. the last test fails if one is missing
 const SCOPED_ROUTES: ScopedRoute[] = [
   { method: 'get', template: '/api/orgs/:orgId/members', path: (t) => `/api/orgs/${t.org.id}/members` },
   { method: 'get', template: '/api/orgs/:orgId/repos', path: (t) => `/api/orgs/${t.org.id}/repos` },
@@ -86,9 +84,7 @@ const SCOPED_ROUTES: ScopedRoute[] = [
 
 const label = (r: ScopedRoute): string => `${r.method.toUpperCase()} ${r.template}`;
 
-// Strings that would only appear in a response if org A's data leaked. The
-// bulk-link job id is left out: BullMQ ids are small sequential integers, so
-// "1" would match digits in unrelated headers.
+// values that should never show up in the other org's responses
 function secretsOf(t: Tenant): string[] {
   return [t.org.id, t.org.login, t.repo.id, t.repo.name, t.repo.fullName, t.snapshot.id, t.pullRequest.title];
 }
@@ -117,7 +113,7 @@ describe('cross-tenant isolation', () => {
       it.each(SCOPED_ROUTES.map((r) => [label(r), r] as const))('%s → 404', async (_name, route) => {
         const res = await callAs(route, orgs.a, caller.pick(orgs));
 
-        // 404, never 403 — a 403 would confirm the resource exists.
+        // 404 not 403
         expect(res.status).toBe(404);
         expect(res.body).toEqual({
           error: { code: 'NOT_FOUND', message: expect.any(String) },
@@ -168,8 +164,7 @@ describe('cross-tenant isolation', () => {
 });
 
 describe('cross-tenant matrix completeness', () => {
-  // Express 4 keeps mounted routers in app._router.stack; each router's own
-  // stack holds Layer objects whose .route carries the path and methods.
+  // walks express 4's internal router stack
   function registeredScopedRoutes(): Set<string> {
     const found = new Set<string>();
     const router = (app as unknown as { _router: { stack: Layer[] } })._router;

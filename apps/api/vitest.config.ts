@@ -1,7 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-// Integration tests share one Postgres database and one Redis db, and every
-// test truncates them in beforeEach, so files must not run concurrently.
+// tests share one db, so run files one at a time
 export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],

@@ -22,10 +22,6 @@ import {
 } from "../../components/ui";
 
 
-/* =========================================================
-   DATA
-========================================================= */
-
 const analysisSteps = [
   "Clone repository into the worker sandbox",
   "Run analyzers and normalize findings",
@@ -59,10 +55,6 @@ function formatTime(iso: string | null) {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
 
-
-/* =========================================================
-   COMPONENT
-========================================================= */
 
 export function RepositoryAnalyzePage() {
   const { repoId } = useParams();

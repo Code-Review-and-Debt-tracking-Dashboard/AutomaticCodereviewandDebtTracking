@@ -2,15 +2,6 @@ import type { ComponentType, ReactNode } from "react";
 
 import { FlatlineIllustration } from "../icons";
 
-/*
- * =========================================================
- * EMPTY STATE — "no signal yet" placeholder
- * =========================================================
- *
- * A flat trace instead of a boxed icon: nothing has come
- * through for this list yet.
- */
-
 interface EmptyStateProps {
   icon?: ComponentType<{ size?: number; className?: string }>;
   title: string;

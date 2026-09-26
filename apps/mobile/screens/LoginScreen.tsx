@@ -17,14 +17,13 @@ import { getErrorMessage } from '../lib/errorMessage';
 import { fonts, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 
-// Same copy as the web login page, so both front doors say the same thing.
+// same text as the web login
 const FEATURES = [
   'First-pass review on every pull request',
   'Debt measured in minutes, not guesses',
   'Quality gates that flag risky merges',
 ];
 
-// A static ECG strip standing in for the web's animated sweep.
 const PULSE = [4, 4, 5, 4, 3, 4, 14, 2, 22, 6, 4, 4, 5, 4, 3, 4, 10, 2, 16, 5, 4, 4, 4, 5, 4, 3, 4, 26, 2, 30, 8, 4, 4, 5, 4, 4];
 
 export default function LoginScreen() {

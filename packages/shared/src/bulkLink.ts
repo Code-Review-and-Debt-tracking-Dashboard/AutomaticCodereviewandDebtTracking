@@ -1,6 +1,4 @@
-// Contract for the bulk repository link queue. Same reason as the analysis
-// queue: the API adds these jobs and the worker reads them, so the name and
-// the payload shape live in one place.
+// shared by the API and worker for the bulk link queue
 
 export const BULK_LINK_QUEUE_NAME = 'bulk-link-queue';
 
@@ -10,9 +8,7 @@ export interface BulkLinkJobData {
   githubRepoIds: number[];
 }
 
-// NO_CREDENTIAL and CREDENTIAL_DECRYPT_FAILED are the job giving up early —
-// every remaining repo would fail the same way. They're kept apart because one
-// is fixed by signing in again and the other only by fixing the server key.
+// NO_CREDENTIAL = sign in again, CREDENTIAL_DECRYPT_FAILED = server key is wrong
 export type BulkLinkStatus =
   | 'LINKED'
   | 'ALREADY_LINKED'

@@ -89,21 +89,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
   const unreadCount = notifications.filter((item) => item.unread).length;
 
-  /*
-==============================
-THEME
-==============================
-*/
-
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
-
-  /*
-==============================
-NOTIFICATIONS API
-==============================
-*/
 
   useEffect(() => {
     if (!authUser) return;
@@ -154,12 +142,6 @@ NOTIFICATIONS API
     fetchNotifications();
   }, [authUser]);
 
-  /*
-==============================
-KEYBOARD SHORTCUT
-==============================
-*/
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
@@ -185,12 +167,6 @@ KEYBOARD SHORTCUT
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
-
-  /*
-==============================
-OUTSIDE CLICK HANDLER
-==============================
-*/
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -247,9 +223,6 @@ OUTSIDE CLICK HANDLER
 
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-md sm:px-6">
-      {/* ==============================
-    LEFT SIDE
-================================ */}
       <div className="flex min-w-0 items-center gap-2">
         {/* MOBILE MENU */}
 

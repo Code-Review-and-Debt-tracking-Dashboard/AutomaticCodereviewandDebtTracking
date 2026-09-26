@@ -81,9 +81,7 @@ async function main() {
     },
   });
 
-  // Two tenants are seeded on purpose. The second one exists so that cross-org
-  // isolation can actually be demonstrated: its user must not be able to reach
-  // anything belonging to the first.
+  // second org is here to show cross-org isolation
   const acme = await prisma.organization.upsert({
     where: { githubOrgId: "seed-github-org-2001" },
     update: {
@@ -168,7 +166,7 @@ async function main() {
     },
   });
 
-  // Belongs to the other tenant. Nothing else in this seed references it.
+  // belongs to the other org
   await prisma.repository.upsert({
     where: { githubRepoId: "seed-repository-2001" },
     update: {
@@ -271,7 +269,7 @@ async function main() {
     },
   });
 
-  // Seed ~30 days of HealthSnapshot history (Task C-04b)
+  // ~30 days of snapshot history
   const now = new Date("2026-08-03T12:00:00.000Z");
   let latestSnapshot = null;
 
@@ -473,10 +471,7 @@ async function main() {
     },
   });
 
-  // The worker authenticates as this agent when it reports results. Only the
-  // hash is stored, so the raw token has to match the worker's AGENT_TOKEN.
-  // orgId is null so one worker can analyse every org — scoping it to a single
-  // org means jobs from all the others fail with a 404 and sit PENDING.
+  // must match the worker's AGENT_TOKEN. no orgId so it serves every org
   const agentToken = process.env.AGENT_TOKEN || "dev_agent_token";
   const tokenHash = crypto.createHash("sha256").update(agentToken).digest("hex");
 

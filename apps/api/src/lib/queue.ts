@@ -8,37 +8,28 @@ import { Queue } from 'bullmq';
 
 import { redis } from './redis';
 
-// Producer side of the analysis queue — the API only ever adds jobs here;
-// the worker is a separate process that consumes them.
+// API only adds jobs, the worker consumes them
 export const analysisQueue = new Queue<AnalysisJobData>(ANALYSIS_QUEUE_NAME, {
   connection: redis,
-  // Error instead of blocking when Redis is unreachable. Jobs are added
-  // while an HTTP request is waiting, and a webhook has to be answered in
-  // seconds — failing fast lets us mark the analysis failed and reply.
+  // fail fast if redis is down instead of hanging the request
   skipWaitingForReady: true,
   defaultJobOptions: {
-    // 3 total attempts, backing off 5s then 10s between them.
+    // 3 tries, 5s then 10s backoff
     attempts: 3,
     backoff: { type: 'exponential', delay: 5000 },
-    // Keep a bounded history so Redis doesn't grow without limit.
     removeOnComplete: 100,
     removeOnFail: 500,
   },
 });
 
-// Bulk repository linking. Separate queue, not a second job type on the
-// analysis queue — the analysis worker reads job.data.analysisId on failure
-// and would choke on a payload that hasn't got one.
+// separate queue, bulk link jobs have no analysisId
 export const bulkLinkQueue = new Queue<BulkLinkJobData>(BULK_LINK_QUEUE_NAME, {
   connection: redis,
   skipWaitingForReady: true,
   defaultJobOptions: {
-    // No retry. A second attempt would redo a half-finished batch and throw
-    // away the per-repo results from the first, which is all we have.
+    // no retry, it would lose the first run's results
     attempts: 1,
-    // The results are the response to the status endpoint, so they have to
-    // outlive the job. By age, so a busy queue can't evict a batch someone
-    // is still watching.
+    // keep for an hour so the status endpoint can read it
     removeOnComplete: { age: 3600 },
     removeOnFail: { age: 3600 },
   },

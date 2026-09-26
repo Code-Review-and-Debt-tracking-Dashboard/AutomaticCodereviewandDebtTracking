@@ -17,9 +17,7 @@ export async function githubClientFor(userId: string): Promise<Octokit> {
   return new Octokit({ auth: decrypt(credential.encryptedAccessToken) });
 }
 
-// Repos the picker can offer: admin on GitHub (needed to register the hook)
-// and owned by an org the caller belongs to here. Already-linked ones are
-// flagged rather than dropped, so the picker can show them as linked.
+// repos the user is admin on, already linked ones are flagged
 export async function listAvailableRepos(userId: string, orgId?: string) {
   const octokit = await githubClientFor(userId);
 
@@ -60,8 +58,7 @@ export async function listAvailableRepos(userId: string, orgId?: string) {
     }));
 }
 
-// The link itself is shared with the bulk job, which needs to carry on past a
-// repo it can't link. Here each way it can fail is just a status code.
+// turns a link failure into an http error
 export function assertLinked(outcome: LinkOutcome) {
   switch (outcome.status) {
     case 'LINKED':
@@ -128,9 +125,7 @@ export async function unlinkRepository(
       });
     } catch (err) {
       if ((err as { status?: number }).status !== 404) {
-        // Not a "gone already" — the hook is likely still live on GitHub.
-        // Unlinking still has to work, but don't discard the only pointer
-        // to a hook we couldn't confirm was removed.
+        // hook may still be live on GitHub, log it so it isn't lost
         logger.error(
           { err, repoId },
           'Could not remove GitHub webhook while unlinking; leaving webhookId set for cleanup',

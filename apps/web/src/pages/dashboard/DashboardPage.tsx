@@ -52,10 +52,6 @@ import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
 
 
-/* =========================================================
-   API SHAPES
-========================================================= */
-
 // health/findings/debt are null until the repo has been analysed
 interface ApiRepository {
   id: string;
@@ -140,10 +136,6 @@ function relativeTime(iso: string): string {
 
 
 
-
-/* =========================================================
-   DASHBOARD PAGE
-========================================================= */
 
 export function DashboardPage() {
 
@@ -298,10 +290,6 @@ export function DashboardPage() {
   return (
     <>
 
-      {/* =====================================================
-          PAGE HEADER
-      ====================================================== */}
-
       <PageHeader>
         <div>
           <PageHeaderBadge>
@@ -325,10 +313,6 @@ export function DashboardPage() {
       </PageHeader>
 
 
-      {/* =====================================================
-          STAT CARDS
-      ====================================================== */}
-
       <div data-tour="stats" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat, index) => (
           <StatCard
@@ -343,10 +327,6 @@ export function DashboardPage() {
         ))}
       </div>
 
-
-      {/* =====================================================
-          HEALTH TREND + RECENT ACTIVITY
-      ====================================================== */}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
 
@@ -486,10 +466,6 @@ export function DashboardPage() {
 
       </div>
 
-
-      {/* =====================================================
-          REPOSITORY HEALTH
-      ====================================================== */}
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}

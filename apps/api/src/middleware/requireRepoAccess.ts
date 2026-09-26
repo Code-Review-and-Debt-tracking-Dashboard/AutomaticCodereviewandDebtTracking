@@ -3,8 +3,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 import { AppError } from './errorHandler';
 
-// Two checks: is the caller in the owning org, then what they can do with the
-// repo. Failing the first is a 404 so other tenants' repos stay hidden.
+// not in the org = 404 so other orgs' repos stay hidden
 export function requireRepoAccess(level: 'read' | 'write'): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {

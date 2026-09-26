@@ -3,22 +3,19 @@ import { promisify } from 'util';
 
 const run = promisify(execFile);
 
-// The pipeline allows each analyzer two minutes.
+// 2 min per analyzer
 const timeoutMs = 120_000;
-// A big repo's report goes well past the 1 MB default.
+// big repos go past the 1 MB default
 const maxBuffer = 32 * 1024 * 1024;
 
-// Build output and vendored code isn't the author's work. Cppcheck matches
-// these at any depth.
+// build output and vendored code
 const ignoredDirs = ['build', 'cmake-build-*', 'third_party', 'vendor', 'external', 'node_modules'];
 
-// One finding per line. The message goes last so a tab inside it can't shift
-// the other fields.
+// message last so a tab in it can't shift the other fields
 const template = ['{file}', '{line}', '{column}', '{severity}', '{id}', '{cwe}', '{message}'].join('\\t');
 const fieldCount = 7;
 
-// Cppcheck couldn't make sense of the file. We never pass it the repo's include
-// paths or macros, so that's usually our setup, not their code.
+// usually because we don't pass include paths, so not their fault
 const parseFailures = new Set(['syntaxError', 'unknownMacro', 'internalAstError']);
 
 export type CppcheckSeverity =
@@ -41,24 +38,14 @@ export interface CppcheckFinding {
 
 export interface CppcheckReport {
   findings: CppcheckFinding[];
-  // Files it couldn't parse, so nothing in them got checked.
+  // files it couldn't parse
   errors: { file: string; reason: string }[];
   counts: Record<CppcheckSeverity, number>;
 }
 
-/**
- * Checks a cloned checkout for C/C++ bugs and hands back what cppcheck found.
- * Turning it into findings is the normalize stage's job.
- *
- * Needs cppcheck on PATH. Unlike the Java tools it's a native binary, so it
- * can't be dropped in vendor/. The worker image has it; on the host,
- * `brew install cppcheck`.
- */
+// needs cppcheck installed on PATH
 export async function runCppcheck(repoPath: string): Promise<CppcheckReport> {
-  // information is left out because without the repo's include paths it's
-  // mostly "missing include" noise, and unusedFunction because a library's
-  // public functions are never called from inside it. --inline-suppr isn't
-  // passed, so suppressions in their code don't count, same as the other tools.
+  // information is mostly missing-include noise, unusedFunction flags every public api
   const args = [
     '-q',
     '--enable=warning,style,performance,portability',
@@ -67,7 +54,7 @@ export async function runCppcheck(repoPath: string): Promise<CppcheckReport> {
     '.',
   ];
 
-  // Exits 0 whatever it finds, so a non-zero exit is a real failure and throws.
+  // exits 0 even with findings
   const { stderr } = await run('cppcheck', args, { cwd: repoPath, timeout: timeoutMs, maxBuffer });
 
   const findings: CppcheckFinding[] = [];
@@ -85,8 +72,7 @@ export async function runCppcheck(repoPath: string): Promise<CppcheckReport> {
     if (!line.trim()) continue;
 
     const fields = line.split('\t');
-    // There's no JSON to fail parsing here, so this is the check that the output
-    // is what we asked for. Anything else must not read as a clean repo.
+    // output isn't in the format we asked for
     if (fields.length < fieldCount) {
       throw new Error(`cppcheck output wasn't in the expected format: ${line}`);
     }

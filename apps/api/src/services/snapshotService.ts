@@ -58,8 +58,7 @@ async function getSnapshotForAccessCheck(snapshotId: string) {
     return snapshot;
 }
 
-// Mirrors the read-access rule in requireRepoAccess, keyed off the snapshot's
-// repo instead of a :repoId route param.
+// same check as requireRepoAccess, using the snapshot's repo
 function assertReadAccess(
     userId: string,
     repository: Awaited<ReturnType<typeof getSnapshotForAccessCheck>>['repository'],
@@ -131,8 +130,7 @@ export async function getSnapshotFindings(snapshotId: string, userId: string, qu
     const file = typeof query.file === 'string' ? query.file : undefined;
     const { page, limit } = resolvePagination(query);
 
-    // summary reflects category/severity/file filters only, so toggling isNew
-    // (a view of the same data) doesn't change the new/carryOver breakdown.
+    // summary ignores the isNew filter
     const summaryWhere: Prisma.FindingWhereInput = {
         snapshotId,
         ...(category ? { category: category as FindingCategory } : {}),

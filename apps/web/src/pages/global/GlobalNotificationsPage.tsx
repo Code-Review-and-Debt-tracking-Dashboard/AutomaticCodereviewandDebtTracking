@@ -29,10 +29,6 @@ import {
 } from "../../components/ui";
 
 
-/* =========================================================
-   TYPES
-========================================================= */
-
 interface NotificationData {
   id: string;
   title: string;
@@ -46,10 +42,6 @@ interface NotificationData {
 
 
 
-
-/* =========================================================
-   ICON MAPPING
-========================================================= */
 
 function getNotificationIcon(n: NotificationData) {
   if (n.severity === "critical" || n.severity === "high")
@@ -74,10 +66,6 @@ function timeAgo(dateString: string): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-
-/* =========================================================
-   COMPONENT
-========================================================= */
 
 export function GlobalNotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationData[]>([]);

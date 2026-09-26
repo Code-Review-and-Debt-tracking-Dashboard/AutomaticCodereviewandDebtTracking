@@ -13,7 +13,7 @@
     or the same defect would be counted twice.
   </description>
 
-  <!-- Build output, generated and vendored code isn't the author's work. -->
+  <!-- build output and vendored code -->
   <exclude-pattern>.*/(target|build|out|\.gradle|node_modules)/.*</exclude-pattern>
 
   <!-- Security -->
@@ -41,7 +41,7 @@
   <rule ref="category/java/bestpractices.xml/PreserveStackTrace"><priority>3</priority></rule>
   <rule ref="category/java/bestpractices.xml/AvoidPrintStackTrace"><priority>4</priority></rule>
 
-  <!-- Design. Cognitive complexity uses the same limit as the eslint sonarjs rule. -->
+  <!-- Design -->
   <rule ref="category/java/design.xml/CognitiveComplexity">
     <priority>3</priority>
     <properties>

@@ -1,19 +1,8 @@
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-/*
- * =========================================================
- * BACK LINK — Navigational back link
- * =========================================================
- *
- * Replaces the repeated pattern of a ChevronLeft + text
- * back-navigation button used across repository sub-pages.
- */
-
 interface BackLinkProps {
-  /** URL to navigate to */
   to: string;
-  /** Link label (default: "Back") */
   label?: string;
   className?: string;
 }

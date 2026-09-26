@@ -39,7 +39,6 @@ describe("RepositoryFilesPage", () => {
 
     expect(screen.getByRole("heading", { name: "Files" })).toBeInTheDocument();
 
-    // Both files should appear in the sidebar list (there may be duplicates in preview panel)
     await waitFor(() => {
       const matches = screen.getAllByText("src/api/users.ts");
       expect(matches.length).toBeGreaterThanOrEqual(1);

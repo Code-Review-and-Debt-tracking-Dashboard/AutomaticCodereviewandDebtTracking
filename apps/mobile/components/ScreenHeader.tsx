@@ -13,7 +13,6 @@ interface ScreenHeaderProps {
   right?: ReactNode;
 }
 
-/** Title block at the top of each tab, laid out like the web's page headers. */
 export function ScreenHeader({ eyebrow, title, subtitle, right }: ScreenHeaderProps) {
   const styles = useThemedStyles(makeStyles);
 

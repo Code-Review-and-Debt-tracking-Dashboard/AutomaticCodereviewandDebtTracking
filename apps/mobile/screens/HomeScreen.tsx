@@ -42,7 +42,7 @@ interface RepoList {
 
 async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
   const orgs = await api.get<{ data: { id: string; login: string; name: string | null }[] }>('/api/orgs');
-  // Fall back to the first org if the saved one is gone (left the org, other account).
+  // saved org may be gone, fall back to the first
   const org = orgs.data.find((o) => o.id === activeOrgId) ?? orgs.data[0];
   if (!org) return { orgName: null, repos: [] };
 
@@ -58,7 +58,6 @@ async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
   }> }>(`/api/orgs/${org.id}/repos`);
 
   const repos = await Promise.all(response.data.map(async (repo) => {
-    // A missing trend shouldn't take the whole list down with it.
     const trend = await api
       .get<{ dataPoints: { healthScore: number }[] }>(`/api/repos/${repo.id}/trend?days=30`)
       .catch(() => ({ dataPoints: [] as { healthScore: number }[] }));
@@ -77,9 +76,6 @@ async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
   return { orgName: org.name ?? org.login, repos };
 }
 
-/**
- * Step 56 (E-05): Mobile home screen — repo list with sparklines
- */
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { colors } = useTheme();
@@ -91,7 +87,7 @@ export default function HomeScreen() {
   );
   const [query, setQuery] = useState('');
 
-  // A repo opened before the org switch belongs to the old org — drop back to the list.
+  // go back to the list when the org changes
   const shownOrgId = useRef(activeOrgId);
   const firstRepoRef = useRef<View>(null);
   useEffect(() => {
@@ -296,7 +292,7 @@ const makeStyles = (c: ThemeColors) =>
       padding: spacing.lg,
       gap: spacing.md,
     },
-    // Without flexGrow an empty list has no height and can't be pulled on Android.
+    // so an empty list can still be pulled
     listEmpty: {
       flexGrow: 1,
       justifyContent: 'center',

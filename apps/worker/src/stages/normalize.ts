@@ -15,8 +15,7 @@ import type { RadonMiRank, RadonRank, RadonReport } from '../analyzers/radon';
 import type { TodoMarker, TodoScanReport } from '../analyzers/todoScan';
 import { isTestPath } from '../lib/testCode';
 
-// Remediation minutes per finding. Exported because the debt score is the sum of
-// these and has to use the same numbers.
+// fix time in minutes per finding, the debt score sums these
 export const DEBT_COST_TABLE: Record<FindingCategory, Record<Severity, number>> = {
   VULNERABILITY: { CRITICAL: 60, HIGH: 30, MEDIUM: 15, LOW: 10, INFO: 5 },
   COMPLEXITY: { CRITICAL: 45, HIGH: 25, MEDIUM: 15, LOW: 8, INFO: 3 },
@@ -25,13 +24,11 @@ export const DEBT_COST_TABLE: Record<FindingCategory, Record<Severity, number>> 
   MAINTAINABILITY: { CRITICAL: 30, HIGH: 20, MEDIUM: 10, LOW: 5, INFO: 2 },
 };
 
-// Everything a tool can say about a finding. The last two fields follow from
-// these, so no mapper sets them by hand.
 type RawFinding = Omit<AnalysisFinding, 'state' | 'debtMinutes'>;
 
 const complete = (raw: RawFinding): AnalysisFinding => ({
   ...raw,
-  // Set by the matcher later, against the previous snapshot.
+  // matcher sets this later
   state: 'UNKNOWN',
   debtMinutes: DEBT_COST_TABLE[raw.category][raw.severity],
 });
@@ -45,9 +42,7 @@ const eslintCategories: Record<string, FindingCategory> = {
   'sonarjs/no-identical-functions': 'DUPLICATION',
   'sonarjs/no-duplicated-branches': 'DUPLICATION',
   'sonarjs/no-duplicate-string': 'DUPLICATION',
-  // sonarjs carries security rules too, and the plugin gives no tag to spot them
-  // by. Left unlisted they would score as style issues — a hardcoded password is
-  // not a style issue, and the security plugin doesn't cover these.
+  // sonarjs security rules, otherwise they'd count as code smells
   'sonarjs/code-eval': 'VULNERABILITY',
   'sonarjs/no-hardcoded-passwords': 'VULNERABILITY',
   'sonarjs/no-hardcoded-secrets': 'VULNERABILITY',
@@ -93,20 +88,13 @@ const eslintCategories: Record<string, FindingCategory> = {
   'sonarjs/review-blockchain-mnemonic': 'VULNERABILITY',
 };
 
-// Whole families of security rules, matched by prefix. sonarjs's aws-* rules are
-// all about exposed or unencrypted cloud resources.
+// security rules matched by prefix
 const eslintSecurityPrefixes = ['security/', 'sonarjs/aws-', 'no-unsanitized/'];
 
 function eslintSeverity(category: FindingCategory, level: 1 | 2): Severity {
-  // Both security rule sets only ever say "make sure this is safe", and they
-  // disagree on level for the same kind of defect — the security plugin ships
-  // every rule as a warning, sonarjs as an error — so the level tells us
-  // nothing here and they all land on HIGH. Only bandit, which reports its
-  // own confidence, is sure enough about a vulnerability to be CRITICAL.
+  // security plugins don't agree on level, so all HIGH. only bandit goes CRITICAL
   if (category === 'VULNERABILITY') return 'HIGH';
-  // The presets make nearly every style rule an error, so an unused import
-  // would otherwise weigh as much as a vulnerability. One step down puts it
-  // where pylint puts the same thing.
+  // presets mark most style rules as errors, so drop them one step
   if (category === 'CODE_SMELL') return level === 2 ? 'MEDIUM' : 'LOW';
   return level === 2 ? 'HIGH' : 'MEDIUM';
 }
@@ -116,11 +104,9 @@ export function fromEslint(report: EslintReport): AnalysisFinding[] {
 
   for (const file of report.results) {
     for (const message of file.messages) {
-      // A parse error means our fixed config couldn't read the file. That's a
-      // fact about this worker, not about their code.
+      // parse error is our config's problem, not theirs
       if (message.fatal || !message.ruleId) continue;
-      // A disable comment for a plugin we don't load, e.g. react-hooks. Also
-      // about our config, not their code.
+      // disable comment for a plugin we don't load
       if (message.message.startsWith('Definition for rule ')) continue;
 
       const category =
@@ -162,8 +148,7 @@ const pylintSeverities: Record<PylintMessageType, Severity> = {
   information: 'INFO',
 };
 
-// The rest of pylint's too-many family is about class design and file size, which
-// reads better as a smell than as complexity.
+// other too-many-* rules count as smells
 const pylintCategories: Record<string, FindingCategory> = {
   'too-many-branches': 'COMPLEXITY',
   'too-many-statements': 'COMPLEXITY',
@@ -184,7 +169,6 @@ export function fromPylint(report: PylintReport): AnalysisFinding[] {
       column: message.column,
       endColumn: message.endColumn,
       severity: pylintSeverities[message.type],
-      // The symbol reads better than the message-id and is just as stable.
       category: pylintCategories[message.symbol] ?? 'CODE_SMELL',
       rule: message.symbol,
       message: message.message,
@@ -204,8 +188,7 @@ const banditSeverities: Record<BanditLevel, Severity> = {
 
 export function fromBandit(report: BanditReport): AnalysisFinding[] {
   return report.results.map((result) => {
-    // A high-severity issue bandit is also sure about is the only thing in the
-    // pipeline that reaches CRITICAL, so the gate's critical threshold can fire.
+    // high severity + high confidence is the only CRITICAL
     const critical = result.issue_severity === 'HIGH' && result.issue_confidence === 'HIGH';
 
     return complete({
@@ -225,7 +208,7 @@ export function fromBandit(report: BanditReport): AnalysisFinding[] {
 
 // ── Radon ──
 
-// Rank A and B are healthy code; reporting them would bury the blocks that matter.
+// A and B are fine, skip them
 const radonSeverities: Partial<Record<RadonRank, Severity>> = {
   C: 'MEDIUM',
   D: 'HIGH',
@@ -233,7 +216,7 @@ const radonSeverities: Partial<Record<RadonRank, Severity>> = {
   F: 'CRITICAL',
 };
 
-// Rank A is a maintainability index of 20 or better, which is fine.
+// rank A (MI >= 20) is fine
 const radonMiSeverities: Partial<Record<RadonMiRank, Severity>> = {
   B: 'MEDIUM',
   C: 'HIGH',
@@ -291,7 +274,6 @@ export function fromRadon(report: RadonReport): AnalysisFinding[] {
 
 // ── Checkstyle ──
 
-// The level is whatever our own config gave each check, so it maps straight across.
 const checkstyleSeverities: Record<CheckstyleLevel, Severity> = {
   error: 'HIGH',
   warning: 'MEDIUM',
@@ -327,8 +309,7 @@ export function fromCheckstyle(report: CheckstyleReport): AnalysisFinding[] {
 
 // ── PMD ──
 
-// Priority is whatever our own ruleset gave each rule. Even the security rules
-// stop at HIGH, same as the eslint ones: only bandit is sure enough for CRITICAL.
+// security rules stop at HIGH here too
 const pmdSeverities: Record<PmdPriority, Severity> = {
   1: 'HIGH',
   2: 'HIGH',
@@ -364,8 +345,7 @@ export function fromPmd(report: PmdReport): AnalysisFinding[] {
 
 // ── Cppcheck ──
 
-// error is a definite bug and warning a likely one. The other three are about
-// how the code is written, not whether it works.
+// error/warning are real bugs, the rest are style
 const cppcheckSeverities: Record<CppcheckSeverity, Severity> = {
   error: 'HIGH',
   warning: 'MEDIUM',
@@ -375,9 +355,7 @@ const cppcheckSeverities: Record<CppcheckSeverity, Severity> = {
   information: 'INFO',
 };
 
-// Memory-safety bugs: out of bounds, freed memory, unchecked format strings.
-// In C these are how code gets exploited, not just how it crashes. Cppcheck
-// puts a CWE on nearly everything, so that can't be used to pick them out.
+// memory safety bugs count as vulnerabilities
 const cppcheckVulnerabilities = new Set([
   'arrayIndexOutOfBounds',
   'arrayIndexOutOfBoundsCond',
@@ -396,7 +374,7 @@ export function fromCppcheck(report: CppcheckReport): AnalysisFinding[] {
   return report.findings.map((finding) =>
     complete({
       file: finding.file,
-      // 0 means the finding is about the whole file.
+      // 0 = whole file
       line: finding.line || null,
       endLine: null,
       column: finding.column || null,
@@ -433,8 +411,7 @@ export function fromJscpd(report: JscpdReport): AnalysisFinding[] {
 
 // ── TODO scan ──
 
-// A fix-me or hack admits something is wrong or worked around; a to-do or xxx
-// only says something is unfinished.
+// FIXME/HACK are worse than TODO/XXX
 const todoSeverities: Record<TodoMarker, Severity> = {
   FIXME: 'MEDIUM',
   HACK: 'MEDIUM',
@@ -471,11 +448,7 @@ export interface AnalyzerReports {
   todoScan?: TodoScanReport;
 }
 
-/**
- * Flattens whatever analyzers ran into the one finding shape the rest of the
- * pipeline works in. Pure — the same reports always give the same list back,
- * which is what lets a score be recomputed and explained later.
- */
+// turns every tool's report into one finding list
 export function normalize(reports: AnalyzerReports) {
   const findings = [
     ...(reports.eslint ? fromEslint(reports.eslint) : []),
@@ -489,8 +462,7 @@ export function normalize(reports: AnalyzerReports) {
     ...(reports.todoScan ? fromTodoScan(reports.todoScan) : []),
   ].filter((f) => !f.file || !isTestPath(f.file));
 
-  // No analyzer promises an order, and the same commit has to produce the same
-  // list every time.
+  // sort so the same commit always gives the same list
   findings.sort(
     (a, b) =>
       a.tool.localeCompare(b.tool) ||
@@ -499,7 +471,6 @@ export function normalize(reports: AnalyzerReports) {
       a.rule.localeCompare(b.rule),
   );
 
-  // jscpd reports duplication as clone pairs and as one percentage for the repo.
-  // The pairs became findings above; the scorer wants the percentage.
+  // scorer needs jscpd's overall percentage
   return { findings, duplicationPct: reports.jscpd?.percentage ?? 0 };
 }

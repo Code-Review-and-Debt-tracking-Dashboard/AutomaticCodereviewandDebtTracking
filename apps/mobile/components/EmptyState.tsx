@@ -14,10 +14,7 @@ interface EmptyStateProps {
   style?: StyleProp<ViewStyle>;
 }
 
-/**
- * Shown when a request succeeded but came back with nothing.
- * Rendered inside the list so pull-to-refresh still works.
- */
+// inside the list so pull-to-refresh still works
 export function EmptyState({ icon, title, description, action, style }: EmptyStateProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);

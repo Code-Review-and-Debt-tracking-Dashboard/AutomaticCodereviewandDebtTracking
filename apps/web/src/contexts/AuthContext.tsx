@@ -12,18 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { api, refreshAccessToken } from "../lib/apiClient";
 import { onAuthLost, setAccessToken } from "../lib/authTokenStore";
 
-/*
- * =========================================================
- * AUTH CONTEXT
- * =========================================================
- *
- * The access token lives in memory only, so a reload starts with nothing.
- * On mount we trade the refresh cookie for a new access token; if that fails
- * the visitor is simply anonymous.
- *
- * `status` starts as "loading" so ProtectedRoute shows a spinner rather than
- * flashing the login page before we know.
- */
+// token is in memory only, so on mount we get a new one from the refresh cookie
 
 export interface AuthUser {
   id: string;
@@ -40,9 +29,8 @@ interface AuthContextValue {
   status: AuthStatus;
   isAuthenticated: boolean;
   isLoading: boolean;
-  /** Set when the session ended unexpectedly, e.g. REFRESH_TOKEN_REUSED. */
+  /** e.g. REFRESH_TOKEN_REUSED */
   authLostReason: string | null;
-  /** Pulls a fresh session from the refresh cookie. Used after OAuth too. */
   bootstrap: () => Promise<boolean>;
   logout: () => Promise<void>;
 }
@@ -64,7 +52,7 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Left over from the old demo-token mode; drop it so nobody debugs a ghost.
+// old demo-token leftovers
 function clearLegacyStorage(): void {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
@@ -79,7 +67,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const bootstrap = useCallback(async (): Promise<boolean> => {
     try {
-      // Shared single-flight, so StrictMode's double effect is still one call.
       await refreshAccessToken();
       const me = await api.get<AuthUser>("/auth/me");
       setUser(me);
@@ -99,7 +86,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void bootstrap();
   }, [bootstrap]);
 
-  // A failed refresh mid-session lands here rather than reloading the page.
+  // failed refresh mid-session
   useEffect(
     () =>
       onAuthLost((reason) => {
@@ -115,7 +102,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await api.post("/auth/logout");
     } catch {
-      // Even if the server call fails, clear local state
+      // clear local state anyway
     }
 
     setAccessToken(null);

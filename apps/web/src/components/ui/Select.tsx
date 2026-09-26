@@ -1,15 +1,5 @@
 import { ChevronDown } from "lucide-react";
 
-/*
- * =========================================================
- * SELECT — Styled dropdown select
- * =========================================================
- *
- * A native HTML select wrapped with consistent styling
- * and a chevron indicator. Used inside FilterBar and
- * standalone for filter dropdowns.
- */
-
 export type SelectOptionItem = string | { label: string; value: string };
 
 interface SelectProps {

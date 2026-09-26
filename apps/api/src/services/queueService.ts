@@ -9,16 +9,12 @@ interface EnqueueAnalysisInput {
   commitSha: string;
   cloneUrl: string;
   trigger: AnalysisTrigger;
-  // Both absent for a manual whole-repo analysis.
+  // empty for manual runs
   pullRequestId?: string;
   prNumber?: number;
 }
 
-/**
- * Creates the AnalysisJob row and puts the job on the queue. The row is
- * written first so the analysis has an id to track before any work starts,
- * and the queue job id is stored back on it once the job is accepted.
- */
+// row first so there's an id to track, then add to the queue
 export async function enqueueAnalysisJob(input: EnqueueAnalysisInput) {
   const analysis = await prisma.analysisJob.create({
     data: {
@@ -41,8 +37,7 @@ export async function enqueueAnalysisJob(input: EnqueueAnalysisInput) {
       cloneUrl: input.cloneUrl,
     });
   } catch (err) {
-    // Redis is unreachable. Without this the row would sit at PENDING
-    // forever and block every later analysis of the same repo.
+    // redis down, don't leave it stuck at PENDING
     await prisma.analysisJob.update({
       where: { id: analysis.id },
       data: { status: AnalysisStatus.FAILED, errorMessage: 'Failed to enqueue analysis job' },
@@ -61,11 +56,7 @@ export async function enqueueAnalysisJob(input: EnqueueAnalysisInput) {
 // How long a job can sit unfinished before a new one is allowed anyway.
 const STALE_AFTER_MS = 15 * 60 * 1000;
 
-/**
- * Manual whole-repo analysis of the default branch. The commit sha isn't known
- * here — the worker clones the branch and resolves it — so 'HEAD' is recorded
- * as a placeholder.
- */
+// sha isn't known yet, so HEAD for now
 export async function triggerManualAnalysis(repoId: string, userId: string, orgRole: string) {
   const repository = await prisma.repository.findUnique({
     where: { id: repoId },
@@ -86,8 +77,7 @@ export async function triggerManualAnalysis(repoId: string, userId: string, orgR
     );
   }
 
-  // Ignore jobs older than the window: a worker that died mid-job would
-  // otherwise block the repo forever.
+  // ignore old jobs so a dead worker can't block the repo
   const running = await prisma.analysisJob.findFirst({
     where: {
       repoId,

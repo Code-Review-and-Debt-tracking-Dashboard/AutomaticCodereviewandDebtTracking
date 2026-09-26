@@ -155,7 +155,7 @@ export default function NotificationsScreen() {
     return res.data ?? [];
   });
 
-  // The tab stays mounted, so without this a push would open a stale list.
+  // reload when a push comes in
   useEffect(() => onPushActivity(() => void load(true)), [load]);
 
   const notifications = data ?? [];
@@ -333,7 +333,7 @@ const makeStyles = (c: ThemeColors) =>
     listContent: {
       padding: spacing.lg,
     },
-    // Without flexGrow an empty list has no height and can't be pulled on Android.
+    // so an empty list can still be pulled
     listEmpty: {
       flexGrow: 1,
       justifyContent: 'center',

@@ -1,18 +1,9 @@
 import { Info } from "lucide-react";
 import { useId } from "react";
 
-/*
- * =========================================================
- * INFO HINT
- * =========================================================
- *
- * A small "i" that explains a metric in plain words on hover. It is a real
- * button so it also opens on keyboard focus — a hover-only hint is invisible
- * to anyone not using a mouse.
- */
+// a button, so keyboard users can open it too
 
 interface InfoHintProps {
-  /** Plain-English explanation. Written for someone who does not read code. */
   text: string;
   className?: string;
 }

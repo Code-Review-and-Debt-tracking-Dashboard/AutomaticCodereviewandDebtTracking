@@ -25,9 +25,7 @@ reposRouter.get('/api/repos/available', requireAuth, validateRequest(availableRe
   }
 });
 
-// POST /api/repos : link a repository and register its webhook. Everything
-// else comes from GitHub, and the org is derived from the repo's owner, so
-// the body is just the id.
+// POST /api/repos : link a repo and register its webhook
 reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   try {
     const repo = await linkRepository(req.user!.id, Number(req.body.githubRepoId));
@@ -37,8 +35,7 @@ reposRouter.post('/api/repos', requireAuth, async (req, res, next) => {
   }
 });
 
-// DELETE /api/repos/:repoId : unlink and remove the GitHub webhook. Soft
-// delete, so snapshots and PR history survive a relink.
+// DELETE /api/repos/:repoId : unlink and remove the webhook (soft delete)
 reposRouter.delete(
   '/api/repos/:repoId',
   requireAuth,
@@ -71,8 +68,7 @@ reposRouter.get(
   },
 );
 
-// GET /api/repos/:repoId/trend : any active member (any role), the owner,
-// or a platform admin can view the trend data.
+// GET /api/repos/:repoId/trend
 
 reposRouter.get(
   '/api/repos/:repoId/trend',
@@ -172,9 +168,7 @@ reposRouter.get(
 );
 
 
-// POST /api/repos/:repoId/analyze : queue an analysis of the default branch
-// without waiting for a webhook. Returns the analysis job id — there is no
-// snapshot until the job finishes.
+// POST /api/repos/:repoId/analyze : queue a manual analysis, returns the job id
 reposRouter.post(
   '/api/repos/:repoId/analyze',
   requireAuth,
@@ -211,8 +205,7 @@ reposRouter.get(
   },
 );
 
-// POST /api/repos/:repoId/members : owner, an active TEAM_LEAD, or a platform
-// admin can grant another existing platform user access to the repo.
+// POST /api/repos/:repoId/members : give another user access
 reposRouter.post(
   '/api/repos/:repoId/members',
   requireAuth,

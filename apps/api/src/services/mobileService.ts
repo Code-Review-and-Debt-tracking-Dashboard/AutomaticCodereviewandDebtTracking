@@ -9,15 +9,7 @@ interface RegisterDeviceInput {
   deviceName?: string;
 }
 
-/**
- * Registers the caller's phone for push. The app calls this on every start,
- * so it has to be idempotent: the token is the key, and a repeat just
- * refreshes the row.
- *
- * A token that belongs to someone else moves to the caller — the same phone
- * signed out and then signed in as another user, and pushes must follow the
- * person who is signed in now.
- */
+// called on every app start. if another user had this token it moves to the caller
 export async function registerDevice(userId: string, input: RegisterDeviceInput) {
   const fields = {
     userId,
@@ -41,7 +33,7 @@ export async function registerDevice(userId: string, input: RegisterDeviceInput)
   };
 }
 
-// Someone else's device reads as missing, not forbidden, so ids can't be probed.
+// someone else's device is a 404
 export async function unregisterDevice(userId: string, deviceId: string): Promise<void> {
   const deleted = await prisma.device.deleteMany({ where: { id: deviceId, userId } });
 
@@ -148,7 +140,7 @@ export async function getRepoSmells(repoId: string, query: SmellsQuery) {
   const [findings, totalSmells, newSmells] = await Promise.all([
     prisma.finding.findMany({
       where: { snapshotId: snapshot.id },
-      // id tiebreak keeps pages stable: a scan inserts many findings with the same createdAt
+      // id as a tiebreak so pages stay stable
       orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
       skip: offset,
       take: limit,

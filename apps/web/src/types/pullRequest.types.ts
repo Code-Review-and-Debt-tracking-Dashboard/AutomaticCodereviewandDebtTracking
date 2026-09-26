@@ -1,5 +1,3 @@
-// TODO(Backend): These types should match your API response schemas from /api/pull-requests/*
-
 export type PRStatus = "open" | "merged" | "closed" | "draft";
 export type PRReviewStatus = "approved" | "changes_requested" | "pending" | "dismissed";
 

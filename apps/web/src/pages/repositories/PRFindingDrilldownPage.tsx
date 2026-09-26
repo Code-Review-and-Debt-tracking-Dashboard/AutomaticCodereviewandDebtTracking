@@ -84,8 +84,7 @@ export function PRFindingDrilldownPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        // the PR endpoint carries snapshots, not findings — the newest one
-        // points at the findings for this PR's latest analysis
+        // findings come from the newest snapshot
         const pr = await api.get<{ authorLogin: string; snapshots: { id: string; createdAt: string }[] }>(
           `/api/repos/${repoId}/pulls/${prNumber}`
         );
