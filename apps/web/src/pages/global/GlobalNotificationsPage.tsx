@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
   Loader2,
@@ -9,7 +10,6 @@ import {
   AlertIcon,
   CheckIcon,
   NotificationIcon,
-  PullRequestIcon,
   QualityGateIcon,
 } from "../../components/icons";
 
@@ -32,27 +32,30 @@ import {
 
 interface NotificationData {
   id: string;
+  type: string;
   title: string;
   body: string;
   readAt: string | null;
   createdAt: string;
-  repoName?: string;
-  severity?: "critical" | "high" | "medium" | "low";
-  type?: string;
+  repository: { id: string; name: string } | null;
 }
 
+const severityByType: Record<string, "critical" | "high"> = {
+  CRITICAL_FINDING: "critical",
+  QUALITY_GATE_FAILED: "high",
+  SCORE_DROPPED: "high",
+  ANALYSIS_FAILED: "high",
+};
 
-
-
-function getNotificationIcon(n: NotificationData) {
-  if (n.severity === "critical" || n.severity === "high")
+function getNotificationIcon(type: string) {
+  if (type === "CRITICAL_FINDING")
+    return { icon: AlertIcon, color: "bg-destructive/10 text-destructive" };
+  if (type === "QUALITY_GATE_FAILED")
+    return { icon: QualityGateIcon, color: "bg-warning/10 text-warning" };
+  if (type === "SCORE_DROPPED" || type === "ANALYSIS_FAILED")
     return { icon: AlertIcon, color: "bg-warning/10 text-warning" };
-  if (n.type === "quality-gate" || n.type === "analysis")
+  if (type.startsWith("ANALYSIS_"))
     return { icon: CheckIcon, color: "bg-success/10 text-success" };
-  if (n.type === "pr-scan")
-    return { icon: PullRequestIcon, color: "bg-info/10 text-info" };
-  if (n.type === "security")
-    return { icon: QualityGateIcon, color: "bg-destructive/10 text-destructive" };
   return { icon: NotificationIcon, color: "bg-muted text-muted-foreground" };
 }
 
@@ -69,6 +72,7 @@ function timeAgo(dateString: string): string {
 
 
 export function GlobalNotificationsPage() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,9 +108,10 @@ export function GlobalNotificationsPage() {
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
       if (activeTab === "unread" && n.readAt) return false;
-      if (activeTab === "critical" && n.severity !== "critical") return false;
-      if (repoFilter !== "All" && n.repoName !== repoFilter) return false;
-      if (typeFilter !== "All" && n.type !== typeFilter) return false;
+      if (activeTab === "critical" && severityByType[n.type] !== "critical") return false;
+      if (repoFilter !== "All" && n.repository?.name !== repoFilter) return false;
+      // "ANALYSIS" matches started, completed and failed
+      if (typeFilter !== "All" && !n.type.startsWith(typeFilter)) return false;
       return true;
     });
   }, [notifications, activeTab, repoFilter, typeFilter]);
@@ -142,11 +147,11 @@ export function GlobalNotificationsPage() {
   /* Counts */
   const totalCount = notifications.length;
   const unreadCount = notifications.filter((n) => !n.readAt).length;
-  const criticalCount = notifications.filter((n) => n.severity === "critical").length;
+  const criticalCount = notifications.filter((n) => severityByType[n.type] === "critical").length;
 
   /* Repos for filter */
   const repoOptions = useMemo(() => {
-    const repos = new Set(notifications.map((n) => n.repoName).filter(Boolean));
+    const repos = new Set(notifications.map((n) => n.repository?.name).filter(Boolean));
     return [
       { label: "Repository: All", value: "All" },
       ...[...repos].map((r) => ({ label: r!, value: r! })),
@@ -164,12 +169,22 @@ export function GlobalNotificationsPage() {
     );
   };
 
-  const markOneRead = (id: string) => {
+  const markOneRead = async (id: string) => {
+    try {
+      await api.put(`/api/notifications/${id}/read`);
+    } catch { /* continue with local state */ }
     setNotifications((curr) =>
       curr.map((n) =>
         n.id === id ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n
       )
     );
+  };
+
+  const openNotification = (n: NotificationData) => {
+    if (!n.readAt) markOneRead(n.id);
+    if (!n.repository) return;
+    const toFindings = n.type === "CRITICAL_FINDING" || n.type === "QUALITY_GATE_FAILED";
+    navigate(`/repositories/${n.repository.id}${toFindings ? "/findings" : ""}`);
   };
 
   const deleteOne = (id: string) => {
@@ -229,10 +244,11 @@ export function GlobalNotificationsPage() {
             onChange={setTypeFilter}
             options={[
               { label: "Type: All", value: "All" },
-              { label: "Analysis", value: "analysis" },
-              { label: "Security", value: "security" },
-              { label: "PR Scan", value: "pr-scan" },
-              { label: "Quality Gate", value: "quality-gate" },
+              { label: "Analysis", value: "ANALYSIS" },
+              { label: "Quality Gate", value: "QUALITY_GATE_FAILED" },
+              { label: "Score Drop", value: "SCORE_DROPPED" },
+              { label: "Critical Finding", value: "CRITICAL_FINDING" },
+              { label: "Member Added", value: "MEMBER_ADDED" },
             ]}
           />
         </div>
@@ -273,7 +289,7 @@ export function GlobalNotificationsPage() {
 
               <div className="space-y-3">
                 {group.items.map((n) => {
-                  const { icon, color } = getNotificationIcon(n);
+                  const { icon, color } = getNotificationIcon(n.type);
 
                   return (
                     <NotificationItem
@@ -283,9 +299,10 @@ export function GlobalNotificationsPage() {
                       title={n.title}
                       description={n.body}
                       time={timeAgo(n.createdAt)}
-                      repoName={n.repoName}
+                      repoName={n.repository?.name}
                       unread={!n.readAt}
-                      severity={n.severity}
+                      severity={severityByType[n.type]}
+                      onClick={() => openNotification(n)}
                       onMarkRead={() => markOneRead(n.id)}
                       onDelete={() => deleteOne(n.id)}
                     />

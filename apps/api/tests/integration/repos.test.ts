@@ -440,6 +440,7 @@ describe('GET /api/repos/:repoId/pulls/:prNumber', () => {
     expect(res.body).toMatchObject({
       id: t.pullRequest.id,
       prNumber: t.pullRequest.prNumber,
+      htmlUrl: t.pullRequest.htmlUrl,
       status: 'OPEN',
       snapshots: [{ id: snap.id, healthScore: 77, gateResult: 'FAIL', newIssues: 1, status: 'COMPLETED' }],
     });

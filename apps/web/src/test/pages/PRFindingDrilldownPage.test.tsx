@@ -41,11 +41,19 @@ function mockApi(data = snapshotFindings) {
   mockedApi.get.mockImplementation((url: string) => {
     if (url.includes("/pulls/")) {
       return Promise.resolve({
+        title: "Add login rate limit",
+        htmlUrl: "https://github.com/acme/demo/pull/42",
         authorLogin: "octocat",
         snapshots: [{ id: "snap-1", createdAt: "2026-09-23T09:00:00.000Z" }],
       } as any);
     }
-    return Promise.resolve({ summary, data, pagination: { totalPages: 1 } } as any);
+    return Promise.resolve({
+      repoUrl: "https://github.com/acme/demo",
+      commitSha: "abc123",
+      summary,
+      data,
+      pagination: { totalPages: 1 },
+    } as any);
   });
 }
 
@@ -125,6 +133,22 @@ describe("PRFindingDrilldownPage", () => {
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("shows the PR title and links to GitHub", async () => {
+    mockApi();
+
+    renderPage();
+
+    expect(await screen.findByText("Add login rate limit")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open on GitHub/i })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/demo/pull/42",
+    );
+    expect(screen.getByRole("link", { name: "src/config.ts:12" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/demo/blob/abc123/src/config.ts#L12",
+    );
   });
 
   it("says the PR has not been analyzed instead of showing invented findings", async () => {

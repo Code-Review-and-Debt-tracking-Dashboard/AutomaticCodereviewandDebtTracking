@@ -13,6 +13,7 @@ interface NotificationItemProps {
   severity?: "critical" | "high" | "medium" | "low";
   onMarkRead?: () => void;
   onDelete?: () => void;
+  onClick?: () => void;
   compact?: boolean;
   className?: string;
 }
@@ -35,14 +36,17 @@ export function NotificationItem({
   severity,
   onMarkRead,
   onDelete,
+  onClick,
   compact = false,
   className = "",
 }: NotificationItemProps) {
   return (
     <div
+      onClick={onClick}
       className={`
         group relative flex items-start gap-3.5 rounded-lg border
         transition-colors
+        ${onClick ? "cursor-pointer hover:border-primary/50" : ""}
         ${compact ? "p-3" : "p-4"}
         ${unread ? "border-primary/25 bg-primary/[0.04]" : "border-border bg-card"}
         ${className}
@@ -106,7 +110,10 @@ export function NotificationItem({
           {onMarkRead && (
             <button
               type="button"
-              onClick={onMarkRead}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkRead();
+              }}
               title="Mark as read"
               className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
@@ -117,7 +124,10 @@ export function NotificationItem({
           {onDelete && (
             <button
               type="button"
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
               title="Delete"
               className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
             >
