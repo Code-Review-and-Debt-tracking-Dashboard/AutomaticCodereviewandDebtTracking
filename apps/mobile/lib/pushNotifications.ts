@@ -89,12 +89,12 @@ export async function unregisterFromPush(): Promise<void> {
 }
 
 // includes the tap that launched the app
-export function onPushTap(onTap: () => void): () => void {
+export function onPushTap(onTap: (data: Record<string, unknown>) => void): () => void {
   if (!isNative) return () => {};
 
   const handle = (response: Notifications.NotificationResponse | null) => {
     if (response?.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-    onTap();
+    onTap(response.notification.request.content.data ?? {});
     // or the next launch would handle it again
     Notifications.clearLastNotificationResponse();
   };

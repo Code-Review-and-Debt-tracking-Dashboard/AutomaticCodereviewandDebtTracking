@@ -71,10 +71,16 @@ export default function TabNavigator() {
   const navigationRef = useNavigationContainerRef<RootTabParamList>();
   const [navReady, setNavReady] = useState(false);
 
-  // tapping a push opens the inbox, once navigation is ready
+  // tapping a push opens its repo (or the inbox), once navigation is ready
   useEffect(() => {
     if (!navReady) return;
-    return onPushTap(() => navigationRef.navigate('Notifications'));
+    return onPushTap(({ repoId, repoName }) => {
+      if (typeof repoId === 'string' && typeof repoName === 'string') {
+        navigationRef.navigate('Repositories', { screen: 'RepoSummary', params: { repoId, repoName } });
+      } else {
+        navigationRef.navigate('Notifications');
+      }
+    });
   }, [navReady, navigationRef]);
 
   // match react-navigation's colors to our theme

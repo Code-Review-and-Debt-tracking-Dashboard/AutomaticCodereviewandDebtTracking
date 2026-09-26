@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -11,8 +12,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { api } from '../lib/apiClient';
+import { getErrorMessage } from '../lib/errorMessage';
+import type { RootTabParamList } from '../navigation/TabNavigator';
 import { onPushActivity } from '../lib/pushNotifications';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
@@ -25,14 +30,21 @@ type NotificationSeverity = 'critical' | 'high' | 'medium' | 'low';
 
 interface NotificationData {
   id: string;
+  type: string;
   title: string;
   body: string;
   readAt: string | null;
   createdAt: string;
-  repoName?: string;
-  severity?: NotificationSeverity;
-  type?: string;
+  repository: { id: string; name: string } | null;
 }
+
+// same mapping as the web
+const severityByType: Record<string, NotificationSeverity> = {
+  CRITICAL_FINDING: 'critical',
+  QUALITY_GATE_FAILED: 'high',
+  SCORE_DROPPED: 'high',
+  ANALYSIS_FAILED: 'high',
+};
 
 // Same tones as the web's NotificationItem.
 const severityColor = (severity: NotificationSeverity | undefined, c: ThemeColors) => {
@@ -66,13 +78,14 @@ const SwipeableItem = ({
   onPress,
 }: {
   item: NotificationData;
-  onDismiss: () => void;
+  onDismiss: () => Promise<boolean>;
   onPress: () => void;
 }) => {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const pan = useRef(new Animated.ValueXY()).current;
-  const tone = severityColor(item.severity, colors);
+  const severity = severityByType[item.type];
+  const tone = severityColor(severity, colors);
   const unread = !item.readAt;
 
   const panResponder = useRef(
@@ -89,7 +102,12 @@ const SwipeableItem = ({
             toValue: { x: gestureState.dx < 0 ? -500 : 500, y: 0 },
             duration: 200,
             useNativeDriver: false,
-          }).start(() => onDismiss());
+          }).start(() =>
+            // slide it back if the server didn't delete it
+            onDismiss().then((ok) => {
+              if (!ok) Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+            })
+          );
         } else {
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
@@ -103,7 +121,7 @@ const SwipeableItem = ({
   return (
     <View style={styles.swipeContainer}>
       <View style={styles.deleteBackground}>
-        <Ionicons name="checkmark-done" size={18} color={colors.white} />
+        <Ionicons name="trash-outline" size={18} color={colors.white} />
         <Text style={styles.deleteText}>Dismiss</Text>
       </View>
       <Animated.View
@@ -127,12 +145,12 @@ const SwipeableItem = ({
           </Text>
           <View style={styles.footer}>
             <View style={styles.footerLeft}>
-              {item.severity ? (
-                <Text style={[styles.severity, { color: tone }]}>{item.severity}</Text>
+              {severity ? (
+                <Text style={[styles.severity, { color: tone }]}>{severity}</Text>
               ) : null}
-              {item.repoName ? (
+              {item.repository ? (
                 <Text style={styles.repoName} numberOfLines={1}>
-                  {item.repoName}
+                  {item.repository.name}
                 </Text>
               ) : null}
             </View>
@@ -145,6 +163,7 @@ const SwipeableItem = ({
 };
 
 export default function NotificationsScreen() {
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const firstNotificationRef = useRef<View>(null);
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -161,6 +180,7 @@ export default function NotificationsScreen() {
   const notifications = data ?? [];
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
+  // only change the list once the server agrees, so nothing comes back on refresh
   const handleMarkRead = async (id: string) => {
     try {
       await api.put(`/api/notifications/${id}/read`);
@@ -170,21 +190,18 @@ export default function NotificationsScreen() {
           : prev
       );
     } catch (err) {
-      // Optimistic update fallback
-      setData((prev) =>
-        prev
-          ? prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
-          : prev
-      );
+      Alert.alert("Couldn't mark it as read", getErrorMessage(err));
     }
   };
 
   const handleDismiss = async (id: string) => {
     try {
-      await api.put(`/api/notifications/${id}/read`);
+      await api.delete(`/api/notifications/${id}`);
       setData((prev) => (prev ? prev.filter((n) => n.id !== id) : prev));
+      return true;
     } catch (err) {
-      setData((prev) => (prev ? prev.filter((n) => n.id !== id) : prev));
+      Alert.alert("Couldn't dismiss it", getErrorMessage(err));
+      return false;
     }
   };
 
@@ -195,10 +212,17 @@ export default function NotificationsScreen() {
         prev ? prev.map((n) => ({ ...n, readAt: new Date().toISOString() })) : prev
       );
     } catch (err) {
-      setData((prev) =>
-        prev ? prev.map((n) => ({ ...n, readAt: new Date().toISOString() })) : prev
-      );
+      Alert.alert("Couldn't mark them as read", getErrorMessage(err));
     }
+  };
+
+  const openNotification = (item: NotificationData) => {
+    if (!item.readAt) void handleMarkRead(item.id);
+    if (!item.repository) return;
+    navigation.navigate('Repositories', {
+      screen: 'RepoSummary',
+      params: { repoId: item.repository.id, repoName: item.repository.name },
+    });
   };
 
   const header = (
@@ -265,8 +289,8 @@ export default function NotificationsScreen() {
             <View ref={index === 0 ? firstNotificationRef : undefined} collapsable={false}>
               <SwipeableItem
                 item={item}
-                onDismiss={() => void handleDismiss(item.id)}
-                onPress={() => void handleMarkRead(item.id)}
+                onDismiss={() => handleDismiss(item.id)}
+                onPress={() => openNotification(item)}
               />
             </View>
           )}
