@@ -160,4 +160,18 @@ describe("PRFindingDrilldownPage", () => {
       expect(screen.getByText(/has not been analyzed yet/i)).toBeInTheDocument();
     });
   });
+
+  it("copies the shown findings for a coding agent", async () => {
+    mockApi();
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText("Hardcoded API key detected");
+    await user.click(screen.getByRole("button", { name: "Copy 1 finding" }));
+
+    expect(await navigator.clipboard.readText()).toContain(
+      "1. [CRITICAL] src/config.ts:12 — Hardcoded API key detected (eslint: security/detect-secret)",
+    );
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+  });
 });

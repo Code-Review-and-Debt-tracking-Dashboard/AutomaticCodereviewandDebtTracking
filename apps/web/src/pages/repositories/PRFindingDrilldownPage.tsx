@@ -22,6 +22,7 @@ import {
 import { api } from "../../lib/apiClient";
 import { apiErrorMessage } from "../../lib/apiError";
 import { fetchAllFindings, githubLineUrl, titleCase, type AllFindings } from "../../lib/findings";
+import { formatForAgent } from "../../lib/copyFindings";
 
 import {
   BackLink,
@@ -34,6 +35,7 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   FilterBar,
+  CopyButton,
 } from "../../components/ui";
 
 
@@ -234,7 +236,14 @@ export function PRFindingDrilldownPage() {
                 options: ["All", "New", "Existing"],
               },
             ]}
-          />
+          >
+            {result && filteredFindings.length > 0 && (
+              <CopyButton
+                label={`Copy ${filteredFindings.length} ${filteredFindings.length === 1 ? "finding" : "findings"}`}
+                getText={() => formatForAgent(filteredFindings, result)}
+              />
+            )}
+          </FilterBar>
         </div>
 
         <div className="divide-y divide-border/60">
@@ -300,6 +309,10 @@ export function PRFindingDrilldownPage() {
                       </div>
                     </div>
                   </div>
+
+                  {result && (
+                    <CopyButton title="Copy this finding" getText={() => formatForAgent([finding], result)} />
+                  )}
                 </div>
               </div>
             );

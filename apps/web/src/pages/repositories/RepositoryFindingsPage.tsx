@@ -22,6 +22,7 @@ import { api } from "../../lib/apiClient";
 import { apiErrorMessage } from "../../lib/apiError";
 import { fetchAllFindings, githubLineUrl, titleCase, type AllFindings } from "../../lib/findings";
 import { METRIC_HELP } from "../../lib/healthBand";
+import { formatForAgent } from "../../lib/copyFindings";
 
 import {
   BackLink,
@@ -33,6 +34,7 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   FilterBar,
+  CopyButton,
   DataTable,
   DataTableHead,
   DataTableBody,
@@ -192,7 +194,14 @@ export function RepositoryFindingsPage() {
                 options: ["All", "Critical", "High", "Medium", "Low", "Info"],
               },
             ]}
-          />
+          >
+            {result && filteredFindings.length > 0 && (
+              <CopyButton
+                label={`Copy ${filteredFindings.length} ${filteredFindings.length === 1 ? "finding" : "findings"}`}
+                getText={() => formatForAgent(filteredFindings, result)}
+              />
+            )}
+          </FilterBar>
         </div>
 
         <DataTable>
@@ -217,7 +226,15 @@ export function RepositoryFindingsPage() {
                   <DataTableCell>
                     <div>
                       <p className="max-w-[360px] break-words font-medium">{finding.message}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{finding.rule}</p>
+                      <div className="mt-1 flex items-center gap-1">
+                        <p className="text-xs text-muted-foreground">{finding.rule}</p>
+                        {result && (
+                          <CopyButton
+                            title="Copy this finding"
+                            getText={() => formatForAgent([finding], result)}
+                          />
+                        )}
+                      </div>
                     </div>
                   </DataTableCell>
 
