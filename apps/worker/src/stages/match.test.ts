@@ -63,15 +63,56 @@ describe('matchFindings', () => {
     expect(result.resolved).toEqual([]);
   });
 
-  it('treats a finding that moved beyond the tolerance as new, and resolves the old one', () => {
+  it('treats a finding that moved far and says something else as new, and resolves the old one', () => {
     const result = matchFindings({
-      findings: [finding({ line: 242 })],
-      baseline: [finding({ line: 42 })],
+      findings: [finding({ line: 242, message: "'b' is never used" })],
+      baseline: [finding({ line: 42, message: "'a' is never used" })],
     });
 
     expect(states(result.findings)).toEqual(['NEW']);
     expect(states(result.resolved)).toEqual(['RESOLVED']);
     expect(result.resolved[0].line).toBe(42);
+  });
+
+  it('follows a finding with the same message however far code above it pushed it', () => {
+    const result = matchFindings({
+      findings: [finding({ line: 40, message: "'a' is never used" })],
+      baseline: [finding({ line: 10, message: "'a' is never used" })],
+    });
+
+    expect(states(result.findings)).toEqual(['EXISTING']);
+    expect(result.resolved).toEqual([]);
+  });
+
+  it('ignores line numbers inside the message when following a moved finding', () => {
+    const result = matchFindings({
+      findings: [finding({ line: 43, message: '13 duplicated lines, also in b.ts:60-72' })],
+      baseline: [finding({ line: 13, message: '13 duplicated lines, also in b.ts:30-42' })],
+    });
+
+    expect(states(result.findings)).toEqual(['EXISTING']);
+  });
+
+  it('still matches nearby when the message carries a number that changed', () => {
+    const result = matchFindings({
+      findings: [finding({ line: 12, message: 'complexity of 14' })],
+      baseline: [finding({ line: 10, message: 'complexity of 12' })],
+    });
+
+    expect(states(result.findings)).toEqual(['EXISTING']);
+  });
+
+  it('prefers the same message over a closer different one', () => {
+    const result = matchFindings({
+      findings: [finding({ line: 40, message: "'a' is never used" })],
+      baseline: [
+        finding({ line: 41, message: "'b' is never used" }),
+        finding({ line: 10, message: "'a' is never used" }),
+      ],
+    });
+
+    expect(states(result.findings)).toEqual(['EXISTING']);
+    expect(result.resolved.map((f) => f.message)).toEqual(["'b' is never used"]);
   });
 
   it('claims the closest baseline finding when more than one is in range', () => {

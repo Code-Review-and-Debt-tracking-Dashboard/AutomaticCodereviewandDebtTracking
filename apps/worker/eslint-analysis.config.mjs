@@ -2,6 +2,7 @@
 // language-level only — the score has to mean the same thing across repos, so
 // the repo's own eslint config never gets a say.
 import js from '@eslint/js';
+import nounsanitized from 'eslint-plugin-no-unsanitized';
 import security from 'eslint-plugin-security';
 import sonarjs from 'eslint-plugin-sonarjs';
 import globals from 'globals';
@@ -24,6 +25,13 @@ export default [
     },
   },
 
+  // innerHTML, insertAdjacentHTML, document.write with unescaped input — DOM
+  // XSS, which neither security plugin looks for.
+  {
+    ...nounsanitized.configs.recommended,
+    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+  },
+
   // Duplicated branches, dead-code patterns — bug and smell rules
   // eslint:recommended doesn't have.
   {
@@ -41,6 +49,9 @@ export default [
       'sonarjs/unused-import': 'off',
       'sonarjs/todo-tag': 'off',
       'sonarjs/fixme-tag': 'off',
+      // sonarjs/code-eval and sonarjs/slow-regex cover these, and more precisely
+      'security/detect-eval-with-expression': 'off',
+      'security/detect-unsafe-regex': 'off',
       // Fires on every obj[key], even when the key is a constant. Almost all
       // false positives.
       'security/detect-object-injection': 'off',

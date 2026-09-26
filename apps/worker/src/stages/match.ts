@@ -22,17 +22,22 @@ const matchKey = (finding: AnalysisFinding) =>
 
 // Infinity = not a match. Two null lines (e.g. radon's maintainability index)
 // count as equal; a null against a real line never matches.
-const lineDistance = (a: AnalysisFinding, b: AnalysisFinding) => {
+const lineDistance = (a: AnalysisFinding, b: AnalysisFinding, tolerance: number) => {
   if (a.line === null || b.line === null) return a.line === b.line ? 0 : Infinity;
 
   const distance = Math.abs(a.line - b.line);
-  return distance <= LINE_MATCH_TOLERANCE ? distance : Infinity;
+  return distance <= tolerance ? distance : Infinity;
 };
+
+// Numbers in a message are often line refs or counts that shift with the code,
+// like "also in b.ts:30-42", so they're left out of the comparison.
+const messageText = (finding: AnalysisFinding) => finding.message.replace(/\d+/g, '#');
 
 /**
  * Classifies findings as NEW, EXISTING, or RESOLVED against a baseline. Same
- * tool + file + rule within a few lines counts as the same finding, and each
- * baseline finding can only be claimed once.
+ * tool + file + rule with the same message counts as the same finding however
+ * far it moved; failing that, within a few lines. Each baseline finding can only
+ * be claimed once.
  *
  * Pure — same input, same classification, every time.
  */
@@ -55,25 +60,37 @@ export function matchFindings({ findings, baseline }: MatchInput): MatchResult {
 
   const claimed = new Set<number>();
 
-  const matched = findings.map((finding): AnalysisFinding => {
+  // Claims the nearest unclaimed baseline finding, if there is one.
+  const claim = (finding: AnalysisFinding, sameMessage: boolean) => {
     let best = -1;
     let bestDistance = Infinity;
 
     for (const index of pool.get(matchKey(finding)) ?? []) {
       if (claimed.has(index)) continue;
+      if (sameMessage && messageText(baseline[index]) !== messageText(finding)) continue;
 
-      const distance = lineDistance(baseline[index], finding);
+      const tolerance = sameMessage ? Infinity : LINE_MATCH_TOLERANCE;
+      const distance = lineDistance(baseline[index], finding, tolerance);
       if (distance < bestDistance) {
         best = index;
         bestDistance = distance;
       }
     }
 
-    if (best === -1) return { ...finding, state: 'NEW' };
+    if (best !== -1) claimed.add(best);
+    return best !== -1;
+  };
 
-    claimed.add(best);
-    return { ...finding, state: 'EXISTING' };
-  });
+  // Code added above a finding moves its line but not what it says, so the same
+  // message goes first. The line fallback catches a message that was reworded.
+  const sameMessage = findings.map((finding) => claim(finding, true));
+
+  const matched = findings.map(
+    (finding, i): AnalysisFinding => ({
+      ...finding,
+      state: sameMessage[i] || claim(finding, false) ? 'EXISTING' : 'NEW',
+    }),
+  );
 
   const resolved = baseline
     .filter((_, index) => !claimed.has(index))

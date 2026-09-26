@@ -14,6 +14,11 @@ persistent=no
 [MESSAGES CONTROL]
 # We never install the scanned repo's dependencies, so every third-party import
 # comes back as an error. That's a fact about our worker, not about their code.
-# Nothing else is turned off — findings that are merely repetitive are still
-# true, and the scorer already damps a rule that repeats.
-disable=import-error
+# Otherwise only double counts are turned off — findings that are merely
+# repetitive are still true, and the scorer already damps a rule that repeats.
+disable=import-error,
+        # These repeat another tool: fixme is the todo scan, duplicate-code is
+        # jscpd, and too-many-positional-arguments fires with too-many-arguments.
+        fixme,
+        duplicate-code,
+        too-many-positional-arguments
