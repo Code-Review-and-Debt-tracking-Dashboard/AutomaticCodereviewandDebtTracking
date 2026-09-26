@@ -7,7 +7,7 @@ import { AppError } from './errorHandler';
 
 const SIGNATURE_PREFIX = 'sha256=';
 
-// Needs the raw bytes GitHub signed, so req.body must still be a Buffer here.
+// req.body must still be the raw Buffer here
 export function verifyWebhookSignature(req: Request, _res: Response, next: NextFunction): void {
   const signature = req.headers['x-hub-signature-256'];
 

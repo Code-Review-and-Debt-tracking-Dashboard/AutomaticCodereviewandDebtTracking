@@ -25,10 +25,6 @@ import {
   PageHeaderDescription,
 } from "../../components/ui";
 
-/* =========================================================
-   TYPES
-========================================================= */
-
 interface PRStatData {
   totalAnalyzed: number;
   gatePassed: number;
@@ -55,10 +51,6 @@ interface PullsResponse {
   stats: PRStatData;
   pullRequests: PullRequestData[];
 }
-
-/* =========================================================
-   COMPONENT
-========================================================= */
 
 export function GlobalPullRequestsPage() {
   const _navigate = useNavigate();

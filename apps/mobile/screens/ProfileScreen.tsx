@@ -84,7 +84,7 @@ export default function ProfileScreen() {
   };
 
   const confirmSignOut = () => {
-    // Alert.alert has no buttons on react-native-web.
+    // Alert.alert has no buttons on web
     if (Platform.OS === 'web') {
       if (globalThis.confirm?.('Sign out of CodePulse?') ?? true) void signOut();
       return;
@@ -97,7 +97,7 @@ export default function ProfileScreen() {
 
   const initials = (user?.username ?? '?').slice(0, 2).toUpperCase();
 
-  // Same fallback as the Repositories tab: no saved (or a stale) choice → first org.
+  // fall back to the first org
   const orgList = orgs.data ?? [];
   const selectedOrgId = orgList.find((o) => o.id === activeOrgId)?.id ?? orgList[0]?.id;
 

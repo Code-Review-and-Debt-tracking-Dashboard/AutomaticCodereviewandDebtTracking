@@ -4,8 +4,6 @@ import { describe, it, expect } from 'vitest';
 import type { GateEvaluation, GateMetric } from './gate';
 import { type StatusTarget, createGateStatus } from './postStatus';
 
-// Hand-rolled stand-in for the one endpoint the poster touches, so the tests
-// never go near the network.
 function fakeOctokit() {
   const calls: Record<string, unknown>[] = [];
 

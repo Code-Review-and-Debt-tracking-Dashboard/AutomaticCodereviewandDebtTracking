@@ -31,8 +31,7 @@ export interface AuthResult {
   user: PublicUser;
 }
 
-// relative paths (web) or the app's own deep-link scheme (native) only,
-// otherwise this is an open redirect.
+// only relative paths or our deep link, to avoid an open redirect
 function sanitizeRedirect(redirect: unknown): string | undefined {
   if (typeof redirect !== 'string') return undefined;
   if (redirect.startsWith('/')) return redirect;
@@ -40,8 +39,7 @@ function sanitizeRedirect(redirect: unknown): string | undefined {
   return undefined;
 }
 
-// Returns the nonce too, so the caller can put it in a cookie and bind the
-// login to this browser.
+// returns the nonce too so it can go in a cookie
 export function buildGithubAuthorizeUrl(
   redirect?: unknown,
   client: OAuthClient = 'web',
@@ -78,7 +76,7 @@ async function exchangeCodeForToken(code: string): Promise<GithubTokenResponse> 
         redirect_uri: env.githubOAuthCallbackUrl,
       }),
     });
-  } catch (err) {
+  } catch {
     throw new AppError(502, 'GITHUB_UNAVAILABLE', 'Could not reach GitHub to exchange the OAuth code');
   }
 
@@ -108,8 +106,7 @@ export async function handleGithubCallback(
     throw new AppError(400, 'INVALID_STATE', 'OAuth "state" is invalid or expired');
   }
 
-  // Without this, any validly-signed state is accepted from any browser, so an
-  // attacker could hand a victim a login that lands in the attacker's account.
+  // stops login CSRF
   if (!cookieNonce || cookieNonce !== statePayload.nonce) {
     throw new AppError(400, 'INVALID_STATE', 'OAuth "state" did not start in this browser');
   }
@@ -234,8 +231,7 @@ export interface SessionTokens {
   user: PublicUser;
 }
 
-// Local-only sign-in for people without GitHub OAuth credentials configured.
-// Goes through the same session path as a real login so it exercises it.
+// local only, skips GitHub
 export async function devLogin(username: string): Promise<SessionTokens> {
   const user = await prisma.user.upsert({
     where: { username },
@@ -262,7 +258,7 @@ export interface CurrentUser {
   createdAt: Date;
 }
 
-// A token can outlive the user row, so a missing user is a 401, not a 404.
+// token can outlive the user, so 401 not 404
 export async function getAuthenticatedUser(userId: string): Promise<CurrentUser> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {

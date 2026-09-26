@@ -7,9 +7,7 @@ import { logger } from '../lib/logger';
 import { generateRefreshToken, hashRefreshToken } from '../lib/refreshToken';
 import { AppError } from '../middleware/errorHandler';
 
-// Two tabs restored at once both present the same token; whichever loses the
-// race would look like a stolen token and kill the session. This window makes
-// that a non-event, at the cost of a stolen token working for 10s longer.
+// two tabs refreshing at once shouldn't look like token theft
 const ROTATION_GRACE_MS = 10_000;
 
 export interface IssuedSession {
@@ -22,8 +20,7 @@ function expiryFromNow(): Date {
   return new Date(Date.now() + env.refreshTokenTtlDays * 24 * 60 * 60 * 1000);
 }
 
-// Adds a token to an existing family, keeping the family's original expiry so
-// staying active can't extend a session forever.
+// keeps the original expiry so sessions can't go on forever
 async function issueInFamily(familyId: string, user: User, expiresAt: Date): Promise<IssuedSession> {
   const refreshToken = generateRefreshToken();
   await prisma.session.create({
@@ -34,7 +31,7 @@ async function issueInFamily(familyId: string, user: User, expiresAt: Date): Pro
 
 export async function createSession(user: User): Promise<IssuedSession> {
   const issued = await issueInFamily(randomUUID(), user, expiryFromNow());
-  // Logins are rare enough to piggyback the cleanup on; there's no scheduler yet.
+  // cleanup on login, no scheduler yet
   pruneExpiredSessions().catch((err) => logger.error({ err }, 'session prune failed'));
   return issued;
 }
@@ -72,10 +69,7 @@ function isWithinGrace(session: Session): boolean {
   );
 }
 
-/**
- * Spends a refresh token and returns its replacement. A token presented after
- * it was already spent means someone has a copy, so the whole family dies.
- */
+// reusing a spent token kills the whole family
 export async function rotateSession(presentedToken: string): Promise<IssuedSession> {
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashRefreshToken(presentedToken) },
@@ -100,7 +94,6 @@ export async function rotateSession(presentedToken: string): Promise<IssuedSessi
       throw new AppError(401, 'REFRESH_TOKEN_REUSED', 'Refresh token has already been used');
     }
 
-    // Already dead for another reason (logout, admin, earlier reuse).
     throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token is not valid');
   }
 
@@ -113,9 +106,7 @@ export async function rotateSession(presentedToken: string): Promise<IssuedSessi
     throw new AppError(401, 'ACCOUNT_INACTIVE', 'This account is no longer active');
   }
 
-  // Guarded on revokedAt so a concurrent refresh can't have its revocation
-  // overwritten. A count of 0 means the other request won — issue anyway,
-  // since logging the user out for opening two tabs is the worse failure.
+  // if another request already revoked it, still issue a new one
   await prisma.session.updateMany({
     where: { id: session.id, revokedAt: null },
     data: { revokedAt: new Date(), revokedReason: 'ROTATED' },

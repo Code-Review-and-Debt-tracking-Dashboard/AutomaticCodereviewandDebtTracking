@@ -28,15 +28,24 @@ const snapshotFindings = [
   },
 ];
 
+const summary = {
+  total: 7,
+  new: 5,
+  carryOver: 2,
+  bySeverity: { critical: 3, high: 0, medium: 0, low: 4, info: 0 },
+  byCategory: {},
+};
+
 // the PR endpoint returns snapshots; findings come from the newest snapshot
 function mockApi(data = snapshotFindings) {
   mockedApi.get.mockImplementation((url: string) => {
     if (url.includes("/pulls/")) {
       return Promise.resolve({
+        authorLogin: "octocat",
         snapshots: [{ id: "snap-1", createdAt: "2026-09-23T09:00:00.000Z" }],
       } as any);
     }
-    return Promise.resolve({ data } as any);
+    return Promise.resolve({ summary, data, pagination: { totalPages: 1 } } as any);
   });
 }
 
@@ -83,6 +92,39 @@ describe("PRFindingDrilldownPage", () => {
     await user.type(searchInput, "nonexistent");
 
     expect(screen.getByText("No findings match your criteria")).toBeInTheDocument();
+  });
+
+  it("filters by severity and category even though the API sends uppercase values", async () => {
+    mockApi();
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Hardcoded API key detected")).toBeInTheDocument();
+    });
+
+    const [severitySelect, categorySelect] = screen.getAllByRole("combobox");
+    await user.selectOptions(severitySelect, "Critical");
+    await user.selectOptions(categorySelect, "Vulnerability");
+    expect(screen.getByText("Hardcoded API key detected")).toBeInTheDocument();
+
+    await user.selectOptions(severitySelect, "Low");
+    expect(screen.getByText("No findings match your criteria")).toBeInTheDocument();
+  });
+
+  it("shows real counts and the PR author", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("octocat")).toBeInTheDocument();
+    });
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
   });
 
   it("says the PR has not been analyzed instead of showing invented findings", async () => {

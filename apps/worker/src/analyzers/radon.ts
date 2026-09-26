@@ -3,13 +3,12 @@ import { promisify } from 'util';
 
 const run = promisify(execFile);
 
-// The pipeline allows each analyzer two minutes.
+// 2 min per analyzer
 const timeoutMs = 120_000;
-// A big repo's report goes well past the 1 MB default.
+// big repos go past the 1 MB default
 const maxBuffer = 32 * 1024 * 1024;
 
-// Same list the pylint config ignores: vendored, generated and virtualenv code
-// isn't the author's work, and scanning it buries whatever they did write.
+// vendored, generated and virtualenv code
 const ignoredDirs = [
   '.venv',
   'venv',
@@ -22,8 +21,6 @@ const ignoredDirs = [
   'migrations',
 ];
 
-// radon matches these against directory names at any depth, so unlike bandit's
-// excludes they don't need wildcards around them.
 const ignores = ignoredDirs.join(',');
 
 export type RadonRank = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
@@ -60,8 +57,7 @@ export interface RadonReport {
   miCounts: Record<RadonMiRank, number>;
 }
 
-// Under each filename radon puts either the metrics or a note saying it couldn't
-// read the file. classname is only there on methods.
+// radon gives either the metrics or an error per file
 interface Unreadable {
   error: string;
 }
@@ -71,8 +67,7 @@ type CcEntry = CcBlock[] | Unreadable;
 type MiEntry = { mi: number; rank: RadonMiRank } | Unreadable;
 
 async function radon<T>(repoPath: string, command: 'cc' | 'mi'): Promise<Record<string, T>> {
-  // Run from inside the repo so the temp workspace name never reaches the
-  // paths, the way the other analyzers do it.
+  // run inside the repo so paths stay relative
   const args = ['-m', 'radon', command, '.', '-j', '-i', ignores];
 
   let stdout = '';
@@ -85,16 +80,13 @@ async function radon<T>(repoPath: string, command: 'cc' | 'mi'): Promise<Record<
       maxBuffer,
     }));
   } catch (err) {
-    // radon still exits 0 for a file it couldn't parse — that comes back as an
-    // error entry on stdout — so a non-zero exit means radon itself fell over.
+    // parse errors still exit 0, so this is radon itself crashing
     const failed = err as { stdout?: string; stderr?: string };
     stdout = failed.stdout ?? '';
     stderr = failed.stderr ?? '';
   }
 
-  // Parsing is the real check that radon ran — a crash or a missing radon
-  // leaves something that isn't JSON, and that has to surface rather than read
-  // as a clean repo.
+  // bad JSON means radon didn't run properly
   try {
     return JSON.parse(stdout) as Record<string, T>;
   } catch {
@@ -104,13 +96,8 @@ async function radon<T>(repoPath: string, command: 'cc' | 'mi'): Promise<Record<
   }
 }
 
-/**
- * Measures a cloned checkout's cyclomatic complexity and maintainability index
- * and hands back radon's output as it came. Turning it into findings is the
- * normalize stage's job.
- */
+// complexity + maintainability index
 export async function runRadon(repoPath: string): Promise<RadonReport> {
-  // Two separate commands, so they share the one analyzer's time budget.
   const [cc, mi] = await Promise.all([
     radon<CcEntry>(repoPath, 'cc'),
     radon<MiEntry>(repoPath, 'mi'),
@@ -120,7 +107,7 @@ export async function runRadon(repoPath: string): Promise<RadonReport> {
   const maintainability: RadonFileMi[] = [];
   const counts: Record<RadonRank, number> = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
   const miCounts: Record<RadonMiRank, number> = { A: 0, B: 0, C: 0 };
-  // A file radon can't read is reported by both commands, so keep one row of it.
+  // both commands report the same bad file, keep one
   const failures = new Map<string, string>();
 
   for (const [file, entry] of Object.entries(cc)) {
@@ -129,8 +116,7 @@ export async function runRadon(repoPath: string): Promise<RadonReport> {
       continue;
     }
 
-    // A class also lists its methods, and radon repeats those at the top level
-    // anyway, so only the named fields are copied and the nested copy is left.
+    // methods are listed again at top level, so skip the nested ones
     for (const block of entry) {
       counts[block.rank]++;
       blocks.push({

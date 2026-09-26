@@ -1,12 +1,11 @@
-// The contract between the API (producer) and the worker (consumer). Both
-// import from here so the queue name and payload shape can't drift apart.
+// shared by the API and worker so they can't drift apart
 
 export const ANALYSIS_QUEUE_NAME = 'analysis-queue';
 
 export interface AnalysisJobData {
   analysisId: string;
   repoId: string;
-  // Null for manual analyses, which aren't tied to a pull request.
+  // null for manual runs
   prNumber: number | null;
   branch: string;
   commitSha: string;

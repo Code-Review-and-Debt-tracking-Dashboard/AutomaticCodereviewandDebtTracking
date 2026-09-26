@@ -2,8 +2,7 @@ import { createDecipheriv } from 'crypto';
 
 import { env } from '../config/env';
 
-// Tokens are stored as `iv:authTag:ciphertext`, hex-encoded. Must stay in sync
-// with the API's crypto helper — that's what wrote them.
+// format is iv:authTag:ciphertext (hex), same as the API
 const ALGORITHM = 'aes-256-gcm';
 
 function getKey(): Buffer {

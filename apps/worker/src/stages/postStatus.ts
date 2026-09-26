@@ -5,8 +5,7 @@ import { decrypt } from '../lib/crypto';
 import { logger } from '../lib/logger';
 import type { GateEvaluation } from './gate';
 
-// The check name GitHub shows on the commit. Branch protection matches on this
-// string, so changing it silently un-requires the check on every repo.
+// branch protection matches on this name, don't change it
 const STATUS_CONTEXT = 'codepulse/quality-gate';
 
 export interface StatusTarget {
@@ -15,14 +14,6 @@ export interface StatusTarget {
   sha: string;
 }
 
-/**
- * Puts the gate verdict on the commit as a pass/fail status.
- *
- * The status goes up whether or not the repo blocks PRs — blocking is decided
- * on GitHub's side by whether an admin marks this context required, not here.
- *
- * The client is passed in so this can be tested without going near the network.
- */
 export async function createGateStatus(
   octokit: Octokit,
   target: StatusTarget,
@@ -36,7 +27,6 @@ export async function createGateStatus(
     sha: target.sha,
     state: evaluation.result === 'PASS' ? 'success' : 'failure',
     context: STATUS_CONTEXT,
-    // Counted off the same array the verdict came from, so the two can't disagree.
     description:
       failed.length === 0
         ? `All ${evaluation.metrics.length} checks passed`
@@ -44,14 +34,7 @@ export async function createGateStatus(
   });
 }
 
-/**
- * Best effort on purpose, same as the PR comment. The snapshot is already
- * stored by the time this runs, so a revoked token costs the status, not the
- * analysis — it logs and returns instead of throwing the job back to the queue.
- *
- * Unlike the comment, this needs no pull request: a status hangs off the commit
- * itself, so push and manual runs get one too.
- */
+// best effort, a failure here shouldn't fail the job
 export async function postCommitStatus(input: {
   analysisId: string;
   commitSha: string;

@@ -16,8 +16,7 @@ import {
 
 export const webhookRouter = Router();
 
-// express.raw keeps the body as a Buffer so the signature is checked against
-// the exact bytes GitHub signed
+// raw body so the signature check works
 webhookRouter.post(
   '/webhooks/github',
   webhookRateLimiter,

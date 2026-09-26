@@ -5,15 +5,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 
 import { useAuth } from "../../contexts/AuthContext";
 
-/*
- * =========================================================
- * AUTH CALLBACK PAGE
- * =========================================================
- *
- * Where the API drops the browser after a successful GitHub login. The code
- * exchange already happened server-side and the refresh cookie is set, so all
- * this page does is trade that cookie for an access token and move on.
- */
+// after GitHub login, swap the refresh cookie for an access token
 
 export function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -23,7 +15,6 @@ export function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // The API redirects here with ?error= when the exchange fails.
     const failed = searchParams.get("error");
     if (failed) {
       setError(`GitHub sign in failed (${failed}). Please try again.`);

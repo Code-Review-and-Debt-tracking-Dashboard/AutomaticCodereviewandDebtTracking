@@ -18,10 +18,6 @@ import {
 import { usePreference } from "../../lib/usePreference";
 
 
-/* =========================================================
-   COMPONENT
-========================================================= */
-
 export function SettingsPage() {
   const [theme, setTheme] = usePreference<"dark" | "light">("theme", "dark");
   const [badge, setBadge] = usePreference<"on" | "off">("notificationBadge", "on");

@@ -20,8 +20,7 @@ export function Providers({ children }: ProvidersProps) {
         defaultOptions: {
           queries: {
             staleTime: 30_000,
-            // The client already refreshes and replays once on a 401, so
-            // retrying here would only fire a second pointless refresh.
+            // apiClient already retries 401s
             retry: (count, error) => !isUnauthorized(error) && count < 1,
             refetchOnWindowFocus: false,
           },

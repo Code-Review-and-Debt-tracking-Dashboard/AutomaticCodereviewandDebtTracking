@@ -17,8 +17,7 @@ createBullBoard({
 
 export const queuesRouter = Router();
 
-// Guards the whole /admin prefix, not just the dashboard, so anything added
-// under it later is covered by default.
+// guards everything under /admin
 queuesRouter.use(
   '/admin',
   basicAuth({

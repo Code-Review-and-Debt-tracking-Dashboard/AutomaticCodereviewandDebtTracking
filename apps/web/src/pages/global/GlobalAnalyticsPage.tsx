@@ -57,10 +57,6 @@ import {
 } from "../../components/ui";
 
 
-/* =========================================================
-   TREND DATA — Health Score vs Tech Debt
-========================================================= */
-
 interface ApiRepository {
   id: string;
   name: string;

@@ -89,8 +89,7 @@ export interface TwoOrgs {
   outsider: User;
 }
 
-// The fixture every cross-tenant assertion runs against: two fully populated
-// orgs that share nothing, plus a user in neither.
+// two separate orgs plus a user in neither
 export async function seedTwoOrgs(): Promise<TwoOrgs> {
   const a = await seedTenant('acme');
   const b = await seedTenant('globex');

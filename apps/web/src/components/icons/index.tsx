@@ -1,14 +1,6 @@
 import type { ReactNode } from "react";
 
-/*
- * CodePulse icon set.
- *
- * Drawn on a 20px grid with square caps and mitred joins so the corners stay
- * sharp — deliberately different from the rounded icons we use for small
- * utility glyphs. Each icon carries one filled element as a signal accent.
- *
- * Props match the lucide signature so these drop into IconBox / StatCard.
- */
+// 20px grid icons, same props as lucide
 
 interface IconProps {
   size?: number;
@@ -217,9 +209,7 @@ export function ClockIcon(props: IconProps) {
   );
 }
 
-/*
- * Flat trace used by empty states — "no signal yet".
- */
+// used by empty states
 export function FlatlineIllustration({ className = "" }: { className?: string }) {
   return (
     <svg

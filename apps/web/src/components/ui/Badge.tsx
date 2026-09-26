@@ -1,14 +1,5 @@
 import type { ReactNode } from "react";
 
-/*
- * =========================================================
- * BADGE — Status chip
- * =========================================================
- *
- * Squared-off mono chips so severity and status read like
- * readings on a panel rather than decorative pills.
- */
-
 const variantClasses: Record<string, string> = {
   default:
     "bg-primary/10 text-primary border-primary/25",

@@ -20,7 +20,7 @@ export const deviceIdParamsSchema = z.object({
 
 export const registerDeviceSchema = z.object({
   body: z.object({
-    // The shape getExpoPushTokenAsync returns; older SDKs used the Exponent prefix.
+    // older SDKs used ExponentPushToken
     expoPushToken: z.string().trim().regex(/^Expo(nent)?PushToken\[.+\]$/, 'Not an Expo push token'),
     platform: z.enum(['ios', 'android']),
     deviceName: z.string().trim().max(100).optional(),

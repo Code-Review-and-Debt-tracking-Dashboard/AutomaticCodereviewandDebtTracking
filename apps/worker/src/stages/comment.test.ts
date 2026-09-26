@@ -62,7 +62,6 @@ function gate(overrides: Partial<QualityGateThresholds> = {}): QualityGateThresh
   };
 }
 
-// The worked example from analysis_access_and_reporting_design.md §5.3.
 const SPEC_METRICS = metrics({
   healthScore: 72.4,
   criticalCount: 2,
@@ -84,7 +83,6 @@ const SPEC_GATE = gate({
   maxCodeSmellCount: 50,
 });
 
-// Body rows of the table whose header starts with the given text.
 const tableRows = (body: string, header: string) => {
   const lines = body.split('\n');
   const start = lines.findIndex((line) => line.startsWith(header));

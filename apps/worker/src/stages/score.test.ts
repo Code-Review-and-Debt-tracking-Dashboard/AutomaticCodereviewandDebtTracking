@@ -86,8 +86,7 @@ describe('computeScore', () => {
       linesOfCode: 500,
     });
 
-    // Second occurrence is discounted (1 / (1 + 0.3)), so two repeats cost
-    // less than double a single occurrence.
+    // repeats are discounted
     expect(repeated.penaltyBreakdown.findingPenalty).toBeLessThan(
       single.penaltyBreakdown.findingPenalty * 2,
     );
@@ -188,8 +187,7 @@ describe('computeScore', () => {
 });
 
 describe('debt score', () => {
-  // The normalizer stamps debtMinutes from the cost table, so do the same here
-  // instead of hand-picking numbers the scorer would just trust.
+  // debtMinutes from the cost table, like the normalizer does
   const costed = (overrides: Partial<AnalysisFinding> = {}): AnalysisFinding => {
     const base = finding(overrides);
     return { ...base, debtMinutes: DEBT_COST_TABLE[base.category][base.severity] };

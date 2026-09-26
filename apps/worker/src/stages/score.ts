@@ -1,7 +1,6 @@
 import type { AnalysisFinding, FindingCategory, Severity } from '@codehealth/shared';
 
-// How much each category costs relative to the others. Security is four times a
-// style issue. Exported because the gate and the PR comment show these numbers.
+// weight of each category
 export const CATEGORY_WEIGHTS: Record<FindingCategory, number> = {
   VULNERABILITY: 4.0,
   COMPLEXITY: 2.0,
@@ -43,7 +42,7 @@ export interface ScoreResult {
   mediumCount: number;
   lowCount: number;
   duplicationPct: number;
-  // Kept so a score can be explained after the fact, rather than just asserted.
+  // so a score can be explained later
   penaltyBreakdown: {
     findingPenalty: number;
     duplicationPenalty: number;
@@ -56,19 +55,7 @@ const round = (value: number, places: number) => {
   return Math.round(value * factor) / factor;
 };
 
-/**
- * Turns findings into a 0-100 health score. Start at 100 and deduct: each finding
- * costs its category weight times its severity, repeats of the same rule cost
- * less each time, and the whole lot is scaled down for big repos so a large
- * codebase isn't punished just for being large.
- *
- * Also totals the remediation minutes the normalizer put on each finding. That
- * one is a plain sum — no discounts, no size scaling — and it doesn't affect the
- * health score.
- *
- * Pure — same input, same score, every time. Nothing here touches the network or
- * the database, which is what lets an old score be recomputed and checked.
- */
+// 100 minus penalties, scaled for repo size. also sums debt minutes
 export function computeScore({ findings, duplicationPct, linesOfCode }: ScoreInput): ScoreResult {
   const categoryCounts: Record<FindingCategory, number> = {
     VULNERABILITY: 0,
@@ -86,8 +73,7 @@ export function computeScore({ findings, duplicationPct, linesOfCode }: ScoreInp
     INFO: 0,
   };
 
-  // Findings of the same rule, grouped, because the discount for a repeat only
-  // makes sense against the others of its own rule.
+  // group by rule for the repeat discount
   const byRule = new Map<string, AnalysisFinding[]>();
 
   let debtMinutes = 0;
@@ -96,12 +82,10 @@ export function computeScore({ findings, duplicationPct, linesOfCode }: ScoreInp
     categoryCounts[finding.category]++;
     severityCounts[finding.severity]++;
 
-    // Debt is additive, so every finding counts — including the jscpd ones the
-    // health penalty skips below. A clone pair still takes time to fix.
+    // debt counts every finding, jscpd ones too
     debtMinutes += finding.debtMinutes;
 
-    // jscpd reports the same duplication twice: once as a clone pair, once in the
-    // repo percentage below. Charging both would double it.
+    // jscpd is already counted in the duplication percentage
     if (finding.category === 'DUPLICATION' && finding.tool === 'jscpd') continue;
 
     const key = `${finding.category}:${finding.rule}`;
@@ -113,9 +97,7 @@ export function computeScore({ findings, duplicationPct, linesOfCode }: ScoreInp
   let rawFindingPenalty = 0;
 
   for (const group of byRule.values()) {
-    // Worst one first, so it's the one that pays full price. Left in tool order a
-    // critical finding could get discounted for no better reason than sitting
-    // further down the file than a low one.
+    // worst first so it pays full price
     group.sort((a, b) => SEVERITY_MULTIPLIERS[b.severity] - SEVERITY_MULTIPLIERS[a.severity]);
 
     group.forEach((finding, repeat) => {
@@ -129,14 +111,12 @@ export function computeScore({ findings, duplicationPct, linesOfCode }: ScoreInp
     });
   }
 
-  // Findings per 1000 lines rather than raw counts, so repos of different sizes
-  // are comparable. Small repos are left alone.
+  // per 1000 lines so big repos aren't punished for size
   const locScale =
     linesOfCode > LOC_NORMALIZATION_BASE ? LOC_NORMALIZATION_BASE / linesOfCode : 1;
   const findingPenalty = rawFindingPenalty * locScale;
 
-  // Duplication is a percentage of the repo, not a list of places, so it gets its
-  // own penalty and is not scaled by size.
+  // duplication has its own penalty, not scaled
   const clampedDuplicationPct = Math.min(100, Math.max(0, duplicationPct));
   const duplicationPenalty =
     clampedDuplicationPct * DUPLICATION_PCT_MULTIPLIER * CATEGORY_WEIGHTS.DUPLICATION;

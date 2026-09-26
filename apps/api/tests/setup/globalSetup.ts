@@ -5,9 +5,7 @@ import { Client } from 'pg';
 
 import { TEST_DATABASE_URL } from './env';
 
-// Runs once, in its own process, before any test file. Creates the test
-// database if it doesn't exist and brings it to the current migration state.
-// Truncation between tests is the hooks' job; this only sets up the schema.
+// creates the test db if needed and runs migrations
 export async function setup(): Promise<void> {
   await ensureDatabaseExists();
   migrate();
@@ -36,8 +34,7 @@ function migrate(): void {
   const prismaBin = resolve(__dirname, '../../../../node_modules/prisma/build/index.js');
   execFileSync(process.execPath, [prismaBin, 'migrate', 'deploy'], {
     cwd: dbPackage,
-    // prisma.config.ts loads dotenv, which never overrides a var that is
-    // already set, so this wins over packages/db/.env
+    // dotenv won't override this
     env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
     stdio: 'pipe',
   });

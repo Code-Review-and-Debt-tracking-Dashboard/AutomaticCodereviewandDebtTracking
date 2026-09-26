@@ -31,10 +31,6 @@ import {
 } from "../../components/ui";
 
 
-/* =========================================================
-   TYPES
-========================================================= */
-
 interface QualityGate {
   repoId: string;
   minHealthScore: number;
@@ -53,10 +49,6 @@ interface GateHistoryItem {
   time: string;
 }
 
-
-/* =========================================================
-   COMPONENT
-========================================================= */
 
 export function RepositoryQualityGatePage() {
   const { repoId } = useParams();

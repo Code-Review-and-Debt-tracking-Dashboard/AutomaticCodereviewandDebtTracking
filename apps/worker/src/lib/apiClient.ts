@@ -7,14 +7,7 @@ import type {
 
 import { env } from '../config/env';
 
-/**
- * The worker's only way to write anything. It holds no database credentials, so
- * every status transition and every result goes over this authenticated API.
- *
- * There is no retry in here on purpose. A failed call throws, BullMQ retries the
- * whole job, and the results endpoint ignores a second delivery of a run it has
- * already stored — so one backoff policy covers the lot instead of two.
- */
+// no retry here, bullmq retries the whole job
 async function request(method: string, path: string, body?: unknown) {
   const res = await fetch(`${env.apiBaseUrl}${path}`, {
     method,
@@ -36,8 +29,7 @@ export async function startJob(analysisId: string): Promise<void> {
   await request('POST', `/jobs/${analysisId}/start`);
 }
 
-// Null when the repo has no gate configured, which the gate stage reads as
-// "use the defaults".
+// null = no gate set, use defaults
 export async function fetchQualityGate(
   analysisId: string,
 ): Promise<QualityGateThresholds | null> {
@@ -45,7 +37,7 @@ export async function fetchQualityGate(
   return res.status === 204 ? null : ((await res.json()) as QualityGateThresholds);
 }
 
-// Null when there is no earlier run to compare against.
+// null on the first run
 export async function fetchBaseline(analysisId: string): Promise<BaselineSnapshot | null> {
   const res = await request('GET', `/jobs/${analysisId}/baseline`);
   return res.status === 204 ? null : ((await res.json()) as BaselineSnapshot);

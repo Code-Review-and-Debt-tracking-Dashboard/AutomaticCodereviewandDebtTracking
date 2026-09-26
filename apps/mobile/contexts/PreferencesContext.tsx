@@ -19,9 +19,8 @@ import { darkColors, lightColors } from '../theme';
 import type { ThemeColors } from '../theme';
 
 interface PreferencesContextValue {
-  /** What the user picked — may be 'system'. */
+  /** may be 'system' */
   themePreference: ThemePreference;
-  /** What is actually on screen once 'system' is resolved. */
   scheme: 'light' | 'dark';
   isDark: boolean;
   colors: ThemeColors;
@@ -52,10 +51,7 @@ export function useTheme() {
   return { colors, isDark, scheme };
 }
 
-/**
- * Builds a screen's StyleSheet from the active palette and rebuilds it only
- * when the theme flips. `makeStyles` must be a module-level function.
- */
+// makeStyles must be defined at module level
 export function useThemedStyles<T>(makeStyles: (c: ThemeColors) => T): T {
   const { colors } = useTheme();
   return useMemo(() => makeStyles(colors), [colors, makeStyles]);

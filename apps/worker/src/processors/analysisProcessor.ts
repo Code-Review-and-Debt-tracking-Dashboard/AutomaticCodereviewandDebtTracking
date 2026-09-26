@@ -51,7 +51,6 @@ export function buildResultsPayload(input: {
       gateResult: input.gateResult,
     },
     findings: input.findings,
-    // Nothing captures analyzer versions yet.
     toolVersions: {},
     analysisLimited: input.analysisLimited,
   };
@@ -81,8 +80,7 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
   const workspace = await createWorkspace();
 
   try {
-    // Manual runs are queued with a placeholder sha. The one that comes back
-    // here is what was actually checked out, and it travels with the results.
+    // manual runs get the real sha from the clone
     const cloned = await cloneRepository(job.data, workspace);
 
     stage = 'detect';
@@ -236,7 +234,7 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
 
     stage = 'score';
 
-    // Null on a first run, which marks everything NEW.
+    // null on first run, so everything is NEW
     const baseline = await fetchBaseline(analysisId);
     const matched = matchFindings({ findings, baseline: baseline?.findings ?? null });
 
@@ -298,7 +296,6 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       debtDeltaMinutes,
       gateResult: gateEvaluation.result,
       linesOfCode: detected.linesOfCode,
-      // Nothing in the repo had an analyzer that could read it.
       analysisLimited: detected.analyzers.length === 0,
     });
 
@@ -306,29 +303,25 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
 
     logger.info({ analysisId, findings: matched.findings.length }, 'Results persisted');
 
-    // After persist, so a retry of a failed persist can't leave a second
-    // comment on the PR. Renders the stored numbers, never a fresh count.
+    // after persist so a retry doesn't post twice
     await postPrComment({
       analysisId,
       body: buildPrComment({
         metrics: payload.metrics,
         findings: matched.findings,
         baseline,
-        // Same thresholds the verdict was judged on, so a FAIL always shows why.
         gate: gate ?? DEFAULT_GATE,
       }),
     });
 
-    // Hangs off the commit rather than the pull request, so push and manual
-    // runs get a verdict too. The sha is the one that was checked out.
+    // on the commit so push and manual runs get one too
     await postCommitStatus({
       analysisId,
       commitSha: cloned.commitSha,
       evaluation: gateEvaluation,
     });
   } catch (err) {
-    // Only this scope knows how far the run got, and the 'failed' listener has
-    // to report it.
+    // tag the stage for the failed listener
     throw Object.assign(err as Error, { stage });
   } finally {
     await cleanupWorkspace(workspace);

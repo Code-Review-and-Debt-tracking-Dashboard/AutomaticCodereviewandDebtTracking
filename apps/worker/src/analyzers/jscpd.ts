@@ -6,17 +6,15 @@ import { promisify } from 'util';
 
 const run = promisify(execFile);
 
-// The pipeline allows each analyzer two minutes.
+// 2 min per analyzer
 const timeoutMs = 120_000;
-// A big repo's report goes well past the 1 MB default.
+// big repos go past the 1 MB default
 const maxBuffer = 32 * 1024 * 1024;
 
-// Going through the package entry survives npm's workspace hoisting, which a
-// hardcoded node_modules/.bin path doesn't.
+// resolve via the package so workspace hoisting doesn't break it
 const jscpdBin = resolve(require.resolve('jscpd/package.json'), '../run-jscpd.js');
 
-// Same list the other analyzers ignore: vendored, generated and virtualenv code
-// isn't the author's work, and scanning it buries whatever they did write.
+// vendored, generated and virtualenv code
 const ignoredDirs = [
   '.venv',
   'venv',
@@ -27,11 +25,16 @@ const ignoredDirs = [
   'build',
   'dist',
   'migrations',
+  // test code isn't scored, and the percentage can't be filtered afterwards
+  'test',
+  'tests',
+  '__tests__',
 ];
 
-// These are file globs, not directory names, so the wildcards are what catch the
-// directory at any depth.
-const ignores = ignoredDirs.map((dir) => `**/${dir}/**`).join(',');
+const testFiles = ['**/*.test.*', '**/*.spec.*', '**/test_*.py', '**/*_test.py'];
+
+// wildcards so it matches at any depth
+const ignores = [...ignoredDirs.map((dir) => `**/${dir}/**`), ...testFiles].join(',');
 
 export interface JscpdClone {
   format: string;
@@ -69,22 +72,15 @@ const place = (file: JscpdClone['firstFile']) => ({
   end: file.end,
 });
 
-/**
- * Looks for copy-pasted blocks across a cloned checkout and hands back jscpd's
- * output as it came. Turning it into findings is the normalize stage's job.
- */
 export async function runJscpd(repoPath: string): Promise<JscpdReport> {
-  // The json reporter writes a file and prints nothing, so it needs somewhere of
-  // its own to write to — the repo is being analysed and must not be touched.
+  // json reporter writes to a file, keep it out of the repo
   const reportDir = await mkdtemp(join(tmpdir(), 'codehealth-jscpd-'));
 
   try {
-    // Run from inside the repo so the temp workspace name never reaches the
-    // paths, the way the other analyzers do it.
+    // run inside the repo so paths stay relative
     const args = ['.', '--reporters', 'json', '--output', reportDir, '--ignore', ignores];
 
-    // No --threshold or --exit-code, so finding duplicates still exits 0 and any
-    // non-zero exit here is a real failure.
+    // exits 0 even with duplicates
     await run(process.execPath, [jscpdBin, ...args], {
       cwd: repoPath,
       timeout: timeoutMs,
@@ -102,8 +98,7 @@ export async function runJscpd(repoPath: string): Promise<JscpdReport> {
     const total = output.statistics.total;
 
     return {
-      // Copied field by field: the raw entries also carry the duplicated source
-      // itself, and nothing downstream is allowed to hold source code.
+      // copy fields one by one so the source code itself isn't kept
       duplicates: output.duplicates.map((clone) => ({
         format: clone.format,
         lines: clone.lines,

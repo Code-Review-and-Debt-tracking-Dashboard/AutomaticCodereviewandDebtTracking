@@ -5,15 +5,13 @@ import * as Notifications from 'expo-notifications';
 
 import { api } from './apiClient';
 
-// Must match ANDROID_CHANNEL_ID in apps/api/src/services/pushService.ts.
+// must match the API's channel id
 const ANDROID_CHANNEL_ID = 'default';
 
-// expo-notifications has no push (and no response events) on web, which is
-// only a dev preview here anyway.
+// no push on web
 const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
 
-// Without this, a push that arrives while the app is open is dropped silently.
-// Sound stays on: Android won't show the heads-up banner without it.
+// show pushes while the app is open. android needs sound for the banner
 if (isNative) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -25,16 +23,14 @@ if (isNative) {
   });
 }
 
-// The registration in flight or done, resolving to the API's device id.
-// Not persisted: the app registers again on every start, and the API treats a
-// repeat as the same device.
+// resolves to the API's device id
 let registration: Promise<string | null> | null = null;
 
 async function register(): Promise<string | null> {
-  // Emulators without Play services and simulators have no push token to give.
+  // emulators have no push token
   if (!isNative || !Device.isDevice) return null;
 
-  // Android 13+ only shows the permission prompt once a channel exists.
+  // android 13+ needs a channel before asking
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
       name: 'Repository alerts',
@@ -56,7 +52,7 @@ async function register(): Promise<string | null> {
 
   const { data: expoPushToken } = await Notifications.getExpoPushTokenAsync({ projectId });
   if (__DEV__) {
-    // Paste into https://expo.dev/notifications to test the phone on its own.
+    // test at https://expo.dev/notifications
     console.log('[push] Expo push token:', expoPushToken);
   }
 
@@ -68,11 +64,7 @@ async function register(): Promise<string | null> {
   return device.id;
 }
 
-/**
- * Registers this phone for push with the API. Best effort: where push can't
- * work — web, a refused permission, Expo Go on Android — it does nothing, and
- * the in-app inbox still has every alert.
- */
+// best effort, does nothing where push isn't available
 export function registerForPush(): Promise<void> {
   registration = register().catch((err: unknown) => {
     console.warn('[push] Registration failed:', err);
@@ -81,11 +73,7 @@ export function registerForPush(): Promise<void> {
   return registration.then(() => undefined);
 }
 
-/**
- * Stops pushes to this phone (logout, or notifications switched off). Waits
- * for a registration still in flight, so a quick on-then-off can't leave the
- * device registered.
- */
+// waits for any registration in flight first
 export async function unregisterFromPush(): Promise<void> {
   const pending = registration;
   registration = null;
@@ -96,22 +84,18 @@ export async function unregisterFromPush(): Promise<void> {
   try {
     await api.delete(`/api/devices/${deviceId}`);
   } catch {
-    // A missed unregister costs a few extra pushes: the token moves to the
-    // next account that signs in here, or Expo reports it gone.
+    // not a big deal if this fails
   }
 }
 
-/**
- * Calls `onTap` when the user opens one of our pushes, including the tap that
- * launched the app, which happened before any listener existed.
- */
+// includes the tap that launched the app
 export function onPushTap(onTap: () => void): () => void {
   if (!isNative) return () => {};
 
   const handle = (response: Notifications.NotificationResponse | null) => {
     if (response?.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     onTap();
-    // Otherwise the next ordinary launch finds it again and jumps to the inbox.
+    // or the next launch would handle it again
     Notifications.clearLastNotificationResponse();
   };
 
@@ -120,7 +104,6 @@ export function onPushTap(onTap: () => void): () => void {
   return () => subscription.remove();
 }
 
-/** Calls `listener` when a push arrives while the app is open, or is tapped. */
 export function onPushActivity(listener: () => void): () => void {
   if (!isNative) return () => {};
 

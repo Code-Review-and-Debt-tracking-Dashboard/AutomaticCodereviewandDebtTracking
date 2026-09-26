@@ -2,13 +2,6 @@ import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
-const categoryIcons: Record<string, ComponentType<{ size?: number; className?: string }>> = {
-  Security: LockKeyhole,
-  Complexity: AlertTriangle,
-  Duplication: Code2,
-  "Code Smell": Bug,
-  Maintainability: Wrench,
-};
 import {
   AlertTriangle,
   Bug,
@@ -21,11 +14,12 @@ import {
 
 import {
   AlertIcon,
-  CheckIcon,
+  ClockIcon,
   FindingsIcon,
   HotspotIcon,
 } from "../../components/icons";
 import { api } from "../../lib/apiClient";
+import { fetchAllFindings, titleCase, type FindingsSummary } from "../../lib/findings";
 
 import {
   BackLink,
@@ -41,11 +35,20 @@ import {
 } from "../../components/ui";
 
 
+const categoryIcons: Record<string, ComponentType<{ size?: number; className?: string }>> = {
+  Vulnerability: LockKeyhole,
+  Complexity: AlertTriangle,
+  Duplication: Code2,
+  "Code Smell": Bug,
+  Maintainability: Wrench,
+};
+
 const severityStyles: Record<string, string> = {
   Critical: "bg-danger/10 text-danger border-danger/20",
   High: "bg-warning/10 text-warning border-warning/20",
   Medium: "bg-info/10 text-info border-info/20",
   Low: "bg-muted text-muted-foreground border-border",
+  Info: "bg-muted text-muted-foreground border-border",
 };
 
 interface FindingItem {
@@ -64,6 +67,8 @@ export function PRFindingDrilldownPage() {
   const { repoId, prNumber } = useParams();
 
   const [realFindings, setRealFindings] = useState<FindingItem[]>([]);
+  const [summary, setSummary] = useState<FindingsSummary | null>(null);
+  const [author, setAuthor] = useState("");
   const [hasAnalysis, setHasAnalysis] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,14 +84,14 @@ export function PRFindingDrilldownPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        // the PR endpoint carries snapshots, not findings — the newest one
-        // points at the findings for this PR's latest analysis
-        const pr = await api.get<{ snapshots: { id: string; createdAt: string }[] }>(
+        // findings come from the newest snapshot
+        const pr = await api.get<{ authorLogin: string; snapshots: { id: string; createdAt: string }[] }>(
           `/api/repos/${repoId}/pulls/${prNumber}`
         );
         const latest = [...(pr.snapshots ?? [])].sort((a, b) =>
           b.createdAt.localeCompare(a.createdAt)
         )[0];
+        setAuthor(pr.authorLogin);
 
         if (!latest) {
           setRealFindings([]);
@@ -94,30 +99,20 @@ export function PRFindingDrilldownPage() {
           return;
         }
 
-        const res = await api.get<{
-          data: {
-            id: string;
-            file: string | null;
-            line: number | null;
-            severity: string;
-            category: string;
-            rule: string;
-            message: string;
-            tool: string;
-            isNew: boolean;
-          }[];
-        }>(`/api/snapshots/${latest.id}/findings`);
+        const res = await fetchAllFindings(latest.id);
 
         setHasAnalysis(true);
+        setSummary(res.summary);
+        // title case so the values line up with the filter options
         setRealFindings(
-          (res.data ?? []).map((f) => ({
+          res.data.map((f) => ({
             id: f.id,
             message: f.message,
-            category: f.category,
-            severity: f.severity,
+            category: titleCase(f.category),
+            severity: titleCase(f.severity),
             file: f.file ?? "",
             line: f.line ?? 0,
-            state: f.isNew ? "NEW" : "EXISTING",
+            state: f.isNew ? "New" : "Existing",
             tool: f.tool,
             rule: f.rule,
           }))
@@ -168,34 +163,34 @@ export function PRFindingDrilldownPage() {
 
         <div className="rounded-2xl border border-border/70 bg-card px-5 py-4">
           <p className="text-xs text-muted-foreground">Author</p>
-          <p className="mt-1 font-semibold">seed-developer</p>
+          <p className="mt-1 font-semibold">{author || "—"}</p>
         </div>
       </PageHeader>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total Findings"
-          value="4"
+          value={String(summary?.total ?? 0)}
           icon={FindingsIcon}
           color="primary"
         />
         <StatCard
           title="Critical"
-          value="1"
+          value={String(summary?.bySeverity?.critical ?? 0)}
           icon={AlertIcon}
           color="danger"
         />
         <StatCard
           title="New"
-          value="2"
+          value={String(summary?.new ?? 0)}
           icon={HotspotIcon}
           color="warning"
         />
         <StatCard
-          title="Resolved"
-          value="1"
-          icon={CheckIcon}
-          color="success"
+          title="Carried over"
+          value={String(summary?.carryOver ?? 0)}
+          icon={ClockIcon}
+          color="info"
         />
       </div>
 
@@ -209,17 +204,17 @@ export function PRFindingDrilldownPage() {
               {
                 value: severity,
                 onChange: setSeverity,
-                options: ["All", "Critical", "High", "Medium", "Low"],
+                options: ["All", "Critical", "High", "Medium", "Low", "Info"],
               },
               {
                 value: category,
                 onChange: setCategory,
-                options: ["All", "Security", "Complexity", "Duplication", "Code Smell", "Maintainability"],
+                options: ["All", "Vulnerability", "Complexity", "Duplication", "Code Smell", "Maintainability"],
               },
               {
                 value: state,
                 onChange: setState,
-                options: ["All", "New", "Existing", "Resolved"],
+                options: ["All", "New", "Existing"],
               },
             ]}
           />
@@ -245,9 +240,7 @@ export function PRFindingDrilldownPage() {
                         <Badge
                           variant="muted"
                           className={
-                            finding.state === "Resolved"
-                              ? "bg-success/10 text-success"
-                              : finding.state === "New"
+                            finding.state === "New"
                               ? "bg-warning/10 text-warning"
                               : "bg-muted text-muted-foreground"
                           }

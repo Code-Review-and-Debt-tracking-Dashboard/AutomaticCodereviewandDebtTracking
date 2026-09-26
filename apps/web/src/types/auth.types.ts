@@ -1,5 +1,3 @@
-// TODO(Backend): These types should match your API response schemas from /api/auth/*
-
 export interface User {
   id: string;
   email: string;

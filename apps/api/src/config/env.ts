@@ -1,8 +1,4 @@
-/**
- * Loads and validates the environment variables needed for the GitHub OAuth
- * flow  Fails fast at boot if anything required is missing, rather
- * than surfacing a confusing error later on the first login attempt.
- */
+// fail at boot if something required is missing
 function required(name: string, fallbackDevValue?: string): string {
   const value = process.env[name];
   if (!value) {
@@ -19,28 +15,23 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   logLevel: process.env.LOG_LEVEL || 'info',
 
-  // Redis backing the BullMQ analysis queue.
   redisUrl: required('REDIS_URL', 'redis://localhost:6379'),
 
   githubClientId: required('GITHUB_CLIENT_ID', 'dev_github_client_id'),
   githubClientSecret: required('GITHUB_CLIENT_SECRET', 'dev_github_client_secret'),
   githubOAuthCallbackUrl: required('GITHUB_OAUTH_CALLBACK_URL', 'http://localhost:4000/auth/github/callback'),
 
-  // Shared secret configured on the GitHub webhook ; used to verify
-  // the X-Hub-Signature-256 HMAC-SHA256 signature on incoming payloads.
+  // used to verify webhook signatures
   githubWebhookSecret: required('GITHUB_WEBHOOK_SECRET', 'dev_webhook_secret'),
 
-  // Public URL each repo's webhook is pointed at, so GitHub must be able to
-  // reach it — use a tunnel locally.
+  // must be public, use a tunnel locally
   githubWebhookUrl: required('GITHUB_WEBHOOK_URL', 'http://localhost:4000/webhooks/github'),
 
   jwtSecret: required('JWT_SECRET', 'dev_jwt_secret_key_1234567890'),
 
-  // Where the OAuth callback sends the browser once login succeeds.
   webAppUrl: required('WEB_APP_URL', 'http://localhost:5173'),
 
-  // Origins allowed to send credentialed requests. Cannot be a wildcard —
-  // browsers reject "*" the moment credentials are enabled.
+  // can't be "*" with credentials
   webAppOrigins: (process.env.WEB_APP_ORIGINS || 'http://localhost:5173')
     .split(',')
     .map((o) => o.trim())
@@ -50,22 +41,19 @@ export const env = {
   refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS) || 7,
 
   cookieSecure: (process.env.COOKIE_SECURE || String(process.env.NODE_ENV === 'production')) === 'true',
-  // 'none' is needed if the web app and API are on different sites; browsers
-  // then also demand Secure, which setRefreshCookie enforces.
+  // use 'none' if web and API are on different sites
   cookieSameSite: (process.env.COOKIE_SAMESITE || 'lax') as 'lax' | 'strict' | 'none',
 
-  // Password-less login for local work. Never mounted in production.
+  // never on in production
   enableDevLogin: process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_LOGIN === 'true',
 
-  // 32-byte (64 hex chars) key for AES-256-GCM token-at-rest encryption.
+  // 64 hex chars
   tokenEncryptionKey: required('TOKEN_ENCRYPTION_KEY', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
 
-  // Basic auth on /admin (Bull Board). Not OAuth — has to work when login is
-  // what's broken.
+  // basic auth for bull board
   adminBasicAuthUser: required('ADMIN_BASIC_AUTH_USER', 'admin'),
   adminBasicAuthPassword: required('ADMIN_BASIC_AUTH_PASSWORD', 'admin'),
 
-  // Only needed once "enhanced push security" is switched on for the Expo
-  // project; without it the Expo Push API accepts unauthenticated sends.
+  // optional, only for expo enhanced push security
   expoAccessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
 };

@@ -1,7 +1,6 @@
-// The config the worker lints every scanned repo with. Deliberately fixed and
-// language-level only — the score has to mean the same thing across repos, so
-// the repo's own eslint config never gets a say.
+// fixed config for every scanned repo, their own eslint config is ignored
 import js from '@eslint/js';
+import nounsanitized from 'eslint-plugin-no-unsanitized';
 import security from 'eslint-plugin-security';
 import sonarjs from 'eslint-plugin-sonarjs';
 import globals from 'globals';
@@ -10,10 +9,7 @@ import tseslint from 'typescript-eslint';
 export default [
   js.configs.recommended,
 
-  // Parses .ts/.tsx. No type-aware rules, so no tsconfig is needed. The files
-  // have to be pinned — most of these blocks are unscoped, and left alone they
-  // run the typescript rules over plain .js too, which double-reports every
-  // require() and unused var.
+  // ts rules only on ts files, otherwise js gets reported twice
   ...tseslint.configs.recommended.map((c) => ({ ...c, files: c.files ?? ['**/*.{ts,tsx,mts,cts}'] })),
 
   {
@@ -24,17 +20,43 @@ export default [
     },
   },
 
-  // Cognitive complexity, duplicated branches, dead-code patterns — bug and
-  // smell rules eslint:recommended doesn't have. Its own equivalents of our
-  // complexity/duplication rules ship turned off in this preset, so it's
-  // additive rather than a second opinion on the same threshold.
+  // DOM XSS (innerHTML etc)
+  {
+    ...nounsanitized.configs.recommended,
+    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+  },
+
   {
     ...sonarjs.configs.recommended,
     files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
   },
 
-  // Listing the ts/jsx extensions here is also what pulls those files into the
-  // scan at all — eslint only walks .js/.mjs/.cjs on its own.
+  // already reported by other rules
+  {
+    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+    rules: {
+      'sonarjs/cognitive-complexity': 'off',
+      'sonarjs/no-unused-vars': 'off',
+      'sonarjs/unused-import': 'off',
+      'sonarjs/todo-tag': 'off',
+      'sonarjs/fixme-tag': 'off',
+      // sonarjs covers these
+      'security/detect-eval-with-expression': 'off',
+      'security/detect-unsafe-regex': 'off',
+      // mostly false positives
+      'security/detect-object-injection': 'off',
+    },
+  },
+
+  // allow unused _params
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
+
+  // eslint only picks up ts/jsx files if they're listed here
   {
     files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
     rules: {
@@ -44,17 +66,14 @@ export default [
     },
   },
 
-  // Only for plain JS. On TS the base rule flags types and interfaces that are
-  // used, so typescript-eslint turns it off and supplies its own. The globals
-  // are here for the same reason — without them no-undef reports every
-  // require/console/window in the repo as an error.
+  // plain js only, ts has its own version of these
   {
     files: ['**/*.{js,jsx,mjs,cjs}'],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },
     rules: {
-      'no-unused-vars': 'warn',
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
 

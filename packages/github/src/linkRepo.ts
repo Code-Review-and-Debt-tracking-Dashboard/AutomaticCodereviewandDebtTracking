@@ -3,13 +3,10 @@ import { Octokit } from '@octokit/rest';
 
 export type { Octokit };
 
-// Callers hold their own encrypted tokens, so they build the client and pass
-// it in — one client per batch rather than one per repo.
 export function githubClient(token: string): Octokit {
   return new Octokit({ auth: token });
 }
 
-// The org a repo lands in comes from its GitHub owner, never from the request.
 export interface GithubRepo {
   id: number;
   name: string;
@@ -33,8 +30,6 @@ export interface LinkedRepository {
   webhookId: string | null;
 }
 
-// Every way linking one repo can end. Callers decide what each means: the API
-// maps them to status codes, the bulk job counts them.
 export type LinkOutcome =
   | { status: 'LINKED'; repository: LinkedRepository }
   | { status: 'ALREADY_LINKED'; fullName: string }
@@ -46,17 +41,14 @@ export type LinkOutcome =
 export interface LinkConfig {
   webhookUrl: string;
   webhookSecret: string;
-  // When set, the repo must belong to this org or it's NOT_IN_ORG.
   orgId?: string;
 }
 
-// Only the bit of pino we use, so this package doesn't depend on a logger.
 export interface WarnLogger {
   warn(obj: unknown, msg: string): void;
 }
 
-// By id, not owner/name, so a rename on GitHub can't point us elsewhere.
-// Octokit has no typed method for this route, hence the cast.
+// by id so a rename doesn't matter
 export async function fetchRepo(
   octokit: Octokit,
   githubRepoId: number,
@@ -74,8 +66,7 @@ export async function fetchRepo(
   }
 }
 
-// GitHub 422s when a hook with the same config is already there. That repo is
-// healthy, not broken, so find the existing hook and carry on with its id.
+// 422 means the hook already exists, just reuse it
 async function findExistingHook(
   octokit: Octokit,
   repo: GithubRepo,
@@ -93,11 +84,7 @@ async function findExistingHook(
   }
 }
 
-/**
- * Registers the webhook and upserts the Repository row for one repo. Returns
- * how it went instead of throwing, because the bulk path needs to keep going
- * after a repo the user has no admin on.
- */
+// returns the outcome instead of throwing so bulk linking can keep going
 export async function linkRepo(
   octokit: Octokit,
   userId: string,
@@ -144,9 +131,7 @@ export async function linkRepo(
   }
 
   if (existing?.webhookId) {
-    // A previous unlink may have failed to remove this hook — best effort
-    // cleanup so relinking doesn't leave two live webhooks on GitHub. Failure
-    // here just leaves us where we already were, so it isn't fatal to linking.
+    // clean up an old hook if a previous unlink missed it
     try {
       await octokit.rest.repos.deleteWebhook({
         owner: repo.owner.login,

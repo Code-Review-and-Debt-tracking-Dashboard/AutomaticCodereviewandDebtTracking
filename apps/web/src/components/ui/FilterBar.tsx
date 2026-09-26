@@ -1,16 +1,6 @@
 import type { ReactNode } from "react";
 import { Search } from "lucide-react";
 
-/*
- * =========================================================
- * FILTER BAR — Search + dropdown filters row
- * =========================================================
- *
- * Combines a search input with optional filter dropdowns
- * in a consistent layout used on Dashboard, Findings,
- * Notifications, Analytics, and Repositories pages.
- */
-
 import { Select } from "./Select";
 import type { SelectOptionItem } from "./Select";
 
@@ -21,19 +11,13 @@ interface FilterBarItem {
 }
 
 interface FilterBarProps {
-  /** Search placeholder text */
   placeholder?: string;
-  /** Search placeholder text alias */
   searchPlaceholder?: string;
-  /** Current search value */
   searchValue: string;
-  /** Search change handler */
   onSearchChange: (value: string) => void;
-  /** Optional keyboard shortcut key hint (e.g. "/") */
+  /** e.g. "/" */
   shortcutKey?: string;
-  /** Optional array of filter objects */
   filters?: FilterBarItem[];
-  /** Filter dropdowns rendered on the right */
   children?: ReactNode;
   className?: string;
 }

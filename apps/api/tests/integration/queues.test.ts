@@ -5,8 +5,7 @@ import { bearer } from '../helpers/auth';
 import { createAdmin } from '../helpers/factories';
 import { TEST_ADMIN_PASSWORD, TEST_ADMIN_USER } from '../setup/env';
 
-// Bull Board lives under /admin behind HTTP Basic auth — not the JWT the
-// rest of the API uses, so it still works when login is what is broken.
+// basic auth, not JWT
 describe('/admin/queues (Bull Board)', () => {
   it('401 with a Basic challenge and no credentials', async () => {
     const res = await api().get('/admin/queues');

@@ -1,15 +1,6 @@
 import type { ReactNode, ButtonHTMLAttributes } from "react";
 import { motion } from "framer-motion";
 
-/*
- * =========================================================
- * BUTTON — Multi-variant button component
- * =========================================================
- *
- * Flat and square-ish. No lift, no glow — the only motion
- * is a small press.
- */
-
 const variantClasses: Record<string, string> = {
   primary:
     "bg-primary text-primary-foreground hover:bg-primary/90",

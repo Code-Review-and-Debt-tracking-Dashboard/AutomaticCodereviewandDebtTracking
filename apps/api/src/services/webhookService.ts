@@ -157,11 +157,10 @@ export async function findLinkedRepository(githubRepoId: string) {
   return repository;
 }
 
-// synchronize fires on every push to the PR branch, so this upserts rather
-// than just creating
+// upsert, synchronize fires on every push
 export async function upsertPullRequest(repoId: string, event: ParsedPullRequestEvent) {
-  const status =
-    event.action !== 'closed' ? PRStatus.OPEN : event.merged ? PRStatus.MERGED : PRStatus.CLOSED;
+  let status: PRStatus = PRStatus.OPEN;
+  if (event.action === 'closed') status = event.merged ? PRStatus.MERGED : PRStatus.CLOSED;
 
   const fields = {
     title: event.title,

@@ -6,9 +6,8 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 export interface Preferences {
   theme: ThemePreference;
   notificationsEnabled: boolean;
-  /** Org the Repositories tab shows. null → the first org the API returns. */
+  /** null = first org */
   activeOrgId: string | null;
-  /** Screen guides the user has finished or skipped. */
   toursDone: string[];
 }
 
@@ -21,7 +20,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
 
 const PREFERENCES_KEY = 'ch_preferences';
 
-// Same split as the refresh token: expo-secure-store has no web implementation.
 const isWeb = Platform.OS === 'web';
 
 export async function loadPreferences(): Promise<Preferences> {
@@ -47,7 +45,6 @@ export async function loadPreferences(): Promise<Preferences> {
         : DEFAULT_PREFERENCES.toursDone,
     };
   } catch {
-    // A corrupt or unreadable value shouldn't stop the app from starting.
     return DEFAULT_PREFERENCES;
   }
 }
@@ -58,6 +55,5 @@ export async function savePreferences(prefs: Preferences): Promise<void> {
     if (isWeb) globalThis.localStorage?.setItem(PREFERENCES_KEY, raw);
     else await SecureStore.setItemAsync(PREFERENCES_KEY, raw);
   } catch {
-    // Not persisting is acceptable — the in-memory value still applies.
   }
 }

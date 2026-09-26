@@ -39,14 +39,13 @@ describe("RepositoryFilesPage", () => {
 
     expect(screen.getByRole("heading", { name: "Files" })).toBeInTheDocument();
 
-    // Both files should appear in the sidebar list (there may be duplicates in preview panel)
     await waitFor(() => {
       const matches = screen.getAllByText("src/api/users.ts");
       expect(matches.length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("src/services/analyzer.ts")).toBeInTheDocument();
     });
 
-    expect(mockedApi.get).toHaveBeenCalledWith("/repos/repo-1/hotspots");
+    expect(mockedApi.get).toHaveBeenCalledWith("/api/repos/repo-1/hotspots", { limit: 100 });
   });
 
   it("shows empty state when no files are returned", async () => {

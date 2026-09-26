@@ -4,16 +4,6 @@ import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 import { InfoHint } from "./InfoHint";
 
-/*
- * =========================================================
- * STAT CARD — Dashboard statistic card
- * =========================================================
- *
- * One KPI per card: a mono label, the figure set in
- * tabular monospace so it never jitters, and the icon
- * tucked into the corner as a quiet marker.
- */
-
 const colorClasses: Record<string, string> = {
   primary: "bg-primary/10 text-primary",
   success: "bg-success/10 text-success",
@@ -32,7 +22,7 @@ interface StatCardProps {
   icon: ComponentType<{ size?: number; className?: string }>;
   iconColor?: string;
   color?: keyof typeof colorClasses;
-  /** Plain-English explanation, shown on hover next to the label. */
+  /** shown on hover */
   help?: string;
   delay?: number;
   className?: string;

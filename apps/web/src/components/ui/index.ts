@@ -1,13 +1,3 @@
-/*
- * =========================================================
- * UI COMPONENTS — Barrel export
- * =========================================================
- *
- * Single import point for all reusable UI primitives:
- *
- *   import { Badge, Card, Button, ... } from "../components/ui";
- */
-
 export { BackLink } from "./BackLink";
 
 export { Badge } from "./Badge";

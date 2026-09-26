@@ -71,15 +71,13 @@ export default function TabNavigator() {
   const navigationRef = useNavigationContainerRef<RootTabParamList>();
   const [navReady, setNavReady] = useState(false);
 
-  // Tapping a push opens the inbox. Waits for the container, or a tap that
-  // cold-started the app would navigate before there is anything to navigate.
+  // tapping a push opens the inbox, once navigation is ready
   useEffect(() => {
     if (!navReady) return;
     return onPushTap(() => navigationRef.navigate('Notifications'));
   }, [navReady, navigationRef]);
 
-  // Keeps react-navigation's own surfaces (headers, transitions, the flash
-  // behind a screen while it mounts) on the same palette as the screens.
+  // match react-navigation's colors to our theme
   const navTheme = useMemo<Theme>(() => {
     const base = isDark ? DarkTheme : DefaultTheme;
     return {

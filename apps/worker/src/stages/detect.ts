@@ -2,6 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import { extname, join } from 'path';
 
 import { logger } from '../lib/logger';
+import { isTestDir, isTestFile } from '../lib/testCode';
 
 export type Language = 'javascript' | 'python' | 'java' | 'cpp';
 
@@ -26,7 +27,7 @@ const extensions: Record<string, Language> = {
   '.py': 'python',
   '.pyi': 'python',
   '.java': 'java',
-  // .h could be C or C++, but cppcheck handles both so one bucket is enough.
+  // cppcheck handles both C and C++
   '.c': 'cpp',
   '.h': 'cpp',
   '.cpp': 'cpp',
@@ -43,8 +44,7 @@ const analyzersFor: Record<Language, Analyzer[]> = {
   cpp: ['cppcheck'],
 };
 
-// Same directories the analyzers themselves ignore. Counting them would let a
-// vendored node_modules turn a Python repo into a JavaScript one.
+// same dirs the analyzers ignore
 const skipDirs = new Set([
   '.git',
   'node_modules',
@@ -60,7 +60,7 @@ function isGenerated(name: string): boolean {
   return name.endsWith('.min.js') || name.endsWith('.bundle.js');
 }
 
-// Blank lines are left out so that a repo's spacing habits can't move its score.
+// skips blank lines
 async function countLines(path: string): Promise<number> {
   const text = await readFile(path, 'utf8');
   return text.split('\n').filter((line) => line.trim()).length;
@@ -75,14 +75,14 @@ async function countByLanguage(
 
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      // isDirectory() is false for symlinks, so this can't loop.
-      if (!skipDirs.has(entry.name)) {
+      // symlinks aren't followed, test dirs aren't counted
+      if (!skipDirs.has(entry.name) && !isTestDir(entry.name)) {
         await countByLanguage(join(dir, entry.name), counts, totals);
       }
       continue;
     }
 
-    if (isGenerated(entry.name)) continue;
+    if (isGenerated(entry.name) || isTestFile(entry.name)) continue;
 
     const language = extensions[extname(entry.name).toLowerCase()];
     if (language) {
@@ -92,15 +92,7 @@ async function countByLanguage(
   }
 }
 
-/**
- * Walks the cloned checkout and works out which languages are in it and which
- * analyzers should run over it. A repo can hold more than one language, so the
- * analyzer set is the union of everything found — primary is only for display.
- *
- * The same walk totals the lines of code, because this is the only place that
- * already visits every source file with the right directories skipped. The
- * scoring stage needs that number to compare repos of different sizes.
- */
+// finds languages, which analyzers to run, and lines of code
 export async function detectLanguages(repoPath: string) {
   const counts = new Map<Language, number>();
   const totals = { lines: 0 };
@@ -112,8 +104,7 @@ export async function detectLanguages(repoPath: string) {
 
   const primary = languages.length ? languages[0].language : null;
 
-  // jscpd and the TODO scan don't care about language, so they run whenever
-  // there is anything to analyse at all.
+  // jscpd and todo scan run for any language
   const analyzers: Analyzer[] = languages.length
     ? [...new Set(languages.flatMap((l) => analyzersFor[l.language])), 'jscpd', 'todo-scan']
     : [];

@@ -23,8 +23,7 @@ const EMPTY_SUMMARY: Record<BulkLinkStatus, number> = {
   GITHUB_ERROR: 0,
 };
 
-// Every status is always present, so the UI can read a zero without checking
-// whether the key exists.
+// every status key is always there, even if 0
 export function summarize(results: BulkLinkRepoResult[]): Record<BulkLinkStatus, number> {
   return results.reduce(
     (acc, result) => ({ ...acc, [result.status]: acc[result.status] + 1 }),
@@ -40,15 +39,11 @@ const CREDENTIAL_FAILURE_MESSAGE: Record<CredentialFailure, string> = {
     'Stored GitHub token could not be read on the server; signing in again will not help',
 };
 
-// Returns the failure instead of null so the batch can say which of the two it
-// hit — signing in again only fixes one of them.
 async function octokitFor(userId: string): Promise<{ octokit: Octokit } | { error: CredentialFailure }> {
   const credential = await prisma.gitHubCredential.findUnique({ where: { userId } });
   if (!credential) return { error: 'NO_CREDENTIAL' };
 
-  // Caught here so the batch still reports a status per repo instead of dying
-  // on the crypto error. Almost always a TOKEN_ENCRYPTION_KEY mismatch with
-  // the API, which is what wrote the token.
+  // usually a TOKEN_ENCRYPTION_KEY mismatch with the API
   try {
     return { octokit: githubClient(decrypt(credential.encryptedAccessToken)) };
   } catch (err) {
@@ -57,7 +52,6 @@ async function octokitFor(userId: string): Promise<{ octokit: Octokit } | { erro
   }
 }
 
-// Same status for every repo — the batch never got as far as looking at them.
 export function credentialFailureResults(
   githubRepoIds: number[],
   reason: CredentialFailure,
@@ -69,11 +63,6 @@ export function credentialFailureResults(
   }));
 }
 
-/**
- * Links every repo in the batch, one at a time, and records how each went.
- * Repos the user has no admin on are the normal case, not an error — the job
- * only fails if it can't get started at all.
- */
 export async function bulkLinkProcessor(job: Job<BulkLinkJobData>): Promise<BulkLinkJobResult> {
   const { userId, orgId, githubRepoIds } = job.data;
   const total = githubRepoIds.length;
@@ -83,8 +72,7 @@ export async function bulkLinkProcessor(job: Job<BulkLinkJobData>): Promise<Bulk
 
   const credential = await octokitFor(userId);
 
-  // No usable token means every repo would fail the same way, so don't make N
-  // calls to find that out.
+  // no token means they'd all fail anyway
   if ('error' in credential) {
     const out = credentialFailureResults(githubRepoIds, credential.error);
     await job.updateProgress({ done: total, total });
@@ -92,8 +80,7 @@ export async function bulkLinkProcessor(job: Job<BulkLinkJobData>): Promise<Bulk
   }
   const octokit = credential.octokit;
 
-  // Sequential on purpose. GitHub rate-limits parallel writes, and a batch
-  // that trips that limit fails repos that were otherwise fine.
+  // one by one, github rate-limits parallel writes
   for (const githubRepoId of githubRepoIds) {
     const outcome = await linkRepo(
       octokit,

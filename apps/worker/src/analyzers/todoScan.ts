@@ -15,16 +15,12 @@ export interface TodoScanReport {
   counts: Record<TodoMarker, number>;
 }
 
-// Only a marker that opens a comment counts. Uppercase only, so a "todo list"
-// in a string or a sentence in a docblock doesn't turn into debt.
+// only uppercase markers at the start of a comment
 const markerPattern = /^\s*(?:\/\/|#|\/\*+|\*|<!--|--)\s*(TODO|FIXME|HACK|XXX)\b:?\s*(.*)$/;
 
-// The message becomes a database row, so a wall of text after the marker is
-// cut short.
 const maxTextLength = 200;
 
-// Same list the other analyzers ignore: vendored, generated and virtualenv code
-// isn't the author's work, and scanning it buries whatever they did write.
+// vendored, generated and virtualenv code
 const ignoredDirs = new Set([
   '.git',
   '.venv',
@@ -61,19 +57,15 @@ function isGenerated(name: string): boolean {
   return name.endsWith('.min.js') || name.endsWith('.bundle.js');
 }
 
-/**
- * Finds every debt marker in one file's text. Pure so the regex can be tested
- * without touching the disk.
- */
 export function scanSource(text: string): Omit<TodoMatch, 'file'>[] {
   const found: Omit<TodoMatch, 'file'>[] = [];
 
-  // A regex `.` stops at \r, so a CRLF file would never match otherwise.
+  // handle CRLF files
   text.split(/\r?\n/).forEach((line, index) => {
     const match = markerPattern.exec(line);
     if (!match) return;
 
-    // A block comment closer on the same line is noise, not the author's note.
+    // strip */ or --> at the end
     const body = match[2].replace(/\*\/\s*$|-->\s*$/, '').trim();
 
     found.push({
@@ -93,7 +85,7 @@ async function walk(root: string, dir: string, matches: TodoMatch[]): Promise<vo
     const path = join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      // isDirectory() is false for symlinks, so this can't loop.
+      // symlinks aren't followed so no loops
       if (!ignoredDirs.has(entry.name)) await walk(root, path, matches);
       continue;
     }
@@ -102,8 +94,7 @@ async function walk(root: string, dir: string, matches: TodoMatch[]): Promise<vo
       continue;
     }
 
-    // Forward slashes so the path reads the same as the CLI tools' output on
-    // every platform.
+    // forward slashes on every platform
     const file = relative(root, path).split('\\').join('/');
     const text = await readFile(path, 'utf8');
 
@@ -111,11 +102,7 @@ async function walk(root: string, dir: string, matches: TodoMatch[]): Promise<vo
   }
 }
 
-/**
- * Walks a cloned checkout for TODO, FIXME, HACK and XXX comments. These are the
- * debt the authors already admitted to, which no linter reports. Turning them
- * into findings is the normalize stage's job.
- */
+// finds TODO / FIXME / HACK / XXX comments
 export async function runTodoScan(repoPath: string): Promise<TodoScanReport> {
   const matches: TodoMatch[] = [];
   await walk(repoPath, repoPath, matches);

@@ -5,11 +5,10 @@ import { logger } from '../lib/logger';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
-// The Expo Push API rejects a request with more than 100 messages in it.
+// expo max per request
 const CHUNK_SIZE = 100;
 
-// Must match the channel the mobile app creates, or Android files the push
-// under a generic "Miscellaneous" channel.
+// must match the channel the app creates
 const ANDROID_CHANNEL_ID = 'default';
 
 export interface PushBatch {
@@ -32,14 +31,7 @@ type ExpoPushTicket =
   | { status: 'ok'; id: string }
   | { status: 'error'; message: string; details?: { error?: string } };
 
-/**
- * Pushes the notifications one analysis produced to every active device of
- * the users they were written for.
- *
- * Called after the ingest transaction commits and never throws: the rows are
- * already stored and the in-app inbox shows them either way, so a push that
- * fails is logged and dropped rather than failing the worker's request.
- */
+// never throws, a failed push is just logged
 export async function sendPushNotifications(batch: PushBatch): Promise<void> {
   try {
     await dispatch(batch);
@@ -62,8 +54,7 @@ async function dispatch({ repoId, userIds, events }: PushBatch): Promise<void> {
     return;
   }
 
-  // Tickets come back in message order, so each message keeps the device it
-  // went to — that is how a DeviceNotRegistered ticket finds its row.
+  // tickets come back in the same order as messages
   const outgoing = devices.flatMap((device) =>
     events.map((event) => ({
       deviceId: device.id,
@@ -92,8 +83,7 @@ async function dispatch({ repoId, userIds, events }: PushBatch): Promise<void> {
       }
     });
 
-    // The app was uninstalled or the token rotated. Stop sending to it; the
-    // app re-registers (and reactivates the row) if it ever comes back.
+    // app uninstalled or token changed
     if (unregistered.size > 0) {
       await prisma.device.updateMany({
         where: { id: { in: [...unregistered] } },

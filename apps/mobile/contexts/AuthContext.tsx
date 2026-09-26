@@ -54,9 +54,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore a persisted session on app start by refreshing rather than
-  // trusting a stored access token — access tokens are short-lived (15 min),
-  // so a token surviving a cold start is almost always already expired.
+  // refresh on start, a saved access token is probably expired
   useEffect(() => {
     const restore = async () => {
       const stored = await getStoredRefreshToken();
@@ -80,8 +78,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     restore();
   }, []);
 
-  // A failed refresh mid-session (triggered by any api.* call, not just this
-  // file) lands here instead of the caller having to handle it individually.
+  // failed refresh mid-session
   useEffect(
     () =>
       onAuthLost(() => {
@@ -119,8 +116,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const logout = useCallback(async () => {
-    // First, while the access token still works — a signed-out phone must
-    // stop getting the previous user's alerts.
+    // do this first while the token still works
     await unregisterFromPush();
 
     const stored = await getStoredRefreshToken();
@@ -129,7 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await api.post('/auth/logout', { refreshToken: stored });
       }
     } catch {
-      // Even if the server call fails, clear local state
+      // clear local state anyway
     }
 
     setAccessToken(null);

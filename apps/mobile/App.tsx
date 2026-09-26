@@ -13,8 +13,7 @@ function Root() {
   const { isLoaded, notificationsEnabled } = usePreferences();
   const { colors, isDark } = useTheme();
 
-  // Push follows the Profile toggle: signed in with notifications on means
-  // this phone is registered, anything else means it isn't.
+  // registered only when signed in with notifications on
   const wantsPush = isAuthenticated && isLoaded && notificationsEnabled;
   useEffect(() => {
     void (wantsPush ? registerForPush() : unregisterFromPush());
@@ -23,7 +22,7 @@ function Root() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {/* Wait for stored preferences too, so a dark-mode user never sees a light flash. */}
+      {/* wait for prefs so dark mode doesn't flash light */}
       {isLoading || !isLoaded ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={colors.primary} />

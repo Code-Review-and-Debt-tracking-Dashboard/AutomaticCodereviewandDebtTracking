@@ -10,19 +10,14 @@ interface ErrorStateProps {
   title?: string;
   message?: string;
   onRetry?: () => void;
-  /** Dims and disables Retry while a load is already in flight. */
   retrying?: boolean;
-  /** Inline banner for a failed refresh over data that is still on screen. */
+  /** small banner over data that's still shown */
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 const DEFAULT_MESSAGE = 'An error occurred while fetching information. Please try again.';
 
-/**
- * Failure state with an explicit retry. Full variant replaces the screen body;
- * compact variant sits above content that is still usable.
- */
 export function ErrorState({
   title = 'Something went wrong',
   message = DEFAULT_MESSAGE,
