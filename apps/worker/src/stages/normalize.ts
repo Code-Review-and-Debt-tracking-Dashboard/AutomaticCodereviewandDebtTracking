@@ -13,6 +13,7 @@ import type { PmdPriority, PmdReport } from '../analyzers/pmd';
 import type { PylintMessageType, PylintReport } from '../analyzers/pylint';
 import type { RadonMiRank, RadonRank, RadonReport } from '../analyzers/radon';
 import type { TodoMarker, TodoScanReport } from '../analyzers/todoScan';
+import { isTestPath } from '../lib/testCode';
 
 // Remediation minutes per finding. Exported because the debt score is the sum of
 // these and has to use the same numbers.
@@ -41,7 +42,6 @@ const eslintCategories: Record<string, FindingCategory> = {
   complexity: 'COMPLEXITY',
   'max-depth': 'COMPLEXITY',
   'max-lines-per-function': 'COMPLEXITY',
-  'sonarjs/cognitive-complexity': 'COMPLEXITY',
   'sonarjs/no-identical-functions': 'DUPLICATION',
   'sonarjs/no-duplicated-branches': 'DUPLICATION',
   'sonarjs/no-duplicate-string': 'DUPLICATION',
@@ -63,6 +63,20 @@ const eslintCategories: Record<string, FindingCategory> = {
   'sonarjs/strict-transport-security': 'VULNERABILITY',
 };
 
+function eslintSeverity(category: FindingCategory, level: 1 | 2): Severity {
+  // Both security rule sets only ever say "make sure this is safe", and they
+  // disagree on level for the same kind of defect — the security plugin ships
+  // every rule as a warning, sonarjs as an error — so the level tells us
+  // nothing here and they all land on HIGH. Only bandit, which reports its
+  // own confidence, is sure enough about a vulnerability to be CRITICAL.
+  if (category === 'VULNERABILITY') return 'HIGH';
+  // The presets make nearly every style rule an error, so an unused import
+  // would otherwise weigh as much as a vulnerability. One step down puts it
+  // where pylint puts the same thing.
+  if (category === 'CODE_SMELL') return level === 2 ? 'MEDIUM' : 'LOW';
+  return level === 2 ? 'HIGH' : 'MEDIUM';
+}
+
 export function fromEslint(report: EslintReport): AnalysisFinding[] {
   const findings: AnalysisFinding[] = [];
 
@@ -71,18 +85,15 @@ export function fromEslint(report: EslintReport): AnalysisFinding[] {
       // A parse error means our fixed config couldn't read the file. That's a
       // fact about this worker, not about their code.
       if (message.fatal || !message.ruleId) continue;
+      // A disable comment for a plugin we don't load, e.g. react-hooks. Also
+      // about our config, not their code.
+      if (message.message.startsWith('Definition for rule ')) continue;
 
       const category =
         eslintCategories[message.ruleId] ??
         (message.ruleId.startsWith('security/') ? 'VULNERABILITY' : 'CODE_SMELL');
 
-      // Both security rule sets only ever say "make sure this is safe", and they
-      // disagree on level for the same kind of defect — the security plugin ships
-      // every rule as a warning, sonarjs as an error — so the level tells us
-      // nothing here and they all land on HIGH. Only bandit, which reports its
-      // own confidence, is sure enough about a vulnerability to be CRITICAL.
-      const severity: Severity =
-        category === 'VULNERABILITY' ? 'HIGH' : message.severity === 2 ? 'HIGH' : 'MEDIUM';
+      const severity = eslintSeverity(category, message.severity);
 
       findings.push(
         complete({
@@ -441,7 +452,7 @@ export function normalize(reports: AnalyzerReports) {
     ...(reports.cppcheck ? fromCppcheck(reports.cppcheck) : []),
     ...(reports.jscpd ? fromJscpd(reports.jscpd) : []),
     ...(reports.todoScan ? fromTodoScan(reports.todoScan) : []),
-  ];
+  ].filter((f) => !f.file || !isTestPath(f.file));
 
   // No analyzer promises an order, and the same commit has to produce the same
   // list every time.

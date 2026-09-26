@@ -27,11 +27,17 @@ const ignoredDirs = [
   'build',
   'dist',
   'migrations',
+  // test code isn't scored, and the percentage can't be filtered afterwards
+  'test',
+  'tests',
+  '__tests__',
 ];
+
+const testFiles = ['**/*.test.*', '**/*.spec.*', '**/test_*.py', '**/*_test.py'];
 
 // These are file globs, not directory names, so the wildcards are what catch the
 // directory at any depth.
-const ignores = ignoredDirs.map((dir) => `**/${dir}/**`).join(',');
+const ignores = [...ignoredDirs.map((dir) => `**/${dir}/**`), ...testFiles].join(',');
 
 export interface JscpdClone {
   format: string;

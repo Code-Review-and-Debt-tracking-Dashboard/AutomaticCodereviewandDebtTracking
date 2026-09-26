@@ -2,6 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import { extname, join } from 'path';
 
 import { logger } from '../lib/logger';
+import { isTestDir, isTestFile } from '../lib/testCode';
 
 export type Language = 'javascript' | 'python' | 'java' | 'cpp';
 
@@ -76,13 +77,14 @@ async function countByLanguage(
   for (const entry of entries) {
     if (entry.isDirectory()) {
       // isDirectory() is false for symlinks, so this can't loop.
-      if (!skipDirs.has(entry.name)) {
+      // test code isn't scored, so its lines don't count either
+      if (!skipDirs.has(entry.name) && !isTestDir(entry.name)) {
         await countByLanguage(join(dir, entry.name), counts, totals);
       }
       continue;
     }
 
-    if (isGenerated(entry.name)) continue;
+    if (isGenerated(entry.name) || isTestFile(entry.name)) continue;
 
     const language = extensions[extname(entry.name).toLowerCase()];
     if (language) {

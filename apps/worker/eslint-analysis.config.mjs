@@ -24,13 +24,36 @@ export default [
     },
   },
 
-  // Cognitive complexity, duplicated branches, dead-code patterns — bug and
-  // smell rules eslint:recommended doesn't have. Its own equivalents of our
-  // complexity/duplication rules ship turned off in this preset, so it's
-  // additive rather than a second opinion on the same threshold.
+  // Duplicated branches, dead-code patterns — bug and smell rules
+  // eslint:recommended doesn't have.
   {
     ...sonarjs.configs.recommended,
     files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+  },
+
+  // Rules that would count the same line twice. complexity, no-unused-vars and
+  // the todo scan already report these.
+  {
+    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+    rules: {
+      'sonarjs/cognitive-complexity': 'off',
+      'sonarjs/no-unused-vars': 'off',
+      'sonarjs/unused-import': 'off',
+      'sonarjs/todo-tag': 'off',
+      'sonarjs/fixme-tag': 'off',
+      // Fires on every obj[key], even when the key is a constant. Almost all
+      // false positives.
+      'security/detect-object-injection': 'off',
+    },
+  },
+
+  // A leading _ marks a parameter kept only for its position, like express's
+  // four-argument error handler.
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
   },
 
   // Listing the ts/jsx extensions here is also what pulls those files into the
@@ -54,7 +77,7 @@ export default [
       globals: { ...globals.node, ...globals.browser },
     },
     rules: {
-      'no-unused-vars': 'warn',
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
 
