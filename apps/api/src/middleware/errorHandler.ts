@@ -37,6 +37,13 @@ export function errorHandler(
     return;
   }
 
+  // body parser errors (bad json, body too big) are the client's fault
+  const status = (err as { status?: unknown }).status;
+  if (err instanceof Error && 'type' in err && typeof status === 'number' && status < 500) {
+    res.status(status).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+    return;
+  }
+
   // don't leak internals to the client
   logger.error({ err }, 'Unhandled error');
   res.status(500).json({

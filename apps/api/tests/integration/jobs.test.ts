@@ -268,6 +268,22 @@ describe('agent job endpoints', () => {
       const res = await api().post(`/jobs/${job.id}/results`).set(auth).send(payload);
       expect(res.status).toBe(400);
     });
+
+    it('stores a run with thousands of findings', async () => {
+      const findings = Array(2000).fill(results(job.id).findings[0]);
+
+      const res = await api().post(`/jobs/${job.id}/results`).set(auth).send(results(job.id, { findings }));
+      expect(res.status).toBe(200);
+      expect(await prisma.finding.count({ where: { repoId: repo.id } })).toBe(2000);
+    });
+
+    it('rejects a body over the size limit with 413, not 500', async () => {
+      const finding = { ...results(job.id).findings[0], message: 'x'.repeat(6_000_000) };
+
+      const res = await api().post(`/jobs/${job.id}/results`).set(auth).send(results(job.id, { findings: [finding] }));
+      expect(res.status).toBe(413);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
   });
 
   describe('notification creation', () => {
