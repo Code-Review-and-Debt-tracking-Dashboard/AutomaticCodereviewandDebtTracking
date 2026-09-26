@@ -1,7 +1,4 @@
-/*
- * Shared recharts styling so every chart in the app reads the same:
- * mono tick labels, hairline grid, tokens only — no hard-coded colours.
- */
+// shared recharts styles
 
 export const CHART_TICK = {
   fill: "hsl(var(--muted-foreground))",

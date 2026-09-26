@@ -32,9 +32,6 @@ import { ProfilePage } from "../pages/global/ProfilePage";
 export function AppRoutes() {
   return (
       <Routes>
-        {/* =========================
-            PUBLIC ROUTES
-        ========================== */}
 
         <Route
           path="/login"
@@ -45,10 +42,6 @@ export function AppRoutes() {
           path="/auth/callback"
           element={<AuthCallbackPage />}
         />
-
-        {/* =========================
-            PROTECTED APPLICATION ROUTES
-        ========================== */}
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
@@ -95,10 +88,6 @@ export function AppRoutes() {
               path="/profile"
               element={<ProfilePage />}
             />
-
-            {/* =========================
-                REPOSITORY SPECIFIC ROUTES
-            ========================== */}
 
             <Route
               path="/repositories/:repoId"
@@ -147,10 +136,6 @@ export function AppRoutes() {
 
           </Route>
         </Route>
-
-        {/* =========================
-            FALLBACK ROUTE
-        ========================== */}
 
         <Route
           path="*"

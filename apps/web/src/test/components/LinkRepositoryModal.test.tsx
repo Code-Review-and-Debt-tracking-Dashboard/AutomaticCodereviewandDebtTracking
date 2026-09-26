@@ -51,7 +51,6 @@ describe("LinkRepositoryModal Component", () => {
   });
 
   it("fetches and renders available repositories when modal opens", async () => {
-    // Component calls api.get<{ data: AvailableRepo[] }>(...) and reads res.data
     mockedApi.get.mockResolvedValueOnce({ data: mockAvailableRepos });
 
     render(
@@ -73,7 +72,6 @@ describe("LinkRepositoryModal Component", () => {
 
   it("links selected repositories via bulk-link when Link button is clicked", async () => {
     mockedApi.get.mockResolvedValueOnce({ data: mockAvailableRepos });
-    // Component calls api.post<{ jobId: string; total: number }>(...) and reads res.jobId
     mockedApi.post.mockResolvedValueOnce({ jobId: "job-xyz", total: 1 });
 
     const handleRepoLinked = vi.fn();
@@ -92,7 +90,7 @@ describe("LinkRepositoryModal Component", () => {
       expect(screen.getByText("backend-service")).toBeInTheDocument();
     });
 
-    // Click the repo row to select it (only non-linked repos are selectable)
+    // select the repo row
     const repoRow = screen.getByText("backend-service").closest("div[class*='cursor-pointer']") ??
       screen.getByText("backend-service").closest("div");
     await user.click(repoRow!);

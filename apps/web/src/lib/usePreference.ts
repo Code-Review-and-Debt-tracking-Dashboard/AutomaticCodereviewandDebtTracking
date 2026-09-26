@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 
 const CHANGE_EVENT = "preference-change";
 
-/*
- * A setting saved in this browser. Every component reading the same key
- * updates together, so the topbar and settings page never disagree.
- */
+// saved in the browser, components using the same key stay in sync
 export function usePreference<T extends string>(key: string, fallback: T) {
   const [value, setValue] = useState<T>(() => (localStorage.getItem(key) as T | null) ?? fallback);
 

@@ -1,19 +1,6 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 
-/*
- * =========================================================
- * PAGE HEADER — Composable page header component
- * =========================================================
- *
- * Slots:
- *   PageHeader       — outer container, draws the ruler rule
- *   PageHeaderBadge  — mono eyebrow above the title
- *   PageHeaderTitle  — h1 heading
- *   PageHeaderDescription — subtitle text
- *   PageHeaderActions — right-aligned action buttons
- */
-
 interface PageHeaderProps {
   children: ReactNode;
   className?: string;
@@ -35,8 +22,6 @@ export function PageHeader({ children, className = "" }: PageHeaderProps) {
   );
 }
 
-/* ---------- Eyebrow ---------- */
-
 interface SlotProps {
   children: ReactNode;
   className?: string;
@@ -49,8 +34,6 @@ export function PageHeaderBadge({ children, className = "" }: SlotProps) {
     </p>
   );
 }
-
-/* ---------- Title ---------- */
 
 export function PageHeaderTitle({ children, className = "" }: SlotProps) {
   return (
@@ -66,8 +49,6 @@ export function PageHeaderTitle({ children, className = "" }: SlotProps) {
   );
 }
 
-/* ---------- Description ---------- */
-
 export function PageHeaderDescription({ children, className = "" }: SlotProps) {
   return (
     <p className={`mt-2 max-w-2xl text-sm text-muted-foreground ${className}`}>
@@ -75,8 +56,6 @@ export function PageHeaderDescription({ children, className = "" }: SlotProps) {
     </p>
   );
 }
-
-/* ---------- Actions ---------- */
 
 export function PageHeaderActions({ children, className = "" }: SlotProps) {
   return (

@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { healthBand } from "../../lib/healthBand";
 
-// The boundaries are the whole point: they must match the worker's PR comment
-// and the band table in the scoring documentation.
+// must match the worker's PR comment
 describe("healthBand", () => {
   it.each([
     [100, "Excellent"],

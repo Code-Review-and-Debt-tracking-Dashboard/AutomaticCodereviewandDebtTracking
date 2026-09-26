@@ -3,9 +3,6 @@ interface LoadingStateProps {
   className?: string;
 }
 
-/*
- * Waiting state — three ticks drifting like a live readout.
- */
 export function LoadingState({
   message = "Loading data...",
   className = "",

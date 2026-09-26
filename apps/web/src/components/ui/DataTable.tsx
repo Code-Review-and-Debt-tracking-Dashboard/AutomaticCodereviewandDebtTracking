@@ -1,16 +1,5 @@
 import type { ReactNode } from "react";
 
-/*
- * =========================================================
- * DATA TABLE — Styled table with headers and rows
- * =========================================================
- *
- * Hairline dividers and mono column headers so long lists
- * of findings stay scannable.
- */
-
-/* ---------- Table Root ---------- */
-
 interface TableProps {
   children?: ReactNode;
   className?: string;
@@ -24,8 +13,6 @@ export function DataTable({ children, className = "" }: TableProps) {
     </div>
   );
 }
-
-/* ---------- Table Head ---------- */
 
 export function DataTableHead({ children, className = "" }: TableProps) {
   return (
@@ -43,8 +30,6 @@ export function DataTableHead({ children, className = "" }: TableProps) {
   );
 }
 
-/* ---------- Table Body ---------- */
-
 export function DataTableBody({ children, className = "" }: TableProps) {
   return (
     <tbody className={`divide-y divide-border/60 ${className}`}>
@@ -52,8 +37,6 @@ export function DataTableBody({ children, className = "" }: TableProps) {
     </tbody>
   );
 }
-
-/* ---------- Table Row ---------- */
 
 export function DataTableRow({ children, className = "", onClick }: TableProps) {
   return (
@@ -69,8 +52,6 @@ export function DataTableRow({ children, className = "", onClick }: TableProps) 
     </tr>
   );
 }
-
-/* ---------- Table Header Cell ---------- */
 
 interface CellProps {
   children?: ReactNode;
@@ -102,8 +83,6 @@ export function DataTableHeaderCell({
     </th>
   );
 }
-
-/* ---------- Table Cell ---------- */
 
 export function DataTableCell({
   children,

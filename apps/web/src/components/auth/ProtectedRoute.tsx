@@ -4,17 +4,7 @@ import { Loader2 } from "lucide-react";
 
 import { useAuth } from "../../contexts/AuthContext";
 
-/*
- * =========================================================
- * PROTECTED ROUTE WRAPPER (D-04a)
- * =========================================================
- *
- * Wraps any <Route> that requires authentication.
- *
- * - While the auth token is being validated → loading spinner
- * - If not authenticated → redirect to /login
- * - If authenticated → render child routes via <Outlet />
- */
+// spinner while loading, /login if signed out, otherwise the child routes
 
 export function ProtectedRoute() {
   const { isAuthenticated, isLoading } = useAuth();

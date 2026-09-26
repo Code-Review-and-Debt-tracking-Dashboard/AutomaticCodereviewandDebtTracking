@@ -2,17 +2,6 @@ import type { ComponentType } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { Badge } from "./Badge";
 
-/*
- * =========================================================
- * NOTIFICATION ITEM — Individual notification row
- * =========================================================
- *
- * Renders a single notification with icon, title,
- * description, timestamp, repo badge, unread indicator,
- * and action buttons. Used on the Notifications page
- * and in the Topbar notification dropdown.
- */
-
 interface NotificationItemProps {
   icon?: ComponentType<{ size?: number; className?: string }>;
   iconColor?: string;

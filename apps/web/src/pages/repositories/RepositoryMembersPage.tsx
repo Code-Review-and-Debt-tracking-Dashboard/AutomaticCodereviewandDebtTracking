@@ -41,8 +41,6 @@ interface RepoMember {
   addedAt: string;
 }
 
-// What each role can actually do, in plain words — a viewer is often someone
-// who does not work in the code.
 const ROLES = [
   {
     value: "TEAM_LEAD",

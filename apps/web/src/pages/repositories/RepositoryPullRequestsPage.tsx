@@ -34,10 +34,6 @@ import {
   DataTableCell,
 } from "../../components/ui";
 
-/* =========================================================
-   TYPES
-========================================================= */
-
 interface PullItem {
   id: number;
   title: string;
@@ -51,10 +47,6 @@ interface PullItem {
 }
 
 
-
-/* =========================================================
-   COMPONENT
-========================================================= */
 
 export function RepositoryPullRequestsPage() {
   const { repoId } = useParams<{ repoId: string }>();

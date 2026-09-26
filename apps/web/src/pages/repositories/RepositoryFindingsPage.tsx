@@ -64,7 +64,6 @@ interface FindingsResponse {
   data: ApiFinding[];
 }
 
-// API uses SCREAMING_SNAKE; the table reads better in title case.
 function titleCase(value: string): string {
   return value
     .toLowerCase()

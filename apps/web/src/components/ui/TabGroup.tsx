@@ -1,12 +1,3 @@
-/*
- * =========================================================
- * TAB GROUP — Underlined tab switcher
- * =========================================================
- *
- * A rule with the active tab marked underneath, rather
- * than floating pills.
- */
-
 interface Tab {
   id: string;
   label: string;
