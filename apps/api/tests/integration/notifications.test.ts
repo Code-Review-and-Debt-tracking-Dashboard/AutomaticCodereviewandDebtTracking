@@ -108,3 +108,53 @@ describe('PUT /api/notifications/read-all', () => {
     expect((await prisma.notification.findUnique({ where: { id: theirs.id } }))?.readAt).toBeNull();
   });
 });
+
+describe('DELETE /api/notifications/:notificationId', () => {
+  it('401 without a token', async () => {
+    const user = await createUser();
+    const n = await createNotification(user);
+    const res = await api().delete(`/api/notifications/${n.id}`);
+    expect(res.status).toBe(401);
+  });
+
+  it("404 for another user's notification, and it stays", async () => {
+    const user = await createUser();
+    const theirs = await createNotification(await createUser());
+
+    const res = await api().delete(`/api/notifications/${theirs.id}`).set(bearer(user));
+
+    expect(res.status).toBe(404);
+    expect(await prisma.notification.findUnique({ where: { id: theirs.id } })).not.toBeNull();
+  });
+
+  it('deletes it', async () => {
+    const user = await createUser();
+    const n = await createNotification(user);
+
+    const res = await api().delete(`/api/notifications/${n.id}`).set(bearer(user));
+
+    expect(res.status).toBe(204);
+    expect(await prisma.notification.findUnique({ where: { id: n.id } })).toBeNull();
+  });
+});
+
+describe('DELETE /api/notifications', () => {
+  it('401 without a token', async () => {
+    const res = await api().delete('/api/notifications');
+    expect(res.status).toBe(401);
+  });
+
+  it("clears all of the caller's notifications and nobody else's", async () => {
+    const user = await createUser();
+    const other = await createUser();
+    await createNotification(user);
+    await createNotification(user);
+    const theirs = await createNotification(other);
+
+    const res = await api().delete('/api/notifications').set(bearer(user));
+
+    expect(res.status).toBe(204);
+    expect(await prisma.notification.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.notification.findUnique({ where: { id: theirs.id } })).not.toBeNull();
+  });
+});

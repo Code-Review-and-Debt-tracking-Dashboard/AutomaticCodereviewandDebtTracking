@@ -112,4 +112,31 @@ describe("GlobalNotificationsPage", () => {
     expect(screen.getByText("findings page")).toBeInTheDocument();
     expect(mockedApi.put).toHaveBeenCalledWith("/api/notifications/n-1/read");
   });
+
+  it("deletes a notification on the server before removing it", async () => {
+    mockedApi.get.mockResolvedValue({ data: apiNotifications } as any);
+    mockedApi.delete.mockResolvedValue({} as any);
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText("Critical finding in api");
+    await user.click(screen.getAllByTitle("Delete")[0]);
+
+    expect(mockedApi.delete).toHaveBeenCalledWith("/api/notifications/n-1");
+    expect(screen.queryByText("Critical finding in api")).not.toBeInTheDocument();
+  });
+
+  it("keeps everything and shows the error when clearing fails", async () => {
+    mockedApi.get.mockResolvedValue({ data: apiNotifications } as any);
+    mockedApi.delete.mockRejectedValue({ response: { data: { error: { message: "Server busy" } } } });
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText("Critical finding in api");
+    await user.click(screen.getByRole("button", { name: /clear all/i }));
+
+    expect(mockedApi.delete).toHaveBeenCalledWith("/api/notifications");
+    expect(await screen.findByText("Server busy")).toBeInTheDocument();
+    expect(screen.getByText("Critical finding in api")).toBeInTheDocument();
+  });
 });

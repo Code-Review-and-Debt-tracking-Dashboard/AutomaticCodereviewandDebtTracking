@@ -187,12 +187,22 @@ export function GlobalNotificationsPage() {
     navigate(`/repositories/${n.repository.id}${toFindings ? "/findings" : ""}`);
   };
 
-  const deleteOne = (id: string) => {
-    setNotifications((curr) => curr.filter((n) => n.id !== id));
+  const deleteOne = async (id: string) => {
+    try {
+      await api.delete(`/api/notifications/${id}`);
+      setNotifications((curr) => curr.filter((n) => n.id !== id));
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to delete the notification."));
+    }
   };
 
-  const clearAll = () => {
-    setNotifications([]);
+  const clearAll = async () => {
+    try {
+      await api.delete("/api/notifications");
+      setNotifications([]);
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to clear notifications."));
+    }
   };
 
 

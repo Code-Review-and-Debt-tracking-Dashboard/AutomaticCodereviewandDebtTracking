@@ -402,7 +402,7 @@ describe('agent job endpoints', () => {
           expect.objectContaining({
             to: device.expoPushToken,
             title: expect.stringContaining(repo.name),
-            data: { type: 'QUALITY_GATE_FAILED', repoId: repo.id },
+            data: { type: 'QUALITY_GATE_FAILED', repoId: repo.id, repoName: repo.name },
           }),
         ]);
       });
