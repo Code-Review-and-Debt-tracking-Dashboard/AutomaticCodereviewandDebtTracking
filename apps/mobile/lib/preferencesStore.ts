@@ -6,11 +6,17 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 export interface Preferences {
   theme: ThemePreference;
   notificationsEnabled: boolean;
+  /** Org the Repositories tab shows. null → the first org the API returns. */
+  activeOrgId: string | null;
+  /** Screen guides the user has finished or skipped. */
+  toursDone: string[];
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'system',
   notificationsEnabled: true,
+  activeOrgId: null,
+  toursDone: [],
 };
 
 const PREFERENCES_KEY = 'ch_preferences';
@@ -34,6 +40,11 @@ export async function loadPreferences(): Promise<Preferences> {
         typeof parsed.notificationsEnabled === 'boolean'
           ? parsed.notificationsEnabled
           : DEFAULT_PREFERENCES.notificationsEnabled,
+      activeOrgId:
+        typeof parsed.activeOrgId === 'string' ? parsed.activeOrgId : DEFAULT_PREFERENCES.activeOrgId,
+      toursDone: Array.isArray(parsed.toursDone)
+        ? parsed.toursDone.filter((id): id is string => typeof id === 'string')
+        : DEFAULT_PREFERENCES.toursDone,
     };
   } catch {
     // A corrupt or unreadable value shouldn't stop the app from starting.

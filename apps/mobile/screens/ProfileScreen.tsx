@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -14,15 +14,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { Card, ErrorState, Eyebrow, Logo, ScreenHeader } from '../components';
+import { ScreenTour } from '../components/ScreenTour';
 import type { ThemePreference } from '../lib/preferencesStore';
 import { fonts, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
+import type { RootTabParamList } from '../navigation/TabNavigator';
 
 interface Org {
   id: string;
@@ -50,8 +54,20 @@ export default function ProfileScreen() {
     setThemePreference,
     notificationsEnabled,
     setNotificationsEnabled,
+    activeOrgId,
+    setActiveOrgId,
+    replayTours,
   } = usePreferences();
   const [signingOut, setSigningOut] = useState(false);
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+  const appearanceRef = useRef<View>(null);
+  const notificationsRef = useRef<View>(null);
+  const orgsRef = useRef<View>(null);
+
+  const replay = () => {
+    replayTours();
+    navigation.navigate('Overview');
+  };
 
   const orgs = useAsyncData(async () => {
     const res = await api.get<{ data: Org[] }>('/api/orgs');
@@ -80,6 +96,10 @@ export default function ProfileScreen() {
   };
 
   const initials = (user?.username ?? '?').slice(0, 2).toUpperCase();
+
+  // Same fallback as the Repositories tab: no saved (or a stale) choice → first org.
+  const orgList = orgs.data ?? [];
+  const selectedOrgId = orgList.find((o) => o.id === activeOrgId)?.id ?? orgList[0]?.id;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -127,7 +147,7 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Appearance */}
-        <Card title="Appearance">
+        <Card ref={appearanceRef} title="Appearance">
           <View style={styles.segmented} accessibilityRole="radiogroup">
             {THEME_OPTIONS.map((opt) => {
               const selected = themePreference === opt.value;
@@ -160,7 +180,7 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Notifications */}
-        <Card title="Notifications">
+        <Card ref={notificationsRef} title="Notifications">
           <View style={styles.settingRow}>
             <View style={[styles.settingIcon, { backgroundColor: notificationsEnabled ? colors.accent : colors.muted }]}>
               <Ionicons
@@ -193,35 +213,70 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Organizations */}
-        <Card title="Organizations">
+        <Card ref={orgsRef} title="Organizations">
           {orgs.loading ? (
             <Text style={styles.help}>Loading…</Text>
           ) : orgs.error && !orgs.data ? (
             <ErrorState compact message={orgs.error} onRetry={() => void orgs.load()} style={styles.noMargin} />
-          ) : (orgs.data ?? []).length === 0 ? (
+          ) : orgList.length === 0 ? (
             <Text style={styles.help}>You are not a member of any organization yet.</Text>
           ) : (
-            (orgs.data ?? []).map((org, idx) => (
-              <View key={org.id} style={[styles.orgRow, idx > 0 && styles.orgRowBorder]}>
-                {org.avatarUrl ? (
-                  <Image source={{ uri: org.avatarUrl }} style={styles.orgAvatar} />
-                ) : (
-                  <View style={[styles.orgAvatar, styles.avatarFallback]}>
-                    <Ionicons name="business-outline" size={14} color={colors.primary} />
-                  </View>
-                )}
-                <View style={styles.orgText}>
-                  <Text style={styles.orgName} numberOfLines={1}>
-                    {org.name ?? org.login}
-                  </Text>
-                  <Text style={styles.orgLogin} numberOfLines={1}>
-                    {org.login}
-                  </Text>
-                </View>
-                <Text style={styles.orgRole}>{formatRole(org.role)}</Text>
+            <>
+              <View style={styles.orgList} accessibilityRole="radiogroup">
+                {orgList.map((org) => {
+                  const selected = org.id === selectedOrgId;
+                  return (
+                    <Pressable
+                      key={org.id}
+                      style={[styles.orgRow, selected && styles.orgRowSelected]}
+                      onPress={() => setActiveOrgId(org.id)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`${org.name ?? org.login}, ${formatRole(org.role)}`}
+                    >
+                      {org.avatarUrl ? (
+                        <Image source={{ uri: org.avatarUrl }} style={styles.orgAvatar} />
+                      ) : (
+                        <View style={[styles.orgAvatar, styles.avatarFallback]}>
+                          <Ionicons name="business-outline" size={14} color={colors.primary} />
+                        </View>
+                      )}
+                      <View style={styles.orgText}>
+                        <Text style={styles.orgName} numberOfLines={1}>
+                          {org.name ?? org.login}
+                        </Text>
+                        <Text style={styles.orgLogin} numberOfLines={1}>
+                          {formatRole(org.role)} · {org.login}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={selected ? colors.primary : colors.border}
+                      />
+                    </Pressable>
+                  );
+                })}
               </View>
-            ))
+              {orgList.length > 1 ? (
+                <Text style={styles.help}>The Repositories tab shows the selected organization.</Text>
+              ) : null}
+            </>
           )}
+        </Card>
+
+        {/* Help */}
+        <Card title="Help">
+          <TouchableOpacity style={styles.settingRow} activeOpacity={0.7} onPress={replay}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.accent }]}>
+              <Ionicons name="help-circle-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.settingText}>
+              <Text style={styles.settingTitle}>Replay tutorial</Text>
+              <Text style={styles.settingHelp}>Walk through the app's screens again.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
         </Card>
 
         <TouchableOpacity
@@ -239,6 +294,11 @@ export default function ProfileScreen() {
           <Eyebrow>CodePulse mobile</Eyebrow>
         </View>
       </ScrollView>
+
+      <ScreenTour
+        id="profile"
+        targets={{ appearance: appearanceRef, notifications: notificationsRef, orgs: orgsRef }}
+      />
     </SafeAreaView>
   );
 }
@@ -373,15 +433,23 @@ const makeStyles = (c: ThemeColors) =>
     noMargin: {
       marginBottom: 0,
     },
+    orgList: {
+      gap: 4,
+    },
     orgRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.md,
       paddingVertical: 10,
+      paddingHorizontal: spacing.sm,
+      marginHorizontal: -spacing.sm,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: 'transparent',
     },
-    orgRowBorder: {
-      borderTopWidth: 1,
-      borderTopColor: c.divider,
+    orgRowSelected: {
+      backgroundColor: c.accent,
+      borderColor: `${c.primary}33`,
     },
     orgAvatar: {
       width: 32,
@@ -399,13 +467,6 @@ const makeStyles = (c: ThemeColors) =>
     orgLogin: {
       fontFamily: fonts.mono,
       fontSize: 11,
-      color: c.textMuted,
-    },
-    orgRole: {
-      fontFamily: fonts.mono,
-      fontSize: 10,
-      letterSpacing: 0.8,
-      textTransform: 'uppercase',
       color: c.textMuted,
     },
     signOut: {

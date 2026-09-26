@@ -43,7 +43,7 @@ interface PullItem {
   title: string;
   author: string;
   branch: string;
-  score: number;
+  score: number | null;
   findings: number;
   debtDelta: number;
   status: string;
@@ -195,7 +195,7 @@ export function RepositoryPullRequestsPage() {
                   <div
                     className={`text-sm font-bold ${healthBand(pr.score).textClass}`}
                   >
-                    {pr.score}
+                    {pr.score ?? "—"}
                   </div>
                 </DataTableCell>
 

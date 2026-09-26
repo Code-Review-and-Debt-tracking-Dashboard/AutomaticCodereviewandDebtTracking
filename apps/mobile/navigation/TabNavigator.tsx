@@ -1,5 +1,10 @@
-import { useMemo } from 'react';
-import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  DarkTheme,
+  DefaultTheme,
+  NavigationContainer,
+  useNavigationContainerRef,
+} from '@react-navigation/native';
 import type { NavigatorScreenParams, Theme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -10,6 +15,7 @@ import OverviewScreen from '../screens/OverviewScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RepoSummaryScreen from '../screens/RepoSummaryScreen';
 import { useTheme } from '../contexts/PreferencesContext';
+import { onPushTap } from '../lib/pushNotifications';
 import { fonts } from '../theme';
 
 export type HomeStackParamList = {
@@ -62,6 +68,15 @@ function HomeStackScreen() {
 
 export default function TabNavigator() {
   const { colors, isDark } = useTheme();
+  const navigationRef = useNavigationContainerRef<RootTabParamList>();
+  const [navReady, setNavReady] = useState(false);
+
+  // Tapping a push opens the inbox. Waits for the container, or a tap that
+  // cold-started the app would navigate before there is anything to navigate.
+  useEffect(() => {
+    if (!navReady) return;
+    return onPushTap(() => navigationRef.navigate('Notifications'));
+  }, [navReady, navigationRef]);
 
   // Keeps react-navigation's own surfaces (headers, transitions, the flash
   // behind a screen while it mounts) on the same palette as the screens.
@@ -82,7 +97,7 @@ export default function TabNavigator() {
   }, [colors, isDark]);
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} onReady={() => setNavReady(true)} theme={navTheme}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,

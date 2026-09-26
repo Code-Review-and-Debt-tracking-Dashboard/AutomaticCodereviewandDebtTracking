@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { api } from '../lib/apiClient';
+import { onPushActivity } from '../lib/pushNotifications';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { EmptyState, ErrorState, LoadingState, ScreenHeader } from '../components';
+import { ScreenTour } from '../components/ScreenTour';
 import { fonts, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 
@@ -143,6 +145,7 @@ const SwipeableItem = ({
 };
 
 export default function NotificationsScreen() {
+  const firstNotificationRef = useRef<View>(null);
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { notificationsEnabled, setNotificationsEnabled } = usePreferences();
@@ -151,6 +154,9 @@ export default function NotificationsScreen() {
     const res = await api.get<{ data: NotificationData[] }>('/api/notifications');
     return res.data ?? [];
   });
+
+  // The tab stays mounted, so without this a push would open a stale list.
+  useEffect(() => onPushActivity(() => void load(true)), [load]);
 
   const notifications = data ?? [];
   const unreadCount = notifications.filter((n) => !n.readAt).length;
@@ -255,12 +261,14 @@ export default function NotificationsScreen() {
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <SwipeableItem
-              item={item}
-              onDismiss={() => void handleDismiss(item.id)}
-              onPress={() => void handleMarkRead(item.id)}
-            />
+          renderItem={({ item, index }) => (
+            <View ref={index === 0 ? firstNotificationRef : undefined} collapsable={false}>
+              <SwipeableItem
+                item={item}
+                onDismiss={() => void handleDismiss(item.id)}
+                onPress={() => void handleMarkRead(item.id)}
+              />
+            </View>
           )}
           contentContainerStyle={
             notifications.length === 0
@@ -296,6 +304,8 @@ export default function NotificationsScreen() {
           }
         />
       )}
+
+      <ScreenTour id="notifications" targets={{ firstNotification: firstNotificationRef }} />
     </SafeAreaView>
   );
 }

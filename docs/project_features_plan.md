@@ -383,6 +383,10 @@ the week carrying the Week 10 spillover.
 > it documents the intent if push is ever restored.
 > **Step 77 no longer waits on step 52.** It now waits on 76. In-app notification rows are still
 > created; only the push dispatch that would have consumed them is gone.
+>
+> **Restored 25 Sep (Vidushi).** `A-23`, `A-24`, `E-08` and a minimal `E-09` (tap opens the
+> Notifications tab) were picked back up once the rest of the mobile work was done. Tested on Android
+> only, through an EAS development build — Expo Go on Android can't receive push since SDK 53.
 
 ---
 

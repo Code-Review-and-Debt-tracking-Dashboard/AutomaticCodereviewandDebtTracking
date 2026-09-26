@@ -84,8 +84,16 @@ const SPEC_GATE = gate({
   maxCodeSmellCount: 50,
 });
 
-const metricTableRows = (body: string) =>
-  body.split('\n').filter((line) => line.startsWith('| ') && !line.startsWith('| Metric'));
+// Body rows of the table whose header starts with the given text.
+const tableRows = (body: string, header: string) => {
+  const lines = body.split('\n');
+  const start = lines.findIndex((line) => line.startsWith(header));
+  if (start === -1) return [];
+  const end = lines.indexOf('', start);
+  return lines.slice(start + 2, end === -1 ? undefined : end);
+};
+
+const metricTableRows = (body: string) => tableRows(body, '| Metric');
 
 describe('formatMinutes', () => {
   it('formats zero, whole hours, and mixed durations', () => {
@@ -135,7 +143,7 @@ describe('buildPrComment', () => {
     const lines = body.split('\n');
 
     expect(lines[0]).toBe(COMMENT_MARKER);
-    expect(lines[1]).toBe('## CodeHealth — Health Score 100');
+    expect(lines[1]).toBe('## CodePulse — Health Score 100');
     expect(body).toContain('🟢 **Excellent**');
     expect(body).toContain('### Technical debt: 0m (first analysis, no baseline)');
     expect(body).toContain('No findings — nothing to remediate.');
@@ -150,7 +158,7 @@ describe('buildPrComment', () => {
       gate: null,
     });
 
-    expect(body).toContain('### Technical debt: 6h 20m (⚠️ ▲ +45m since last analysis)');
+    expect(body).toContain('### Technical debt: 6h 20m (⚠ ▲ +45m since last analysis)');
   });
 
   it('marks decreased debt as good with a down arrow', () => {
@@ -161,7 +169,7 @@ describe('buildPrComment', () => {
       gate: null,
     });
 
-    expect(body).toContain('(✅ ▼ -15m since last analysis)');
+    expect(body).toContain('(✔ ▼ -15m since last analysis)');
   });
 
   it('reports unchanged debt when the delta is zero and a baseline exists', () => {
@@ -172,7 +180,7 @@ describe('buildPrComment', () => {
       gate: null,
     });
 
-    expect(body).toContain('(✅ no change since last analysis)');
+    expect(body).toContain('(✔ no change since last analysis)');
   });
 
   it('shows the health score delta against the baseline in the heading', () => {
@@ -182,7 +190,7 @@ describe('buildPrComment', () => {
       baseline: { healthScore: 76.5 },
       gate: null,
     });
-    expect(down).toContain('## CodeHealth — Health Score 72.4 ▼ 4.1');
+    expect(down).toContain('## CodePulse — Health Score 72.4 ▼ 4.1');
 
     const up = buildPrComment({
       metrics: metrics({ healthScore: 80 }),
@@ -190,7 +198,7 @@ describe('buildPrComment', () => {
       baseline: { healthScore: 76.5 },
       gate: null,
     });
-    expect(up).toContain('## CodeHealth — Health Score 80 ▲ +3.5');
+    expect(up).toContain('## CodePulse — Health Score 80 ▲ +3.5');
 
     const same = buildPrComment({
       metrics: metrics({ healthScore: 80 }),
@@ -198,7 +206,7 @@ describe('buildPrComment', () => {
       baseline: { healthScore: 80 },
       gate: null,
     });
-    expect(same).toContain('## CodeHealth — Health Score 80\n');
+    expect(same).toContain('## CodePulse — Health Score 80\n');
   });
 
   it('omits the heading arrow when there is no baseline', () => {
@@ -209,7 +217,7 @@ describe('buildPrComment', () => {
       gate: null,
     });
 
-    expect(body).toContain('## CodeHealth — Health Score 72.4\n');
+    expect(body).toContain('## CodePulse — Health Score 72.4\n');
     expect(body).not.toContain('▼');
     expect(body).not.toContain('▲');
   });
@@ -248,14 +256,34 @@ describe('buildPrComment', () => {
       gate: null,
     });
 
-    const rows = body.split('\n').filter((line) => line.startsWith('| ') && !line.startsWith('| Category'));
-    expect(rows).toEqual([
+    expect(tableRows(body, '| Category')).toEqual([
       '| Vulnerabilities | 1 | 1h |',
       '| Complexity | 1 | 1h |',
       '| Code smells | 2 | 25m |',
     ]);
-    expect(body).not.toContain('Duplication');
-    expect(body).not.toContain('Maintainability');
+  });
+
+  it('lists every finding count, with or without a gate', () => {
+    const body = buildPrComment({
+      metrics: metrics({
+        criticalCount: 1,
+        vulnerabilityCount: 17,
+        duplicationPct: 3.46,
+        codeSmellCount: 14,
+      }),
+      findings: [],
+      baseline: null,
+      gate: null,
+    });
+
+    expect(body).toContain('### Findings\n\n| Finding | Count |\n|---|---:|');
+    expect(tableRows(body, '| Finding')).toEqual([
+      '| Critical findings | 1 |',
+      '| Vulnerabilities | 17 |',
+      '| Duplication | 3.5% |',
+      '| Complexity issues | 0 |',
+      '| Code smells | 14 |',
+    ]);
   });
 });
 
@@ -317,15 +345,15 @@ describe('buildPrComment metrics table', () => {
     });
 
     expect(body).toContain('🟡 **Good** · Quality gate: **FAILED** — 3 of 6 metrics breached');
-    expect(body).toContain('| Metric | Value | Threshold |  |\n|---|---:|---:|:-:|');
+    expect(body).toContain('| Metric | Value | Target |  |\n|---|---:|---:|:-:|');
     expect(metricTableRows(body)).toEqual([
-      '| Critical findings | 2 | ≤ 0 | ❌ |',
-      '| Vulnerabilities | 5 | ≤ 3 | ❌ |',
-      '| Duplication | 8.1% | ≤ 5% | ❌ |',
-      '| Health Score | 72.4 | ≥ 60 | ✅ |',
-      '| Complexity issues | 12 | ≤ 20 | ✅ |',
-      '| Code smells | 47 | ≤ 50 | ✅ |',
-      '| Technical debt | 6h 20m | ▲ +45m | ⚠️ |',
+      '| Critical findings | 2 | ≤ 0 | ✘ |',
+      '| Vulnerabilities | 5 | ≤ 3 | ✘ |',
+      '| Duplication | 8.1% | ≤ 5% | ✘ |',
+      '| Health Score | 72.4 | ≥ 60 | ✔ |',
+      '| Complexity issues | 12 | ≤ 20 | ✔ |',
+      '| Code smells | 47 | ≤ 50 | ✔ |',
+      '| Technical debt | 6h 20m (▲ +45m) | no increase | ⚠ |',
     ]);
   });
 
@@ -337,7 +365,7 @@ describe('buildPrComment metrics table', () => {
       gate: gate({ maxDuplicationPct: 5 }),
     });
 
-    expect(body).toContain('| Duplication | 5% | ≤ 5% | ❌ |');
+    expect(body).toContain('| Duplication | 5% | ≤ 5% | ✘ |');
   });
 
   it('adds the breach count only on FAIL and never counts the debt row', () => {
@@ -349,7 +377,7 @@ describe('buildPrComment metrics table', () => {
     });
     expect(passed).toContain('Quality gate: **PASSED**\n');
     expect(passed).not.toContain('metrics breached');
-    expect(passed).toContain('| Technical debt | 0m | ▲ +45m | ⚠️ |');
+    expect(passed).toContain('| Technical debt | 0m (▲ +45m) | no increase | ⚠ |');
 
     const failed = buildPrComment({
       metrics: metrics({ healthScore: 40, debtDeltaMinutes: 45, gateResult: 'FAIL' }),
@@ -360,14 +388,14 @@ describe('buildPrComment metrics table', () => {
     expect(failed).toContain('Quality gate: **FAILED** — 1 of 1 metrics breached');
   });
 
-  it('shows the debt trend as a down arrow, a dash, or no status on a first analysis', () => {
+  it('shows the debt trend next to the value, and drops the row on a first analysis', () => {
     const down = buildPrComment({
       metrics: metrics({ debtMinutes: 200, debtDeltaMinutes: -15 }),
       findings: [],
       baseline: { healthScore: 90 },
       gate: gate(),
     });
-    expect(down).toContain('| Technical debt | 3h 20m | ▼ -15m | ✅ |');
+    expect(down).toContain('| Technical debt | 3h 20m (▼ -15m) | no increase | ✔ |');
 
     const held = buildPrComment({
       metrics: metrics({ debtMinutes: 200, debtDeltaMinutes: 0 }),
@@ -375,7 +403,7 @@ describe('buildPrComment metrics table', () => {
       baseline: { healthScore: 90 },
       gate: gate(),
     });
-    expect(held).toContain('| Technical debt | 3h 20m | — | ✅ |');
+    expect(held).toContain('| Technical debt | 3h 20m | no increase | ✔ |');
 
     const first = buildPrComment({
       metrics: metrics({ debtMinutes: 200 }),
@@ -383,7 +411,7 @@ describe('buildPrComment metrics table', () => {
       baseline: null,
       gate: gate(),
     });
-    expect(first).toContain('| Technical debt | 3h 20m | — | — |');
+    expect(first).not.toContain('| Technical debt |');
   });
 
   it('keeps the debt-by-category table below the metrics table', () => {
@@ -395,7 +423,7 @@ describe('buildPrComment metrics table', () => {
     });
     const lines = body.split('\n');
 
-    expect(lines.indexOf('| Metric | Value | Threshold |  |')).toBeLessThan(
+    expect(lines.indexOf('| Metric | Value | Target |  |')).toBeLessThan(
       lines.indexOf('### Technical debt: 1h (first analysis, no baseline)'),
     );
     expect(body).toContain('| Vulnerabilities | 1 | 1h |');

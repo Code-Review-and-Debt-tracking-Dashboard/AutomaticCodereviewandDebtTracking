@@ -6,7 +6,7 @@ import type {
 } from '@codehealth/shared';
 
 // Lets the poster find its own comment on a PR if botCommentId is ever lost.
-export const COMMENT_MARKER = '<!-- codehealth-bot -->';
+export const COMMENT_MARKER = '<!-- codepulse-bot -->';
 
 export interface CommentInput {
   metrics: SnapshotMetrics;
@@ -78,7 +78,7 @@ export function debtByCategory(
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
 function healthScoreHeading(score: number, baseline: CommentInput['baseline']): string {
-  let heading = `## CodeHealth — Health Score ${score}`;
+  let heading = `## CodePulse — Health Score ${score}`;
   if (baseline) {
     const delta = round1(score - baseline.healthScore);
     if (delta > 0) heading += ` ▲ +${delta}`;
@@ -89,9 +89,9 @@ function healthScoreHeading(score: number, baseline: CommentInput['baseline']): 
 
 function debtDeltaText(deltaMinutes: number, baseline: CommentInput['baseline']): string {
   if (!baseline) return 'first analysis, no baseline';
-  if (deltaMinutes > 0) return `⚠️ ▲ +${formatMinutes(deltaMinutes)} since last analysis`;
-  if (deltaMinutes < 0) return `✅ ▼ -${formatMinutes(deltaMinutes)} since last analysis`;
-  return '✅ no change since last analysis';
+  if (deltaMinutes > 0) return `⚠ ▲ +${formatMinutes(deltaMinutes)} since last analysis`;
+  if (deltaMinutes < 0) return `✔ ▼ -${formatMinutes(deltaMinutes)} since last analysis`;
+  return '✔ no change since last analysis';
 }
 
 function debtTable(findings: AnalysisFinding[]): string[] {
@@ -125,11 +125,7 @@ function maxRow(
   return { label, value: format(value), threshold: `≤ ${format(max)}`, passed: value <= max };
 }
 
-/**
- * One row per configured threshold, failing rows first so the reason a gate
- * failed is the first thing read. Within each group the order is fixed, so
- * two runs with the same breaches render identically.
- */
+// Only the metrics the gate checks. Failing rows first so the reason shows up top.
 export function metricRows(metrics: SnapshotMetrics, gate: QualityGateThresholds): MetricRow[] {
   const candidates: Array<MetricRow | null> = [
     {
@@ -149,18 +145,17 @@ export function metricRows(metrics: SnapshotMetrics, gate: QualityGateThresholds
   return [...rows.filter((row) => !row.passed), ...rows.filter((row) => row.passed)];
 }
 
-// Debt has no threshold on QualityGate, so it is a trend indicator only and
-// never counts towards the breached total.
-function debtRow(metrics: SnapshotMetrics, baseline: CommentInput['baseline']): string {
-  const value = formatMinutes(metrics.debtMinutes);
-  if (!baseline) return `| Technical debt | ${value} | — | — |`;
+// Debt isn't part of the gate, so it never counts as breached. It just
+// shouldn't go up. Left out on a first run since there's nothing to compare.
+function debtRow(metrics: SnapshotMetrics, baseline: CommentInput['baseline']): string[] {
+  if (!baseline) return [];
 
   const delta = metrics.debtDeltaMinutes;
-  let trend = '—';
-  if (delta > 0) trend = `▲ +${formatMinutes(delta)}`;
-  else if (delta < 0) trend = `▼ -${formatMinutes(delta)}`;
+  let value = formatMinutes(metrics.debtMinutes);
+  if (delta > 0) value += ` (▲ +${formatMinutes(delta)})`;
+  else if (delta < 0) value += ` (▼ -${formatMinutes(delta)})`;
 
-  return `| Technical debt | ${value} | ${trend} | ${delta > 0 ? '⚠️' : '✅'} |`;
+  return [`| Technical debt | ${value} | no increase | ${delta > 0 ? '⚠' : '✔'} |`];
 }
 
 function metricsTable(
@@ -169,12 +164,25 @@ function metricsTable(
   baseline: CommentInput['baseline'],
 ): string[] {
   return [
-    '| Metric | Value | Threshold |  |',
+    '| Metric | Value | Target |  |',
     '|---|---:|---:|:-:|',
     ...rows.map(
-      (row) => `| ${row.label} | ${row.value} | ${row.threshold} | ${row.passed ? '✅' : '❌'} |`,
+      (row) => `| ${row.label} | ${row.value} | ${row.threshold} | ${row.passed ? '✔' : '✘'} |`,
     ),
-    debtRow(metrics, baseline),
+    ...debtRow(metrics, baseline),
+  ];
+}
+
+// Every count for the run, whether the gate checks it or not.
+function findingsTable(metrics: SnapshotMetrics): string[] {
+  return [
+    '| Finding | Count |',
+    '|---|---:|',
+    `| Critical findings | ${metrics.criticalCount} |`,
+    `| Vulnerabilities | ${metrics.vulnerabilityCount} |`,
+    `| Duplication | ${percent(metrics.duplicationPct)} |`,
+    `| Complexity issues | ${metrics.complexityCount} |`,
+    `| Code smells | ${metrics.codeSmellCount} |`,
   ];
 }
 
@@ -205,6 +213,10 @@ export function buildPrComment({ metrics, findings, baseline, gate }: CommentInp
     statusParts.join(' · '),
     '',
     ...(gate ? [...metricsTable(rows, metrics, baseline), ''] : []),
+    '### Findings',
+    '',
+    ...findingsTable(metrics),
+    '',
     `### Technical debt: ${formatMinutes(metrics.debtMinutes)} (${debtDeltaText(metrics.debtDeltaMinutes, baseline)})`,
     '',
     ...debtTable(findings),

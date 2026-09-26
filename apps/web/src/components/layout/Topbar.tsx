@@ -360,6 +360,7 @@ OUTSIDE CLICK HANDLER
         <div ref={orgDropdownRef} className="relative">
           <button
             type="button"
+            data-tour="org-switcher"
             onClick={() => {
               setOrgOpen((previous) => !previous);
 
@@ -580,6 +581,7 @@ OUTSIDE CLICK HANDLER
               setProfileOpen(false);
             }}
             aria-label="Notifications"
+            data-tour="notifications"
             className={`relative ${controlClass}`}
           >
             <NotificationIcon size={17} />

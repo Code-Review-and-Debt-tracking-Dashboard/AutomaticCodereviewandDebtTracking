@@ -81,6 +81,12 @@ export interface QualityGateThresholds {
   blockPR: boolean;
 }
 
+// The earlier run this one is compared against, for the delta and finding states.
+export interface BaselineSnapshot {
+  healthScore: number;
+  findings: AnalysisFinding[];
+}
+
 export interface AnalysisResultsPayload {
   analysisId: string;
   // The sha actually checked out. Manual runs are queued as 'HEAD', so the

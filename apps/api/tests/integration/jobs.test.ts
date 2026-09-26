@@ -8,13 +8,16 @@ import {
 } from '@codehealth/db';
 import type { AnalysisResultsPayload, SnapshotMetrics } from '@codehealth/shared';
 import crypto from 'crypto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { api } from '../helpers/app';
 import {
   addRepoMember,
   createAnalysisJob,
+  createDevice,
+  createFinding,
   createOrg,
+  createPullRequest,
   createQualityGate,
   createRepo,
   createSnapshot,
@@ -173,6 +176,52 @@ describe('agent job endpoints', () => {
     });
   });
 
+  describe('GET /jobs/:jobId/baseline', () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+
+    it('returns 204 when there is no earlier run to compare against', async () => {
+      const res = await api().get(`/jobs/${job.id}/baseline`).set(auth);
+      expect(res.status).toBe(204);
+    });
+
+    it('compares a push with the latest run on its own branch', async () => {
+      await createSnapshot(repo, { healthScore: 60, calculatedAt: hoursAgo(3) });
+      const latest = await createSnapshot(repo, { healthScore: 70, calculatedAt: hoursAgo(2) });
+      await createFinding(latest, { rule: 'no-eval', debtMinutes: 30 });
+      const other = await createAnalysisJob(repo, { branch: 'feature/other' });
+      await createSnapshot(repo, { healthScore: 90, calculatedAt: hoursAgo(1) }, other);
+      // A PR opened from main runs on the same branch name, but is not a push.
+      const pr = await createPullRequest(repo, { headBranch: 'main', baseBranch: 'release' });
+      const prRun = await createAnalysisJob(repo, { branch: 'main', pullRequestId: pr.id });
+      await createSnapshot(repo, { healthScore: 95, calculatedAt: hoursAgo(1) }, prRun);
+
+      const res = await api().get(`/jobs/${job.id}/baseline`).set(auth);
+
+      expect(res.status).toBe(200);
+      expect(res.body.healthScore).toBe(70);
+      expect(res.body.findings).toEqual([
+        expect.objectContaining({ rule: 'no-eval', debtMinutes: 30, tool: 'eslint' }),
+      ]);
+    });
+
+    it('compares a PR with its target branch, not with earlier PR runs', async () => {
+      const pr = await createPullRequest(repo, { baseBranch: 'main' });
+      const prJob = await createAnalysisJob(repo, {
+        status: 'PENDING',
+        branch: pr.headBranch,
+        pullRequestId: pr.id,
+      });
+      await createSnapshot(repo, { healthScore: 75, calculatedAt: hoursAgo(2) });
+      const earlierPrRun = await createAnalysisJob(repo, { branch: pr.headBranch, pullRequestId: pr.id });
+      await createSnapshot(repo, { healthScore: 95, calculatedAt: hoursAgo(1) }, earlierPrRun);
+
+      const res = await api().get(`/jobs/${prJob.id}/baseline`).set(auth);
+
+      expect(res.status).toBe(200);
+      expect(res.body.healthScore).toBe(75);
+    });
+  });
+
   describe('POST /jobs/:jobId/results', () => {
     it('writes the snapshot, the findings and the job transition', async () => {
       const res = await api().post(`/jobs/${job.id}/results`).set(auth).send(results(job.id));
@@ -314,6 +363,35 @@ describe('agent job endpoints', () => {
       await ingest();
       expect(await rows()).toHaveLength(1);
     });
+
+    describe('push', () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("sends what it notified to the users' phones once the results are stored", async () => {
+        const device = await createDevice(owner);
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+          const messages = JSON.parse(String(init?.body)) as unknown[];
+          return new Response(JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 'receipt' })) }));
+        });
+
+        const res = await ingest();
+        expect(res.status).toBe(200);
+
+        // The push goes out after the response, so it has to be waited for.
+        await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+        const [url, init] = fetchSpy.mock.calls[0];
+        expect(String(url)).toBe('https://exp.host/--/api/v2/push/send');
+        expect(JSON.parse(String(init?.body))).toEqual([
+          expect.objectContaining({
+            to: device.expoPushToken,
+            title: expect.stringContaining(repo.name),
+            data: { type: 'QUALITY_GATE_FAILED', repoId: repo.id },
+          }),
+        ]);
+      });
+    });
   });
 
   describe('POST /jobs/:jobId/fail', () => {
@@ -339,13 +417,16 @@ describe('agent job endpoints', () => {
 
       const start = await api().post(`/jobs/${job.id}/start`).set(otherAuth);
       const gate = await api().get(`/jobs/${job.id}/quality-gate`).set(otherAuth);
+      const baseline = await api().get(`/jobs/${job.id}/baseline`).set(otherAuth);
       const ingest = await api().post(`/jobs/${job.id}/results`).set(otherAuth).send(results(job.id));
       const fail = await api()
         .post(`/jobs/${job.id}/fail`)
         .set(otherAuth)
         .send({ analysisId: job.id, stage: 'clone', errorMessage: 'x', retryCount: 0 });
 
-      expect([start.status, gate.status, ingest.status, fail.status]).toEqual([404, 404, 404, 404]);
+      expect([start.status, gate.status, baseline.status, ingest.status, fail.status]).toEqual([
+        404, 404, 404, 404, 404,
+      ]);
       expect(await prisma.healthSnapshot.count({ where: { analysisId: job.id } })).toBe(0);
     });
   });

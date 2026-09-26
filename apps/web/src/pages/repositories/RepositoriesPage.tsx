@@ -270,6 +270,7 @@ export function RepositoriesPage() {
 
         <PageHeaderActions>
           <Button
+            data-tour="add-repo"
             onClick={() => setIsLinkModalOpen(true)}
             variant="primary"
           >
@@ -280,7 +281,7 @@ export function RepositoriesPage() {
       </PageHeader>
 
       {/* SUMMARY CARDS */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div data-tour="repo-stats" className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={RepositoriesIcon}
           title="Total repositories"
@@ -641,6 +642,7 @@ function RepositoryCard({
           </div>
 
           <Button
+            data-tour={index === 0 ? "repo-card" : undefined}
             onClick={(e) => {
               e.stopPropagation();
               onSelect();

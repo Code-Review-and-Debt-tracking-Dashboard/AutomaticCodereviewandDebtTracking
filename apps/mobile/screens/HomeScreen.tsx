@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
-import { useThemedStyles, useTheme } from '../contexts/PreferencesContext';
+import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { EmptyState, ErrorState, LoadingState, ScreenHeader } from '../components';
+import { ScreenTour } from '../components/ScreenTour';
 import { fonts, healthBand, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 import type { HomeStackParamList } from '../navigation/TabNavigator';
@@ -27,30 +28,36 @@ interface MobileRepo {
   name: string;
   fullName: string;
   language: string;
-  healthScore: number;
+  healthScore: number | null;
   openFindings: number;
   debtHours: number;
   sparkline: number[];
   isPrivate: boolean;
 }
 
-async function loadRepos(): Promise<MobileRepo[]> {
-  const orgs = await api.get<{ data: { id: string }[] }>('/api/orgs');
-  const orgId = orgs.data[0]?.id;
-  if (!orgId) return [];
+interface RepoList {
+  orgName: string | null;
+  repos: MobileRepo[];
+}
+
+async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
+  const orgs = await api.get<{ data: { id: string; login: string; name: string | null }[] }>('/api/orgs');
+  // Fall back to the first org if the saved one is gone (left the org, other account).
+  const org = orgs.data.find((o) => o.id === activeOrgId) ?? orgs.data[0];
+  if (!org) return { orgName: null, repos: [] };
 
   const response = await api.get<{ data: Array<{
     id: string;
     name: string;
     fullName: string;
     language: string | null;
-    healthScore: number;
+    healthScore: number | null;
     openFindings: number;
     debtMinutes: number;
     private: boolean;
-  }> }>(`/api/orgs/${orgId}/repos`);
+  }> }>(`/api/orgs/${org.id}/repos`);
 
-  return Promise.all(response.data.map(async (repo) => {
+  const repos = await Promise.all(response.data.map(async (repo) => {
     // A missing trend shouldn't take the whole list down with it.
     const trend = await api
       .get<{ dataPoints: { healthScore: number }[] }>(`/api/repos/${repo.id}/trend?days=30`)
@@ -67,6 +74,7 @@ async function loadRepos(): Promise<MobileRepo[]> {
       isPrivate: repo.private,
     };
   }));
+  return { orgName: org.name ?? org.login, repos };
 }
 
 /**
@@ -75,11 +83,25 @@ async function loadRepos(): Promise<MobileRepo[]> {
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { colors } = useTheme();
+  const { activeOrgId } = usePreferences();
   const styles = useThemedStyles(makeStyles);
-  const { data, loading, refreshing, error, load } = useAsyncData(loadRepos);
+  const { data, loading, refreshing, error, load } = useAsyncData(
+    () => loadRepos(activeOrgId),
+    [activeOrgId],
+  );
   const [query, setQuery] = useState('');
 
-  const allRepos = data ?? [];
+  // A repo opened before the org switch belongs to the old org — drop back to the list.
+  const shownOrgId = useRef(activeOrgId);
+  const firstRepoRef = useRef<View>(null);
+  useEffect(() => {
+    if (shownOrgId.current === activeOrgId) return;
+    shownOrgId.current = activeOrgId;
+    setQuery('');
+    if (navigation.getState().index > 0) navigation.popToTop();
+  }, [activeOrgId, navigation]);
+
+  const allRepos = data?.repos ?? [];
   const needle = query.trim().toLowerCase();
   const repos = needle
     ? allRepos.filter((r) => r.fullName.toLowerCase().includes(needle))
@@ -116,16 +138,17 @@ export default function HomeScreen() {
     );
   };
 
-  const renderRepoCard = ({ item }: { item: MobileRepo }) => {
+  const renderRepoCard = ({ item, index }: { item: MobileRepo; index: number }) => {
     const band = healthBand(item.healthScore, colors);
 
     return (
       <TouchableOpacity
+        ref={index === 0 ? firstRepoRef : undefined}
         style={styles.card}
         activeOpacity={0.75}
         onPress={() => navigation.navigate('RepoSummary', { repoId: item.id, repoName: item.name })}
         accessibilityRole="button"
-        accessibilityLabel={`${item.name}, health score ${item.healthScore}, ${band.label}`}
+        accessibilityLabel={`${item.name}, health score ${item.healthScore ?? 'none'}, ${band.label}`}
       >
         <View style={styles.cardHeader}>
           <View style={styles.titleBlock}>
@@ -143,7 +166,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.scoreBlock}>
             <Text style={[styles.scoreText, { color: band.color }]}>
-              {Math.round(item.healthScore)}
+              {item.healthScore === null ? '—' : Math.round(item.healthScore)}
             </Text>
             <Text style={[styles.bandText, { color: band.color }]}>{band.label}</Text>
           </View>
@@ -181,7 +204,11 @@ export default function HomeScreen() {
       <ScreenHeader
         eyebrow="Workspace"
         title="Repositories"
-        subtitle={data ? `${allRepos.length} linked` : undefined}
+        subtitle={
+          data
+            ? [data.orgName, `${allRepos.length} linked`].filter(Boolean).join(' · ')
+            : undefined
+        }
       />
 
       {loading ? (
@@ -253,6 +280,8 @@ export default function HomeScreen() {
           }
         />
       )}
+
+      <ScreenTour id="repositories" targets={{ firstRepo: firstRepoRef }} />
     </SafeAreaView>
   );
 }

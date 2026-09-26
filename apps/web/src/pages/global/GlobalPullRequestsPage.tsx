@@ -43,7 +43,7 @@ interface PullRequestData {
   title: string;
   author: string;
   branch: string;
-  score: number;
+  score: number | null;
   findings: number;
   debtDelta: number;
   status: string;
@@ -171,7 +171,7 @@ export function GlobalPullRequestsPage() {
 
                   <div className="flex items-center gap-3 text-sm">
                     <Badge variant="muted" size="md">
-                      HEALTH SCORE {pr.score}
+                      HEALTH SCORE {pr.score ?? "—"}
                     </Badge>
                     <Badge variant="muted" size="md">
                       FINDINGS {pr.findings}

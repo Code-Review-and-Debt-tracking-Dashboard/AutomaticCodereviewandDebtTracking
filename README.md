@@ -1,6 +1,6 @@
 <div align="center">
 
-# CodeHealth
+# CodePulse
 
 **Automated Code Review & Technical Debt Tracking Dashboard**
 
@@ -22,7 +22,7 @@ Connect a GitHub repository, and every pull request is statically analysed in th
 
 ## Overview
 
-Code quality decays quietly. Individual pull requests each look reasonable, but complexity creeps up, duplication spreads, and security smells accumulate until the cost of change becomes the team's main constraint. CodeHealth makes that decay visible and measurable.
+Code quality decays quietly. Individual pull requests each look reasonable, but complexity creeps up, duplication spreads, and security smells accumulate until the cost of change becomes the team's main constraint. CodePulse makes that decay visible and measurable.
 
 When a pull request opens, GitHub fires a webhook. The API verifies it, records the analysis, and immediately enqueues a background job — the HTTP handler returns in milliseconds and never waits on analysis work. A separate worker clones the repository, runs a battery of language-appropriate static analysers, normalises every finding into a common shape, and computes two numbers: a **Health Score** (0–100) and a **Debt Score** (remediation minutes). Those land in Postgres as an immutable snapshot, so the dashboard can plot a real trend instead of a single point-in-time reading.
 
@@ -185,7 +185,7 @@ This is an active university group project. Honest state of play:
 | **Analysis worker** | 🚧 **In progress** | Queue consumer, clone, and analyser orchestration |
 | **Scoring engine** | 📋 **Designed, not built** | Formula fully specified in `docs/scoring_algorithm.md` |
 | PR comments & commit status | 📋 Planned | Depends on the worker |
-| Push notifications | 📋 Planned | Device registration modelled; dispatch not wired |
+| Push notifications | ✅ Implemented | Device registration + Expo Push API dispatch for analysis alerts (Android, EAS development build) |
 
 ---
 
@@ -259,7 +259,7 @@ Go to **Settings → Developer settings → OAuth Apps → New OAuth App**:
 
 | Field | Value |
 |---|---|
-| Application name | CodeHealth (local) |
+| Application name | CodePulse (local) |
 | Homepage URL | `http://localhost:5173` |
 | Authorization callback URL | `http://localhost:4000/auth/github/callback` |
 

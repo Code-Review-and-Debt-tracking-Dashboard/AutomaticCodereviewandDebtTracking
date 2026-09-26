@@ -3,6 +3,53 @@ import { prisma } from '@codehealth/db';
 import { AppError } from '../middleware/errorHandler';
 import { getActiveRepo } from './repoService';
 
+interface RegisterDeviceInput {
+  expoPushToken: string;
+  platform: 'ios' | 'android';
+  deviceName?: string;
+}
+
+/**
+ * Registers the caller's phone for push. The app calls this on every start,
+ * so it has to be idempotent: the token is the key, and a repeat just
+ * refreshes the row.
+ *
+ * A token that belongs to someone else moves to the caller — the same phone
+ * signed out and then signed in as another user, and pushes must follow the
+ * person who is signed in now.
+ */
+export async function registerDevice(userId: string, input: RegisterDeviceInput) {
+  const fields = {
+    userId,
+    platform: input.platform === 'ios' ? ('IOS' as const) : ('ANDROID' as const),
+    deviceName: input.deviceName ?? null,
+    active: true,
+    lastUsedAt: new Date(),
+  };
+
+  const device = await prisma.device.upsert({
+    where: { expoPushToken: input.expoPushToken },
+    create: { expoPushToken: input.expoPushToken, ...fields },
+    update: fields,
+  });
+
+  return {
+    id: device.id,
+    expoPushToken: device.expoPushToken,
+    platform: device.platform.toLowerCase(),
+    active: device.active,
+  };
+}
+
+// Someone else's device reads as missing, not forbidden, so ids can't be probed.
+export async function unregisterDevice(userId: string, deviceId: string): Promise<void> {
+  const deleted = await prisma.device.deleteMany({ where: { id: deviceId, userId } });
+
+  if (deleted.count === 0) {
+    throw new AppError(404, 'NOT_FOUND', 'Device not found');
+  }
+}
+
 export async function getMobileSummary(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -47,7 +94,7 @@ export async function getMobileSummary(userId: string) {
         id: repo.id,
         name: repo.name,
         fullName: repo.fullName,
-        healthScore: latest?.healthScore ?? 80,
+        healthScore: latest?.healthScore ?? null,
         scoreChange: latest && previous ? latest.healthScore - previous.healthScore : 0,
         openPRs: openPrByRepo.get(repo.id) ?? 0,
         criticalIssues: latest?.criticalCount ?? 0,
@@ -59,6 +106,7 @@ export async function getMobileSummary(userId: string) {
 
 interface SmellsQuery {
   limit?: unknown;
+  offset?: unknown;
 }
 
 function resolveSmellsLimit(query: SmellsQuery): number {
@@ -72,9 +120,21 @@ function resolveSmellsLimit(query: SmellsQuery): number {
   return limit;
 }
 
+function resolveSmellsOffset(query: SmellsQuery): number {
+  const offsetRaw = typeof query.offset === 'string' ? query.offset : undefined;
+  const offset = offsetRaw === undefined ? 0 : Number(offsetRaw);
+
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', '"offset" must be a non-negative integer');
+  }
+
+  return offset;
+}
+
 export async function getRepoSmells(repoId: string, query: SmellsQuery) {
   const repo = await getActiveRepo(repoId);
   const limit = resolveSmellsLimit(query);
+  const offset = resolveSmellsOffset(query);
 
   const snapshot = await prisma.healthSnapshot.findFirst({
     where: { repoId },
@@ -88,7 +148,9 @@ export async function getRepoSmells(repoId: string, query: SmellsQuery) {
   const [findings, totalSmells, newSmells] = await Promise.all([
     prisma.finding.findMany({
       where: { snapshotId: snapshot.id },
-      orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }],
+      // id tiebreak keeps pages stable: a scan inserts many findings with the same createdAt
+      orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
+      skip: offset,
       take: limit,
       select: { file: true, line: true, severity: true, rule: true, message: true, state: true },
     }),

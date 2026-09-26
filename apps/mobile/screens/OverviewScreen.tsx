@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -16,6 +16,7 @@ import { api } from '../lib/apiClient';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { Card, EmptyState, ErrorState, Eyebrow, LoadingState, ScreenHeader } from '../components';
+import { ScreenTour } from '../components/ScreenTour';
 import { fonts, healthBand, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 import type { RootTabParamList } from '../navigation/TabNavigator';
@@ -24,12 +25,14 @@ interface SummaryRepo {
   id: string;
   name: string;
   fullName: string;
-  healthScore: number;
+  healthScore: number | null;
   scoreChange: number;
   openPRs: number;
   criticalIssues: number;
   lastAnalyzedAt: string | null;
 }
+
+type AnalyzedRepo = SummaryRepo & { healthScore: number };
 
 interface MobileSummary {
   user: { username: string; avatarUrl: string | null } | null;
@@ -55,6 +58,8 @@ export default function OverviewScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { notificationsEnabled } = usePreferences();
+  const scoreRef = useRef<View>(null);
+  const statsRef = useRef<View>(null);
 
   const { data, loading, refreshing, error, load } = useAsyncData(() =>
     api.get<MobileSummary>('/api/mobile/summary'),
@@ -97,9 +102,8 @@ export default function OverviewScreen() {
     );
   }
 
-  // The API reports 80 for a repo that was never analyzed; leave those out of
-  // the averages so they don't flatter the portfolio.
-  const analyzed = data.repos.filter((r) => r.lastAnalyzedAt);
+  // repos that were never analyzed have no score yet, so leave them out of the averages
+  const analyzed = data.repos.filter((r): r is AnalyzedRepo => r.healthScore !== null);
   const average = analyzed.length
     ? Math.round(analyzed.reduce((sum, r) => sum + r.healthScore, 0) / analyzed.length)
     : null;
@@ -140,7 +144,7 @@ export default function OverviewScreen() {
     },
   ];
 
-  const renderRepoRow = (repo: SummaryRepo, detail: React.ReactNode) => {
+  const renderRepoRow = (repo: AnalyzedRepo, detail: React.ReactNode) => {
     const repoBand = healthBand(repo.healthScore, colors);
     return (
       <TouchableOpacity
@@ -195,7 +199,7 @@ export default function OverviewScreen() {
         ) : (
           <>
             {/* Portfolio score */}
-            <Card>
+            <Card ref={scoreRef}>
               <Eyebrow>Portfolio health</Eyebrow>
               <View style={styles.heroRow}>
                 <Text style={[styles.heroScore, { color: band.color }]}>{average ?? '—'}</Text>
@@ -238,7 +242,7 @@ export default function OverviewScreen() {
             </Card>
 
             {/* Stat tiles */}
-            <View style={styles.statGrid}>
+            <View ref={statsRef} collapsable={false} style={styles.statGrid}>
               {stats.map((s) => {
                 const tile = (
                   <>
@@ -305,6 +309,8 @@ export default function OverviewScreen() {
           </>
         )}
       </ScrollView>
+
+      <ScreenTour id="overview" targets={{ score: scoreRef, stats: statsRef }} />
     </SafeAreaView>
   );
 }

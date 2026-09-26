@@ -918,9 +918,9 @@ Register a device for push notifications.
 }
 ```
 
-> `platform` (`ios`/`android`) maps to the `DevicePlatform` enum (`IOS`/`ANDROID`). `installationId` is optional; when supplied it lets the same app installation re-register idempotently (unique in the schema).
+> `platform` (`ios`/`android`) maps to the `DevicePlatform` enum (`IOS`/`ANDROID`). `deviceName` is optional. The app calls this on every start, so it is idempotent: the push token is the key, and registering a known token refreshes that row, reactivates it, and moves it to the caller if another user registered it before (the same phone signed in as someone else).
 
-- **Success `201`:**
+- **Success `200`:**
 
 ```json
 {
@@ -931,16 +931,19 @@ Register a device for push notifications.
 }
 ```
 
-- **Errors:** `409` token already registered (returns existing device)
+- **Errors:** `400` not an Expo push token, or unknown `platform`
 
 > The `Device` model is defined in `database_design.md` §2/§3.8 and the schema at `packages/db/prisma/schema.prisma`.
 
 ### `DELETE /api/devices/:deviceId`
 
-Unregister a device (e.g., on logout).
+Unregister a device (on logout, or when notifications are switched off in the app).
 
 - **Auth:** Required
 - **Success:** `204 No Content`
+- **Errors:** `404` unknown device, or one that belongs to another user
+
+> **Dispatch.** When an analysis creates notifications (quality gate failed, score dropped, new critical vulnerability), the API sends the same title and body to every active device of each notified user through the Expo Push API, after the results are committed. A `DeviceNotRegistered` reply marks that device inactive. Push failures are logged and never fail the ingest — the in-app inbox has the notification either way.
 
 ### `GET /api/mobile/summary`
 
@@ -978,7 +981,7 @@ Lightweight summary designed for the mobile home screen. Single call, no paginat
 Quick-view code smells for a repo (latest snapshot), optimized for mobile card layout.
 
 - **Auth:** Required
-- **Query:** `?limit=20`
+- **Query:** `?limit=20&offset=0` (`limit` 1–100, `offset` ≥ 0; findings are ordered by severity, so `offset` pages through the rest of the list)
 - **Success `200`:**
 
 ```json

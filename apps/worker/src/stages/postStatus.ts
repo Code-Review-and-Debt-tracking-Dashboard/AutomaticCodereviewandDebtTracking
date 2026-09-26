@@ -7,7 +7,7 @@ import type { GateEvaluation } from './gate';
 
 // The check name GitHub shows on the commit. Branch protection matches on this
 // string, so changing it silently un-requires the check on every repo.
-const STATUS_CONTEXT = 'codehealth/quality-gate';
+const STATUS_CONTEXT = 'codepulse/quality-gate';
 
 export interface StatusTarget {
   owner: string;

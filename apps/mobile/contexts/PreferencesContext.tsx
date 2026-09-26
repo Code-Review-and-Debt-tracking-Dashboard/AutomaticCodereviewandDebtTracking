@@ -26,9 +26,15 @@ interface PreferencesContextValue {
   isDark: boolean;
   colors: ThemeColors;
   notificationsEnabled: boolean;
+  activeOrgId: string | null;
+  toursDone: string[];
   isLoaded: boolean;
   setThemePreference: (theme: ThemePreference) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setActiveOrgId: (orgId: string) => void;
+  finishTour: (id: string) => void;
+  skipTours: (ids: string[]) => void;
+  replayTours: () => void;
 }
 
 const PreferencesContext = createContext<PreferencesContextValue | undefined>(undefined);
@@ -80,6 +86,17 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     (notificationsEnabled: boolean) => update({ notificationsEnabled }),
     [update],
   );
+  const setActiveOrgId = useCallback((activeOrgId: string) => update({ activeOrgId }), [update]);
+  const finishTour = useCallback(
+    (id: string) => setPrefs((prev) => {
+      const next = { ...prev, toursDone: [...prev.toursDone, id] };
+      void savePreferences(next);
+      return next;
+    }),
+    [],
+  );
+  const skipTours = useCallback((toursDone: string[]) => update({ toursDone }), [update]);
+  const replayTours = useCallback(() => update({ toursDone: [] }), [update]);
 
   const scheme: 'light' | 'dark' =
     prefs.theme === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : prefs.theme;
@@ -91,11 +108,27 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       isDark: scheme === 'dark',
       colors: scheme === 'dark' ? darkColors : lightColors,
       notificationsEnabled: prefs.notificationsEnabled,
+      activeOrgId: prefs.activeOrgId,
+      toursDone: prefs.toursDone,
       isLoaded,
       setThemePreference,
       setNotificationsEnabled,
+      setActiveOrgId,
+      finishTour,
+      skipTours,
+      replayTours,
     }),
-    [prefs, scheme, isLoaded, setThemePreference, setNotificationsEnabled],
+    [
+      prefs,
+      scheme,
+      isLoaded,
+      setThemePreference,
+      setNotificationsEnabled,
+      setActiveOrgId,
+      finishTour,
+      skipTours,
+      replayTours,
+    ],
   );
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
