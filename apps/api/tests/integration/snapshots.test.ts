@@ -67,6 +67,9 @@ describe('GET /api/snapshots/:snapshotId/findings', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.snapshotId).toBe(t.snapshot.id);
+    const job = await prisma.analysisJob.findUniqueOrThrow({ where: { id: t.snapshot.analysisId } });
+    expect(res.body.repoUrl).toBe(t.repo.htmlUrl);
+    expect(res.body.commitSha).toBe(job.commitSha);
     expect(res.body.summary).toEqual({
       total: 3,
       new: 2,

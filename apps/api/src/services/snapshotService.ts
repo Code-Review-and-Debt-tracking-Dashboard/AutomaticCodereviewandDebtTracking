@@ -33,9 +33,11 @@ async function getSnapshotForAccessCheck(snapshotId: string) {
         select: {
             id: true,
             repoId: true,
+            analysis: { select: { commitSha: true } },
             repository: {
                 select: {
                     isActive: true,
+                    htmlUrl: true,
                     orgId: true,
                     ownerId: true,
                     organization: {
@@ -176,6 +178,9 @@ export async function getSnapshotFindings(snapshotId: string, userId: string, qu
 
     return {
         snapshotId,
+        // lets the dashboard link a finding to its line on GitHub
+        repoUrl: snapshot.repository.htmlUrl,
+        commitSha: snapshot.analysis.commitSha,
         summary: {
             total,
             new: newCount,

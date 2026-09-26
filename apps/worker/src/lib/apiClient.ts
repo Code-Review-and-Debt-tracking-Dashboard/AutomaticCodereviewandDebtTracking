@@ -50,3 +50,7 @@ export async function postResults(payload: AnalysisResultsPayload): Promise<void
 export async function reportFailure(payload: AnalysisFailurePayload): Promise<void> {
   await request('POST', `/jobs/${payload.analysisId}/fail`, payload);
 }
+
+export async function queueFirstAnalysis(repoId: string): Promise<void> {
+  await request('POST', `/jobs/repos/${repoId}/first-analysis`);
+}

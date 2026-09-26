@@ -43,6 +43,8 @@ function mockApi(data = findings) {
     if (url.includes("/findings")) {
       return Promise.resolve({
         snapshotId: "snap-1",
+        repoUrl: "https://github.com/acme/demo",
+        commitSha: "abc123",
         summary: {
           total: data.length,
           new: data.filter((f) => f.isNew).length,
@@ -83,6 +85,32 @@ describe("RepositoryFindingsPage", () => {
     expect(screen.getByText("security/detect-eval-with-expression")).toBeInTheDocument();
   });
 
+  it("links a finding's location to that line on GitHub", async () => {
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: /src\/index\.js/ });
+    expect(link).toHaveAttribute("href", "https://github.com/acme/demo/blob/abc123/src/index.js#L11");
+  });
+
+  it("copies only the filtered findings, or a single one, for a coding agent", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("eval with expression detected");
+
+    await user.selectOptions(screen.getByRole("combobox"), "High");
+    await user.click(screen.getByRole("button", { name: "Copy 1 finding" }));
+    const filtered = await navigator.clipboard.readText();
+    expect(filtered).toContain("in acme/demo (at commit abc123");
+    expect(filtered).toContain("1. [HIGH] src/index.js:11 — eval with expression detected");
+    expect(filtered).not.toContain("Unused variable");
+
+    await user.selectOptions(screen.getByRole("combobox"), "All");
+    await user.click(screen.getAllByRole("button", { name: "Copy this finding" })[1]);
+    const single = await navigator.clipboard.readText();
+    expect(single).toContain("1. [MEDIUM] src/users.js:4 — Unused variable detected");
+    expect(single).not.toContain("eval");
+  });
+
   it("filters findings using the search input", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -107,5 +135,16 @@ describe("RepositoryFindingsPage", () => {
     renderPage();
 
     expect(await screen.findByText(/came back clean/i)).toBeInTheDocument();
+  });
+
+  it("opens an older analysis when given ?snapshot=", async () => {
+    renderPage("/repositories/repo-1/findings?snapshot=snap-old");
+
+    expect(await screen.findByText(/showing an older analysis/i)).toBeInTheDocument();
+    expect(mockedApi.get).toHaveBeenCalledWith("/api/snapshots/snap-old/findings", { limit: 100, page: 1 });
+    expect(screen.getByRole("link", { name: /view latest/i })).toHaveAttribute(
+      "href",
+      "/repositories/repo-1/findings",
+    );
   });
 });

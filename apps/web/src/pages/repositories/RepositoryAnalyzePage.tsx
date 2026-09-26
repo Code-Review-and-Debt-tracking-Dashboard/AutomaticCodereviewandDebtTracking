@@ -3,9 +3,10 @@ import { PlayCircle } from "lucide-react";
 import {
   HealthIcon,
 } from "../../components/icons";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 
 import {
   BackLink,
@@ -60,6 +61,8 @@ export function RepositoryAnalyzePage() {
   const { repoId } = useParams();
 
   const [runs, setRuns] = useState<AnalysisRun[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -71,8 +74,11 @@ export function RepositoryAnalyzePage() {
     try {
       const result = await api.get<{ data: AnalysisRun[] }>(`/api/repos/${repoId}/analyses`);
       setRuns(result.data);
+      setLoadError(null);
     } catch (error) {
-      console.error("Failed to load analysis runs", error);
+      setLoadError(apiErrorMessage(error, "Failed to load analysis runs."));
+    } finally {
+      setIsLoaded(true);
     }
   };
 
@@ -168,7 +174,15 @@ export function RepositoryAnalyzePage() {
           </div>
 
           <CardContent className="mt-4 space-y-3 p-0">
-            {latest ? (
+            {!isLoaded ? (
+              <div className="rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
+                Loading analysis runs…
+              </div>
+            ) : loadError ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                {loadError}
+              </div>
+            ) : latest ? (
               <div className="space-y-2 rounded-xl border border-border/70 bg-background p-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Badge variant={statusBadge[latest.status].variant} dot>
@@ -183,6 +197,14 @@ export function RepositoryAnalyzePage() {
                 <p>Finished: {formatTime(latest.completedAt)}</p>
                 {latest.errorMessage && (
                   <p className="text-destructive">Error: {latest.errorMessage}</p>
+                )}
+                {latest.status === "COMPLETED" && (
+                  <Link
+                    to={`/repositories/${repoId}`}
+                    className="inline-block pt-1 font-medium text-primary hover:underline"
+                  >
+                    View results
+                  </Link>
                 )}
               </div>
             ) : (

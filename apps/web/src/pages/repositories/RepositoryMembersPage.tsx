@@ -14,6 +14,7 @@ import {
 import { useParams } from "react-router-dom";
 
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 
 import {
   BackLink,
@@ -88,7 +89,7 @@ export function RepositoryMembersPage() {
       const response = await api.get<{ data: RepoMember[] }>(`/api/repos/${repoId}/members`);
       setMembers(response?.data ?? []);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load members.");
+      setError(apiErrorMessage(err, "Failed to load members."));
       setMembers([]);
     } finally {
       setIsLoading(false);
@@ -111,7 +112,7 @@ export function RepositoryMembersPage() {
       setIsAdding(false);
       await loadMembers();
     } catch (err: any) {
-      setAddError(err?.response?.data?.message || "Could not add that person.");
+      setAddError(apiErrorMessage(err, "Could not add that person."));
     } finally {
       setIsSubmitting(false);
     }
@@ -123,7 +124,7 @@ export function RepositoryMembersPage() {
       await api.delete(`/api/repos/${repoId}/members/${member.userId}`);
       await loadMembers();
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Could not remove that person.");
+      setError(apiErrorMessage(err, "Could not remove that person."));
     } finally {
       setRemovingId(null);
     }

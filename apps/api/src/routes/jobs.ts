@@ -8,6 +8,7 @@ import { requireAgent } from '../middleware/requireAgent';
 import { validateRequest } from '../middleware/zodValidate';
 import { createAnalysisNotifications } from '../services/notificationService';
 import { sendPushNotifications } from '../services/pushService';
+import { queueFirstAnalysis } from '../services/queueService';
 
 export const jobsRouter = Router();
 
@@ -71,6 +72,29 @@ jobsRouter.post('/jobs/lease', requireAgent, async (req, res, next) => {
       cloneUrl: job.repository.cloneUrl || `${job.repository.htmlUrl}.git`,
       pullRequestId: job.pullRequestId,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+jobsRouter.post('/jobs/repos/:repoId/first-analysis', requireAgent, async (req, res, next) => {
+  try {
+    const { orgId } = req.agent!;
+    // same org rule as jobs: other orgs' repos are a 404
+    const repo = await prisma.repository.findFirst({
+      where: { id: req.params.repoId, isActive: true, ...(orgId ? { orgId } : {}) },
+      select: { id: true },
+    });
+    if (!repo) {
+      throw new AppError(404, 'NOT_FOUND', 'Repository not found');
+    }
+
+    const queued = await queueFirstAnalysis(repo.id);
+    if (!queued) {
+      res.status(204).send();
+      return;
+    }
+    res.status(202).json(queued);
   } catch (error) {
     next(error);
   }

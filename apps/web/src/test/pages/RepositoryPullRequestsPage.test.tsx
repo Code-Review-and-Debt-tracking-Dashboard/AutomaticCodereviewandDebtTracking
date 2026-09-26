@@ -82,6 +82,34 @@ describe("RepositoryPullRequestsPage", () => {
     expect(screen.getByText(/No pull requests match your filters/i)).toBeInTheDocument();
   });
 
+  it("works out the stat cards from this repo's pull requests", async () => {
+    mockedApi.get.mockResolvedValueOnce({
+      data: [
+        { ...mockPullItem[0], score: 90 },
+        { ...mockPullItem[0], id: 11, title: "Pending one", score: null, status: "Pending" },
+      ],
+    });
+
+    renderPage();
+
+    await screen.findByText("#11 Pending one");
+    const card = (title: string) => within(screen.getByText(title).parentElement!);
+    expect(card("Analyzed PRs").getByText("2")).toBeInTheDocument();
+    expect(card("Passed Quality Gate").getByText("1")).toBeInTheDocument();
+    expect(card("Needs Attention").getByText("0")).toBeInTheDocument();
+    expect(card("Average Score").getByText("90.0")).toBeInTheDocument();
+  });
+
+  it("shows the error the API sent", async () => {
+    mockedApi.get.mockRejectedValueOnce({
+      response: { data: { error: { message: "Repository not found" } } },
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Repository not found")).toBeInTheDocument();
+  });
+
   it("says none are analyzed rather than showing placeholder pull requests", async () => {
     mockedApi.get.mockResolvedValue({ data: [] } as any);
 

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GlobalPullRequestsPage } from "../../pages/global/GlobalPullRequestsPage";
@@ -30,6 +31,7 @@ const mockPRData = {
   pullRequests: [
     {
       id: 1,
+      repoId: "repo-1",
       repoName: "acme-corp/api-gateway",
       title: "Add rate limiting middleware",
       author: "octocat",
@@ -79,5 +81,41 @@ describe("GlobalPullRequestsPage", () => {
     );
 
     expect(await screen.findByText("HEALTH SCORE —")).toBeInTheDocument();
+  });
+
+  it("opens the PR's findings when a row is clicked", async () => {
+    mockedApi.get.mockResolvedValue(mockPRData);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/pull-requests"]}>
+        <Routes>
+          <Route path="/pull-requests" element={<GlobalPullRequestsPage />} />
+          <Route
+            path="/repositories/:repoId/pull-requests/:prNumber/findings"
+            element={<p>drilldown page</p>}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByText(/Add rate limiting middleware/i));
+
+    expect(screen.getByText("drilldown page")).toBeInTheDocument();
+  });
+
+  it("shows the error instead of an empty list when loading fails", async () => {
+    mockedApi.get.mockRejectedValue({
+      response: { data: { error: { message: "Organization not found" } } },
+    });
+
+    render(
+      <MemoryRouter>
+        <GlobalPullRequestsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Organization not found")).toBeInTheDocument();
+    expect(screen.queryByText("No pull requests found.")).not.toBeInTheDocument();
   });
 });

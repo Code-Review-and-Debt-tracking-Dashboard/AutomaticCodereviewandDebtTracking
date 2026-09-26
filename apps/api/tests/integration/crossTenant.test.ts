@@ -172,7 +172,8 @@ describe('cross-tenant matrix completeness', () => {
     const visit = (layers: Layer[]) => {
       for (const layer of layers) {
         if (layer.route) {
-          if (/:(repoId|orgId|snapshotId)\b/.test(layer.route.path)) {
+          // /jobs routes take agent tokens, not users; their org scoping is tested in jobs.test.ts
+          if (/:(repoId|orgId|snapshotId)\b/.test(layer.route.path) && !layer.route.path.startsWith('/jobs/')) {
             for (const method of Object.keys(layer.route.methods)) {
               found.add(`${method.toUpperCase()} ${layer.route.path}`);
             }

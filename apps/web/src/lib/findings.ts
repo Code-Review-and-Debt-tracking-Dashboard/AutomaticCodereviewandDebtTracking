@@ -22,6 +22,8 @@ export interface FindingsSummary {
 }
 
 export interface AllFindings {
+  repoUrl: string;
+  commitSha: string;
   summary: FindingsSummary;
   data: ApiFinding[];
 }
@@ -50,5 +52,10 @@ export async function fetchAllFindings(snapshotId: string): Promise<AllFindings>
     data.push(...res.data);
   }
 
-  return { summary: first.summary, data };
+  return { repoUrl: first.repoUrl, commitSha: first.commitSha, summary: first.summary, data };
+}
+
+// the file as it was at the analysed commit, so line numbers still match
+export function githubLineUrl(findings: AllFindings, file: string, line: number | null): string {
+  return `${findings.repoUrl}/blob/${findings.commitSha}/${file}${line ? `#L${line}` : ""}`;
 }

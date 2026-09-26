@@ -2,7 +2,7 @@ import { prisma } from '@codehealth/db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sendPushNotifications, type PushBatch } from '../../src/services/pushService';
-import { createDevice, createUser } from '../helpers/factories';
+import { createDevice, createOrg, createRepo, createUser } from '../helpers/factories';
 
 interface SentMessage {
   to: string;
@@ -78,6 +78,21 @@ describe('sendPushNotifications', () => {
       body: gateFailed.body,
       channelId: 'default',
       data: { type: 'QUALITY_GATE_FAILED', repoId: 'repo-1' },
+    });
+  });
+
+  it('sends the repo name so the app can open that repo', async () => {
+    const fetchSpy = mockExpo(() => ({ status: 'ok', id: 'receipt' }));
+    const user = await createUser();
+    const repo = await createRepo(await createOrg(), user, { name: 'api-gateway' });
+    await createDevice(user);
+
+    await sendPushNotifications(batch([user.id], { repoId: repo.id }));
+
+    expect(sentMessages(fetchSpy)[0].data).toEqual({
+      type: 'QUALITY_GATE_FAILED',
+      repoId: repo.id,
+      repoName: 'api-gateway',
     });
   });
 

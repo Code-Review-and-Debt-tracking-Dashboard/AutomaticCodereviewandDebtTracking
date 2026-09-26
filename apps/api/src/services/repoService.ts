@@ -345,6 +345,7 @@ export async function getRepoPullRequestDetail(repoId: string, prNumber: number)
     id: pr.id,
     prNumber: pr.prNumber,
     title: pr.title,
+    htmlUrl: pr.htmlUrl,
     authorLogin: pr.authorLogin,
     headBranch: pr.headBranch,
     baseBranch: pr.baseBranch,

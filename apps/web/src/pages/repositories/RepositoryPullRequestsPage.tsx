@@ -14,6 +14,7 @@ import {
 } from "../../components/icons";
 
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { healthBand } from "../../lib/healthBand";
 
 import {
@@ -67,7 +68,7 @@ export function RepositoryPullRequestsPage() {
         const res = await api.get<{ data: PullItem[] }>(`/api/repos/${repoId}/pulls`);
         setPrs(res?.data ?? []);
       } catch (err: any) {
-        setError(err?.response?.data?.message || "Failed to load pull requests.");
+        setError(apiErrorMessage(err, "Failed to load pull requests."));
         setPrs([]);
       } finally {
         setIsLoading(false);
@@ -78,6 +79,11 @@ export function RepositoryPullRequestsPage() {
   }, [repoId]);
 
   const pullRequests = prs;
+
+  const scores = prs.map((pr) => pr.score).filter((score): score is number => score !== null);
+  const avgScore = scores.length
+    ? (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1)
+    : "—";
 
   const filteredPRs = pullRequests.filter((pr) => {
     const matchesSearch =
@@ -110,25 +116,25 @@ export function RepositoryPullRequestsPage() {
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Analyzed PRs"
-          value="128"
+          value={String(prs.length)}
           icon={PullRequestIcon}
           color="info"
         />
         <StatCard
           title="Passed Quality Gate"
-          value="94"
+          value={String(prs.filter((pr) => pr.status === "Passed").length)}
           icon={CheckIcon}
           color="success"
         />
         <StatCard
           title="Needs Attention"
-          value="22"
+          value={String(prs.filter((pr) => pr.status === "Needs attention").length)}
           icon={AlertIcon}
           color="warning"
         />
         <StatCard
           title="Average Score"
-          value="87.4"
+          value={avgScore}
           icon={HealthIcon}
           color="primary"
         />

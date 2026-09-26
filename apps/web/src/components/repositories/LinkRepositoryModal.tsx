@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { useOrg } from "../../contexts/OrgContext";
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { Button } from "../ui";
 
 interface AvailableRepo {
@@ -100,7 +101,7 @@ export function LinkRepositoryModal({
         setAvailableRepos(res.data || []);
       } catch (err: any) {
         setError(
-          err?.response?.data?.message || "Failed to fetch available repositories."
+          apiErrorMessage(err, "Failed to fetch available repositories.")
         );
       } finally {
         setIsLoading(false);
@@ -147,7 +148,7 @@ export function LinkRepositoryModal({
       setBulkJobId(res.jobId);
     } catch (err: any) {
       setError(
-        err?.response?.data?.message || "Failed to start bulk link job."
+        apiErrorMessage(err, "Failed to start bulk link job.")
       );
     }
   };

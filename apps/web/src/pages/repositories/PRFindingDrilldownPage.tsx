@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Bug,
   Code2,
+  ExternalLink,
   GitPullRequest,
   LockKeyhole,
   ShieldAlert,
@@ -19,7 +20,9 @@ import {
   HotspotIcon,
 } from "../../components/icons";
 import { api } from "../../lib/apiClient";
-import { fetchAllFindings, titleCase, type FindingsSummary } from "../../lib/findings";
+import { apiErrorMessage } from "../../lib/apiError";
+import { fetchAllFindings, githubLineUrl, titleCase, type AllFindings } from "../../lib/findings";
+import { formatForAgent } from "../../lib/copyFindings";
 
 import {
   BackLink,
@@ -32,6 +35,7 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   FilterBar,
+  CopyButton,
 } from "../../components/ui";
 
 
@@ -67,8 +71,8 @@ export function PRFindingDrilldownPage() {
   const { repoId, prNumber } = useParams();
 
   const [realFindings, setRealFindings] = useState<FindingItem[]>([]);
-  const [summary, setSummary] = useState<FindingsSummary | null>(null);
-  const [author, setAuthor] = useState("");
+  const [result, setResult] = useState<AllFindings | null>(null);
+  const [pr, setPr] = useState<{ title: string; htmlUrl: string; authorLogin: string } | null>(null);
   const [hasAnalysis, setHasAnalysis] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,13 +89,16 @@ export function PRFindingDrilldownPage() {
       setLoadError(null);
       try {
         // findings come from the newest snapshot
-        const pr = await api.get<{ authorLogin: string; snapshots: { id: string; createdAt: string }[] }>(
-          `/api/repos/${repoId}/pulls/${prNumber}`
-        );
-        const latest = [...(pr.snapshots ?? [])].sort((a, b) =>
+        const detail = await api.get<{
+          title: string;
+          htmlUrl: string;
+          authorLogin: string;
+          snapshots: { id: string; createdAt: string }[];
+        }>(`/api/repos/${repoId}/pulls/${prNumber}`);
+        const latest = [...(detail.snapshots ?? [])].sort((a, b) =>
           b.createdAt.localeCompare(a.createdAt)
         )[0];
-        setAuthor(pr.authorLogin);
+        setPr(detail);
 
         if (!latest) {
           setRealFindings([]);
@@ -102,7 +109,7 @@ export function PRFindingDrilldownPage() {
         const res = await fetchAllFindings(latest.id);
 
         setHasAnalysis(true);
-        setSummary(res.summary);
+        setResult(res);
         // title case so the values line up with the filter options
         setRealFindings(
           res.data.map((f) => ({
@@ -118,7 +125,7 @@ export function PRFindingDrilldownPage() {
           }))
         );
       } catch (err: any) {
-        setLoadError(err?.response?.data?.message || "Failed to load findings for this pull request.");
+        setLoadError(apiErrorMessage(err, "Failed to load findings for this pull request."));
         setRealFindings([]);
       } finally {
         setIsLoading(false);
@@ -142,6 +149,8 @@ export function PRFindingDrilldownPage() {
     return matchesSearch && matchesSeverity && matchesCategory && matchesState;
   });
 
+  const summary = result?.summary;
+
   return (
     <>
 
@@ -157,13 +166,23 @@ export function PRFindingDrilldownPage() {
           <PageHeaderTitle>PR #{prNumber} Findings</PageHeaderTitle>
 
           <PageHeaderDescription>
-            Review specific code quality issues introduced or resolved in this pull request.
+            {pr?.title ?? "Code quality issues found in this pull request."}
           </PageHeaderDescription>
         </div>
 
         <div className="rounded-2xl border border-border/70 bg-card px-5 py-4">
           <p className="text-xs text-muted-foreground">Author</p>
-          <p className="mt-1 font-semibold">{author || "—"}</p>
+          <p className="mt-1 font-semibold">{pr?.authorLogin || "—"}</p>
+          {pr?.htmlUrl && (
+            <a
+              href={pr.htmlUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Open on GitHub <ExternalLink size={12} />
+            </a>
+          )}
         </div>
       </PageHeader>
 
@@ -217,7 +236,14 @@ export function PRFindingDrilldownPage() {
                 options: ["All", "New", "Existing"],
               },
             ]}
-          />
+          >
+            {result && filteredFindings.length > 0 && (
+              <CopyButton
+                label={`Copy ${filteredFindings.length} ${filteredFindings.length === 1 ? "finding" : "findings"}`}
+                getText={() => formatForAgent(filteredFindings, result)}
+              />
+            )}
+          </FilterBar>
         </div>
 
         <div className="divide-y divide-border/60">
@@ -257,9 +283,20 @@ export function PRFindingDrilldownPage() {
                       </div>
 
                       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                        <span className="font-mono text-primary">
-                          {finding.file}:{finding.line}
-                        </span>
+                        {finding.file && result ? (
+                          <a
+                            href={githubLineUrl(result, finding.file, finding.line || null)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-primary hover:underline"
+                          >
+                            {finding.file}:{finding.line}
+                          </a>
+                        ) : (
+                          <span className="font-mono text-primary">
+                            {finding.file}:{finding.line}
+                          </span>
+                        )}
                         <span className="flex items-center gap-1">
                           • Rule: <span className="font-medium text-foreground">{finding.rule}</span>
                         </span>
@@ -272,6 +309,10 @@ export function PRFindingDrilldownPage() {
                       </div>
                     </div>
                   </div>
+
+                  {result && (
+                    <CopyButton title="Copy this finding" getText={() => formatForAgent([finding], result)} />
+                  )}
                 </div>
               </div>
             );

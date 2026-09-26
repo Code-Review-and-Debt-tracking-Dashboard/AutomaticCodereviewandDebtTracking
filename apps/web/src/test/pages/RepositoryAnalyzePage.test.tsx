@@ -58,6 +58,36 @@ describe("RepositoryAnalyzePage", () => {
     expect(mockedApi.get).toHaveBeenCalledWith("/api/repos/repo-1/analyses");
   });
 
+  it("links a finished run to its results", async () => {
+    mockedApi.get.mockResolvedValueOnce({ data: [run()] });
+
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: /view results/i })).toHaveAttribute(
+      "href",
+      "/repositories/repo-1",
+    );
+  });
+
+  it("says it is loading instead of claiming nothing has run", async () => {
+    mockedApi.get.mockReturnValueOnce(new Promise(() => {}));
+
+    renderPage();
+
+    expect(await screen.findByText(/loading analysis runs/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no analysis has run yet/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the error when runs can't be loaded", async () => {
+    mockedApi.get.mockRejectedValueOnce({
+      response: { data: { error: { message: "Repository not found" } } },
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Repository not found")).toBeInTheDocument();
+  });
+
   it("shows an empty state when nothing has run", async () => {
     mockedApi.get.mockResolvedValueOnce({ data: [] });
 

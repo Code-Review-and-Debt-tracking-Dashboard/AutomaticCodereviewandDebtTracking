@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-} from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 import {
   AlertIcon,
@@ -11,6 +10,7 @@ import {
 } from "../../components/icons";
 
 import { api } from "../../lib/apiClient";
+import { apiErrorMessage } from "../../lib/apiError";
 import { useOrg } from "../../contexts/OrgContext";
 
 import {
@@ -35,6 +35,7 @@ interface PRStatData {
 
 interface PullRequestData {
   id: number;
+  repoId: string;
   repoName: string;
   title: string;
   author: string;
@@ -53,22 +54,27 @@ interface PullsResponse {
 }
 
 export function GlobalPullRequestsPage() {
-  const _navigate = useNavigate();
+  const navigate = useNavigate();
   const { selectedOrg } = useOrg();
   const [data, setData] = useState<PullsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!selectedOrg) return;
+    if (!selectedOrg) {
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
+    setError(null);
     api
       .get<PullsResponse>(`/api/orgs/${selectedOrg.id}/pulls`)
       .then((res) => {
         setData(res);
       })
       .catch((err) => {
-        console.error("Failed to fetch PRs:", err);
+        setError(apiErrorMessage(err, "Failed to load pull requests."));
       })
       .finally(() => {
         setIsLoading(false);
@@ -142,6 +148,10 @@ export function GlobalPullRequestsPage() {
               <div className="p-5 text-center text-sm text-muted-foreground">
                 Loading pull requests...
               </div>
+            ) : error ? (
+              <div className="p-5 text-center text-sm text-destructive">
+                {error}
+              </div>
             ) : pullRequests.length === 0 ? (
               <div className="p-5 text-center text-sm text-muted-foreground">
                 No pull requests found.
@@ -150,7 +160,8 @@ export function GlobalPullRequestsPage() {
               pullRequests.map((pr) => (
                 <article
                   key={`${pr.repoName}-${pr.id}`}
-                  className="flex items-center justify-between gap-4 p-5 transition-colors hover:bg-muted/30"
+                  onClick={() => navigate(`/repositories/${pr.repoId}/pull-requests/${pr.id}/findings`)}
+                  className="flex cursor-pointer items-center justify-between gap-4 p-5 transition-colors hover:bg-muted/30"
                 >
                   <div>
                     <p className="text-sm font-semibold">
@@ -180,6 +191,16 @@ export function GlobalPullRequestsPage() {
                     >
                       {pr.status}
                     </Badge>
+                    <a
+                      href={pr.htmlUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Open on GitHub"
+                      className="text-muted-foreground transition-colors hover:text-primary"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
                   </div>
                 </article>
               ))

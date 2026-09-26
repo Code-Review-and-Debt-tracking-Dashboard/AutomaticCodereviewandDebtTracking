@@ -15,12 +15,14 @@ import {
   HotspotIcon,
   RepositoriesIcon,
 } from "../../components/icons";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/apiClient";
-import { fetchAllFindings, titleCase, type AllFindings } from "../../lib/findings";
+import { apiErrorMessage } from "../../lib/apiError";
+import { fetchAllFindings, githubLineUrl, titleCase, type AllFindings } from "../../lib/findings";
 import { METRIC_HELP } from "../../lib/healthBand";
+import { formatForAgent } from "../../lib/copyFindings";
 
 import {
   BackLink,
@@ -32,6 +34,7 @@ import {
   PageHeaderTitle,
   PageHeaderDescription,
   FilterBar,
+  CopyButton,
   DataTable,
   DataTableHead,
   DataTableBody,
@@ -62,6 +65,8 @@ export function RepositoryFindingsPage() {
 
   // hotspot rows link here with ?file= so only that file shows
   const [search, setSearch] = useState(searchParams.get("file") ?? "");
+  // trend page links here with ?snapshot= to open an older analysis
+  const snapshotParam = searchParams.get("snapshot");
   const [severity, setSeverity] = useState("All");
   const [result, setResult] = useState<AllFindings | null>(null);
   const [repoName, setRepoName] = useState("");
@@ -81,18 +86,18 @@ export function RepositoryFindingsPage() {
       ]);
       setRepoName(detail.name);
 
-      setResult(await fetchAllFindings(debt.snapshotId));
+      setResult(await fetchAllFindings(snapshotParam ?? debt.snapshotId));
     } catch (err: any) {
       // no snapshot yet is the normal state for a freshly linked repo
       if (err?.response?.status === 404) {
         setResult(null);
       } else {
-        setError(err?.response?.data?.message || "Failed to load findings.");
+        setError(apiErrorMessage(err, "Failed to load findings."));
       }
     } finally {
       setIsLoading(false);
     }
-  }, [repoId]);
+  }, [repoId, snapshotParam]);
 
   useEffect(() => {
     loadFindings();
@@ -135,6 +140,15 @@ export function RepositoryFindingsPage() {
           <p className="mt-1 font-semibold">{repoName || "—"}</p>
         </div>
       </PageHeader>
+
+      {snapshotParam && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Showing an older analysis.{" "}
+          <Link to={`/repositories/${repoId}/findings`} className="font-medium text-primary hover:underline">
+            View latest
+          </Link>
+        </p>
+      )}
 
       <div data-tour="finding-stats" className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -180,7 +194,14 @@ export function RepositoryFindingsPage() {
                 options: ["All", "Critical", "High", "Medium", "Low", "Info"],
               },
             ]}
-          />
+          >
+            {result && filteredFindings.length > 0 && (
+              <CopyButton
+                label={`Copy ${filteredFindings.length} ${filteredFindings.length === 1 ? "finding" : "findings"}`}
+                getText={() => formatForAgent(filteredFindings, result)}
+              />
+            )}
+          </FilterBar>
         </div>
 
         <DataTable>
@@ -205,7 +226,15 @@ export function RepositoryFindingsPage() {
                   <DataTableCell>
                     <div>
                       <p className="max-w-[360px] break-words font-medium">{finding.message}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{finding.rule}</p>
+                      <div className="mt-1 flex items-center gap-1">
+                        <p className="text-xs text-muted-foreground">{finding.rule}</p>
+                        {result && (
+                          <CopyButton
+                            title="Copy this finding"
+                            getText={() => formatForAgent([finding], result)}
+                          />
+                        )}
+                      </div>
                     </div>
                   </DataTableCell>
 
@@ -227,7 +256,20 @@ export function RepositoryFindingsPage() {
                   </DataTableCell>
 
                   <DataTableCell>
-                    <p className="font-mono text-xs">{finding.file ?? "—"}</p>
+                    <p className="font-mono text-xs">
+                      {finding.file && result ? (
+                        <a
+                          href={githubLineUrl(result, finding.file, finding.line)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {finding.file}
+                        </a>
+                      ) : (
+                        finding.file ?? "—"
+                      )}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {finding.line !== null ? `Line ${finding.line}` : ""}
                     </p>
