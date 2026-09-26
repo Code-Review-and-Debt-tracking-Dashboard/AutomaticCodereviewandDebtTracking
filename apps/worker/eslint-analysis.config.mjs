@@ -41,6 +41,9 @@ export default [
       'sonarjs/unused-import': 'off',
       'sonarjs/todo-tag': 'off',
       'sonarjs/fixme-tag': 'off',
+      // sonarjs/code-eval and sonarjs/slow-regex cover these, and more precisely
+      'security/detect-eval-with-expression': 'off',
+      'security/detect-unsafe-regex': 'off',
       // Fires on every obj[key], even when the key is a constant. Almost all
       // false positives.
       'security/detect-object-injection': 'off',

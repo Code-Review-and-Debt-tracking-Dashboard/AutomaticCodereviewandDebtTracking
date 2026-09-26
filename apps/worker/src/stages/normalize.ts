@@ -173,7 +173,6 @@ const pylintCategories: Record<string, FindingCategory> = {
   'too-many-positional-arguments': 'COMPLEXITY',
   'too-many-return-statements': 'COMPLEXITY',
   'too-many-boolean-expressions': 'COMPLEXITY',
-  'duplicate-code': 'DUPLICATION',
 };
 
 export function fromPylint(report: PylintReport): AnalysisFinding[] {

@@ -338,14 +338,12 @@ describe('fromPylint', () => {
     const findings = fromPylint(
       pylintReport([
         pylintMessage('refactor', 'too-many-branches'),
-        pylintMessage('refactor', 'duplicate-code'),
         pylintMessage('warning', 'unused-import'),
       ]),
     );
 
     expect(findings.map((f) => [f.rule, f.category])).toEqual([
       ['too-many-branches', 'COMPLEXITY'],
-      ['duplicate-code', 'DUPLICATION'],
       ['unused-import', 'CODE_SMELL'],
     ]);
   });
