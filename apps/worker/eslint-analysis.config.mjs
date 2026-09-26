@@ -2,6 +2,7 @@
 // language-level only — the score has to mean the same thing across repos, so
 // the repo's own eslint config never gets a say.
 import js from '@eslint/js';
+import nounsanitized from 'eslint-plugin-no-unsanitized';
 import security from 'eslint-plugin-security';
 import sonarjs from 'eslint-plugin-sonarjs';
 import globals from 'globals';
@@ -22,6 +23,13 @@ export default [
     rules: {
       ...security.configs.recommended.rules,
     },
+  },
+
+  // innerHTML, insertAdjacentHTML, document.write with unescaped input — DOM
+  // XSS, which neither security plugin looks for.
+  {
+    ...nounsanitized.configs.recommended,
+    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
   },
 
   // Duplicated branches, dead-code patterns — bug and smell rules

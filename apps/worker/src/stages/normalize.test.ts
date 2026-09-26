@@ -268,13 +268,14 @@ describe('fromEslint', () => {
         lint('sonarjs/x-powered-by', 2),
         lint('sonarjs/hardcoded-secret-signatures', 2),
         lint('sonarjs/aws-s3-bucket-public-access', 2),
+        lint('no-unsanitized/property', 2),
       ]),
     );
 
     for (const finding of findings) {
       expect([finding.category, finding.severity]).toEqual(['VULNERABILITY', 'HIGH']);
     }
-    expect(findings).toHaveLength(6);
+    expect(findings).toHaveLength(7);
   });
 
   it('puts complexity and duplication rules in their own categories', () => {

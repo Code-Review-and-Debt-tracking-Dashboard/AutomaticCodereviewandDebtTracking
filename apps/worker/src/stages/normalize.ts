@@ -95,7 +95,7 @@ const eslintCategories: Record<string, FindingCategory> = {
 
 // Whole families of security rules, matched by prefix. sonarjs's aws-* rules are
 // all about exposed or unencrypted cloud resources.
-const eslintSecurityPrefixes = ['security/', 'sonarjs/aws-'];
+const eslintSecurityPrefixes = ['security/', 'sonarjs/aws-', 'no-unsanitized/'];
 
 function eslintSeverity(category: FindingCategory, level: 1 | 2): Severity {
   // Both security rule sets only ever say "make sure this is safe", and they
