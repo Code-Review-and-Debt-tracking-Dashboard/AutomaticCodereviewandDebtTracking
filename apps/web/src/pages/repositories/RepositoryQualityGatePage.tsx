@@ -506,6 +506,36 @@ export function RepositoryQualityGatePage() {
                 {displayGate.maxVulnerabilities === null ? "No limit" : `≤ ${displayGate.maxVulnerabilities}`}
               </span>
             </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
+              <span className="text-sm">
+                Duplication
+              </span>
+
+              <span className="font-semibold">
+                {displayGate.maxDuplicationPct === null ? "No limit" : `≤ ${displayGate.maxDuplicationPct}%`}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
+              <span className="text-sm">
+                Complexity
+              </span>
+
+              <span className="font-semibold">
+                {displayGate.maxComplexityCount === null ? "No limit" : `≤ ${displayGate.maxComplexityCount}`}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
+              <span className="text-sm">
+                Code smells
+              </span>
+
+              <span className="font-semibold">
+                {displayGate.maxCodeSmellCount === null ? "No limit" : `≤ ${displayGate.maxCodeSmellCount}`}
+              </span>
+            </div>
           </div>
         </Card>
 

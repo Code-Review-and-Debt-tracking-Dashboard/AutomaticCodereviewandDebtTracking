@@ -151,14 +151,12 @@ export function RepositoryPullRequestsPage() {
 
         <DataTable>
           <DataTableHead>
-            <DataTableRow>
-              <DataTableHeaderCell>Pull Request</DataTableHeaderCell>
-              <DataTableHeaderCell>Author & Branch</DataTableHeaderCell>
-              <DataTableHeaderCell>Health Score</DataTableHeaderCell>
-              <DataTableHeaderCell>Findings</DataTableHeaderCell>
-              <DataTableHeaderCell>Debt Delta</DataTableHeaderCell>
-              <DataTableHeaderCell>Status</DataTableHeaderCell>
-            </DataTableRow>
+            <DataTableHeaderCell>Pull Request</DataTableHeaderCell>
+            <DataTableHeaderCell>Author & Branch</DataTableHeaderCell>
+            <DataTableHeaderCell>Health Score</DataTableHeaderCell>
+            <DataTableHeaderCell>Findings</DataTableHeaderCell>
+            <DataTableHeaderCell>Debt Delta</DataTableHeaderCell>
+            <DataTableHeaderCell>Status</DataTableHeaderCell>
           </DataTableHead>
           
           <DataTableBody>
