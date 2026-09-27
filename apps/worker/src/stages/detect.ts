@@ -62,6 +62,7 @@ function isGenerated(name: string): boolean {
 
 // skips blank lines
 async function countLines(path: string): Promise<number> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path comes from our own walk of the clone
   const text = await readFile(path, 'utf8');
   return text.split('\n').filter((line) => line.trim()).length;
 }
@@ -71,6 +72,7 @@ async function countByLanguage(
   counts: Map<Language, number>,
   totals: { lines: number },
 ): Promise<void> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path comes from our own walk of the clone
   const entries = await readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {

@@ -79,6 +79,7 @@ export function scanSource(text: string): Omit<TodoMatch, 'file'>[] {
 }
 
 async function walk(root: string, dir: string, matches: TodoMatch[]): Promise<void> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path comes from our own walk of the clone
   const entries = await readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {
@@ -96,6 +97,7 @@ async function walk(root: string, dir: string, matches: TodoMatch[]): Promise<vo
 
     // forward slashes on every platform
     const file = relative(root, path).split('\\').join('/');
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path comes from our own walk of the clone
     const text = await readFile(path, 'utf8');
 
     for (const found of scanSource(text)) matches.push({ file, ...found });
