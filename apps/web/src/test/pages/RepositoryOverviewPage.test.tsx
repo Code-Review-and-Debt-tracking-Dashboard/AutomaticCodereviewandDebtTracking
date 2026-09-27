@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +30,7 @@ function renderPage() {
     <MemoryRouter initialEntries={["/repositories/repo-1"]}>
       <Routes>
         <Route path="/repositories/:repoId" element={<RepositoryOverviewPage />} />
+        <Route path="/repositories/:repoId/members" element={<p>members page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -101,5 +103,16 @@ describe("RepositoryOverviewPage", () => {
       "href",
       "/repositories/repo-1/findings",
     );
+  });
+
+  it("opens the members page from the tab bar", async () => {
+    const user = userEvent.setup();
+    mockApi(() => "COMPLETED");
+
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Members" }));
+
+    expect(screen.getByText("members page")).toBeInTheDocument();
   });
 });
