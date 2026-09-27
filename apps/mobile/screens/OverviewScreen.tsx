@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { api } from '../lib/apiClient';
+import { resolveActiveOrg } from '../lib/activeOrg';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { Card, EmptyState, ErrorState, Eyebrow, LoadingState, ScreenHeader } from '../components';
@@ -40,7 +41,19 @@ interface MobileSummary {
   repos: SummaryRepo[];
 }
 
+type Overview = MobileSummary & { orgName: string | null };
+
 const ATTENTION_LIMIT = 3;
+
+// same org as the Repositories tab, so the counts match it and the web dashboard
+async function loadOverview(activeOrgId: string | null): Promise<Overview> {
+  const org = await resolveActiveOrg(activeOrgId);
+  const summary = await api.get<MobileSummary>(
+    '/api/mobile/summary',
+    org ? { orgId: org.id } : undefined,
+  );
+  return { ...summary, orgName: org ? (org.name ?? org.login) : null };
+}
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -53,12 +66,13 @@ export default function OverviewScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { notificationsEnabled } = usePreferences();
+  const { notificationsEnabled, activeOrgId } = usePreferences();
   const scoreRef = useRef<View>(null);
   const statsRef = useRef<View>(null);
 
-  const { data, loading, refreshing, error, load } = useAsyncData(() =>
-    api.get<MobileSummary>('/api/mobile/summary'),
+  const { data, loading, refreshing, error, load } = useAsyncData(
+    () => loadOverview(activeOrgId),
+    [activeOrgId],
   );
 
   const openRepo = (repo: SummaryRepo) =>
@@ -71,7 +85,7 @@ export default function OverviewScreen() {
     <ScreenHeader
       eyebrow="Overview"
       title={data?.user ? `${greeting()}, ${data.user.username}` : greeting()}
-      subtitle="Health across every repository you can see"
+      subtitle={data?.orgName ? `Health across ${data.orgName}` : undefined}
     />
   );
 

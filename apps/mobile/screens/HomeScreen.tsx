@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { api } from '../lib/apiClient';
+import { resolveActiveOrg } from '../lib/activeOrg';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { usePreferences, useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { EmptyState, ErrorState, LoadingState, ScreenHeader } from '../components';
@@ -50,9 +51,7 @@ function dailyScores(points: { date: string; healthScore: number }[]): number[] 
 }
 
 async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
-  const orgs = await api.get<{ data: { id: string; login: string; name: string | null }[] }>('/api/orgs');
-  // saved org may be gone, fall back to the first
-  const org = orgs.data.find((o) => o.id === activeOrgId) ?? orgs.data[0];
+  const org = await resolveActiveOrg(activeOrgId);
   if (!org) return { orgName: null, repos: [] };
 
   const response = await api.get<{ data: Array<{

@@ -27,7 +27,7 @@ const tours = {
     {
       target: 'score',
       title: 'Portfolio health',
-      text: 'The average Health Score across every repository you can see.',
+      text: 'The average Health Score across the repositories in your selected organization.',
     },
     {
       target: 'stats',
