@@ -66,6 +66,7 @@ export async function runPylint(repoPath: string): Promise<PylintReport> {
     }));
   } catch (err) {
     const failed = err as { code?: number; stdout?: string; stderr?: string };
+    // eslint-disable-next-line sonarjs/bitwise-operators -- exit code is a bitmask
     if (typeof failed.code !== 'number' || failed.code & usageError) throw err;
     stdout = failed.stdout ?? '';
     stderr = failed.stderr ?? '';

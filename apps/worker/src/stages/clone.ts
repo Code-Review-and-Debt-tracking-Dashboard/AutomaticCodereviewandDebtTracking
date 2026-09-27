@@ -65,6 +65,7 @@ export async function cloneRepository(job: AnalysisJobData, workspace: string) {
   try {
     await run('git', ['clone', '--depth=1', '--branch', branch, url.toString(), repoPath], gitOptions);
   } catch (err) {
+    // eslint-disable-next-line preserve-caught-error -- the cause would leak the token
     throw new Error(redact((err as Error).message, token));
   }
 
