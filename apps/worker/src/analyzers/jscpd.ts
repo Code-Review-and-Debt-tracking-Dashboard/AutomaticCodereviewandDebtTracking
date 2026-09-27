@@ -33,8 +33,11 @@ const ignoredDirs = [
 
 const testFiles = ['**/*.test.*', '**/*.spec.*', '**/test_*.py', '**/*_test.py'];
 
+// lockfiles are generated and docs aren't code
+const notCode = ['**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml', '**/*.md'];
+
 // wildcards so it matches at any depth
-const ignores = [...ignoredDirs.map((dir) => `**/${dir}/**`), ...testFiles].join(',');
+const ignores = [...ignoredDirs.map((dir) => `**/${dir}/**`), ...testFiles, ...notCode].join(',');
 
 export interface JscpdClone {
   format: string;
@@ -89,6 +92,7 @@ export async function runJscpd(repoPath: string): Promise<JscpdReport> {
 
     let output: JscpdOutput;
     try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- our own temp dir
       const raw = await readFile(join(reportDir, 'jscpd-report.json'), 'utf8');
       output = JSON.parse(raw) as JscpdOutput;
     } catch {

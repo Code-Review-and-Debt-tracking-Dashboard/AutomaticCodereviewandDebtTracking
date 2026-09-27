@@ -70,8 +70,8 @@ async function radon<T>(repoPath: string, command: 'cc' | 'mi'): Promise<Record<
   // run inside the repo so paths stay relative
   const args = ['-m', 'radon', command, '.', '-j', '-i', ignores];
 
-  let stdout = '';
-  let stderr = '';
+  let stdout: string;
+  let stderr: string;
 
   try {
     ({ stdout, stderr } = await run('python3', args, {

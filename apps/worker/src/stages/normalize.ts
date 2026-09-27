@@ -44,6 +44,7 @@ const eslintCategories: Record<string, FindingCategory> = {
   'sonarjs/no-duplicate-string': 'DUPLICATION',
   // sonarjs security rules, otherwise they'd count as code smells
   'sonarjs/code-eval': 'VULNERABILITY',
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- a rule name, not a password
   'sonarjs/no-hardcoded-passwords': 'VULNERABILITY',
   'sonarjs/no-hardcoded-secrets': 'VULNERABILITY',
   'sonarjs/no-clear-text-protocols': 'VULNERABILITY',
@@ -411,7 +412,7 @@ export function fromJscpd(report: JscpdReport): AnalysisFinding[] {
 
 // ── TODO scan ──
 
-// FIXME/HACK are worse than TODO/XXX
+// fixme and hack rank above todo and xxx
 const todoSeverities: Record<TodoMarker, Severity> = {
   FIXME: 'MEDIUM',
   HACK: 'MEDIUM',
