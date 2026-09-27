@@ -49,6 +49,7 @@ import {
   PageHeaderDescription,
   PageHeaderActions,
   InfoHint,
+  TabGroup,
 } from "../../components/ui";
 
 interface RepoDetail {
@@ -88,6 +89,17 @@ interface LatestRun {
 
 // how often to re-check while an analysis is queued or running
 const POLL_MS = 5000;
+
+// ids match the sub-page routes
+const SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "findings", label: "Findings" },
+  { id: "pull-requests", label: "Pull requests" },
+  { id: "trends", label: "Trends" },
+  { id: "files", label: "Files" },
+  { id: "quality-gate", label: "Quality gate" },
+  { id: "members", label: "Members" },
+];
 
 const ACTIVITY_ICON: Record<string, { icon: typeof CheckIcon; iconClass: string }> = {
   ANALYSIS_COMPLETE: { icon: CheckIcon, iconClass: "bg-success/10 text-success" },
@@ -329,6 +341,15 @@ export function RepositoryOverviewPage() {
           </Button>
         </PageHeaderActions>
       </PageHeader>
+
+      <TabGroup
+        className="mb-6"
+        tabs={SECTIONS}
+        activeTab="overview"
+        onTabChange={(id) => {
+          if (id !== "overview") navigate(`/repositories/${repoId}/${id}`);
+        }}
+      />
 
       {runInProgress && (
         <div className="mb-6 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 p-4 text-sm text-info">

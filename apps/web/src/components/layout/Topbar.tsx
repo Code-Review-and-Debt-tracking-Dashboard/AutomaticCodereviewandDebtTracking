@@ -565,7 +565,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                 <div className="p-1">
                   <button
                     type="button"
-                    onClick={() => navigate("/settings")}
+                    onClick={() => navigate("/profile")}
                     className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   >
                     <UserIcon size={15} />
