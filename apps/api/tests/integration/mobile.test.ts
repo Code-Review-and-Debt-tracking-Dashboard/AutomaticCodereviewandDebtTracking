@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import { api } from '../helpers/app';
 import { bearer } from '../helpers/auth';
-import { createFinding, createNotification, createPullRequest, createRepo, createSnapshot, createUser } from '../helpers/factories';
+import {
+  addOrgMember,
+  createFinding,
+  createNotification,
+  createPullRequest,
+  createRepo,
+  createSnapshot,
+  createUser,
+} from '../helpers/factories';
 import { seedTenant } from '../helpers/tenants';
 
 describe('GET /api/mobile/summary', () => {
@@ -55,6 +63,35 @@ describe('GET /api/mobile/summary', () => {
     const nobody = await createUser();
     const empty = await api().get('/api/mobile/summary').set(bearer(nobody));
     expect(empty.body.repos).toEqual([]);
+  });
+
+  it('narrows to one org with ?orgId', async () => {
+    const acme = await seedTenant('acme');
+    const globex = await seedTenant('globex');
+    // acme's developer is in globex too, with a repo there
+    await addOrgMember(globex.org, acme.developer);
+    const other = await createRepo(globex.org, acme.developer, { name: 'side-project' });
+
+    const all = await api().get('/api/mobile/summary').set(bearer(acme.developer));
+    expect(all.body.repos.map((r: { id: string }) => r.id).sort()).toEqual([acme.repo.id, other.id].sort());
+
+    const scoped = await api()
+      .get('/api/mobile/summary')
+      .query({ orgId: acme.org.id })
+      .set(bearer(acme.developer));
+    expect(scoped.status).toBe(200);
+    expect(scoped.body.repos.map((r: { id: string }) => r.id)).toEqual([acme.repo.id]);
+  });
+
+  it('404 for an org the caller is not an active member of', async () => {
+    const acme = await seedTenant('acme');
+    const globex = await seedTenant('globex');
+
+    const res = await api()
+      .get('/api/mobile/summary')
+      .query({ orgId: globex.org.id })
+      .set(bearer(acme.developer));
+    expect(res.status).toBe(404);
   });
 });
 
