@@ -18,7 +18,6 @@ import { RepositoryFindingsPage } from "../pages/repositories/RepositoryFindings
 import { RepositoryPullRequestsPage } from "../pages/repositories/RepositoryPullRequestsPage";
 import { RepositoryQualityGatePage } from "../pages/repositories/RepositoryQualityGatePage";
 import { RepositoryMembersPage } from "../pages/repositories/RepositoryMembersPage";
-import { RepositoryFilesPage } from "../pages/repositories/RepositoryFilesPage";
 import { RepositoryAnalyzePage } from "../pages/repositories/RepositoryAnalyzePage";
 import { PRFindingDrilldownPage } from "../pages/repositories/PRFindingDrilldownPage";
 
@@ -92,11 +91,6 @@ export function AppRoutes() {
             <Route
               path="/repositories/:repoId"
               element={<RepositoryOverviewPage />}
-            />
-
-            <Route
-              path="/repositories/:repoId/files"
-              element={<RepositoryFilesPage />}
             />
 
             <Route

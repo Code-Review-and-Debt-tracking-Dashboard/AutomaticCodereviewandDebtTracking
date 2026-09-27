@@ -96,7 +96,6 @@ const SECTIONS = [
   { id: "findings", label: "Findings" },
   { id: "pull-requests", label: "Pull requests" },
   { id: "trends", label: "Trends" },
-  { id: "files", label: "Files" },
   { id: "quality-gate", label: "Quality gate" },
   { id: "members", label: "Members" },
 ];
