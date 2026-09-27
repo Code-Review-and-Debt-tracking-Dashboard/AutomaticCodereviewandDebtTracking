@@ -206,14 +206,12 @@ export function RepositoryFindingsPage() {
 
         <DataTable>
           <DataTableHead>
-            <DataTableRow>
-              <DataTableHeaderCell>Finding</DataTableHeaderCell>
-              <DataTableHeaderCell>Category</DataTableHeaderCell>
-              <DataTableHeaderCell>Severity</DataTableHeaderCell>
-              <DataTableHeaderCell>Location</DataTableHeaderCell>
-              <DataTableHeaderCell>Tool</DataTableHeaderCell>
-              <DataTableHeaderCell>Status</DataTableHeaderCell>
-            </DataTableRow>
+            <DataTableHeaderCell>Finding</DataTableHeaderCell>
+            <DataTableHeaderCell>Category</DataTableHeaderCell>
+            <DataTableHeaderCell>Severity</DataTableHeaderCell>
+            <DataTableHeaderCell>Location</DataTableHeaderCell>
+            <DataTableHeaderCell>Tool</DataTableHeaderCell>
+            <DataTableHeaderCell>Status</DataTableHeaderCell>
           </DataTableHead>
           <DataTableBody>
             {filteredFindings.map((finding) => {
