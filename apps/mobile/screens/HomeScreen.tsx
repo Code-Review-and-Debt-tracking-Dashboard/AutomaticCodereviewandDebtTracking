@@ -40,6 +40,15 @@ interface RepoList {
   repos: MobileRepo[];
 }
 
+const SPARKLINE_DAYS = 30;
+
+// last score of each day, a busy repo would otherwise get one bar per scan
+function dailyScores(points: { date: string; healthScore: number }[]): number[] {
+  const byDay = new Map<string, number>();
+  for (const point of points) byDay.set(new Date(point.date).toDateString(), point.healthScore);
+  return [...byDay.values()].slice(-SPARKLINE_DAYS);
+}
+
 async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
   const orgs = await api.get<{ data: { id: string; login: string; name: string | null }[] }>('/api/orgs');
   // saved org may be gone, fall back to the first
@@ -59,8 +68,10 @@ async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
 
   const repos = await Promise.all(response.data.map(async (repo) => {
     const trend = await api
-      .get<{ dataPoints: { healthScore: number }[] }>(`/api/repos/${repo.id}/trend?days=30`)
-      .catch(() => ({ dataPoints: [] as { healthScore: number }[] }));
+      .get<{ dataPoints: { date: string; healthScore: number }[] }>(
+        `/api/repos/${repo.id}/trend?days=${SPARKLINE_DAYS}`,
+      )
+      .catch(() => ({ dataPoints: [] as { date: string; healthScore: number }[] }));
     return {
       id: repo.id,
       name: repo.name,
@@ -69,7 +80,7 @@ async function loadRepos(activeOrgId: string | null): Promise<RepoList> {
       healthScore: repo.healthScore,
       openFindings: repo.openFindings,
       debtHours: Math.round((repo.debtMinutes / 60) * 10) / 10,
-      sparkline: trend.dataPoints.map((point) => point.healthScore),
+      sparkline: dailyScores(trend.dataPoints),
       isPrivate: repo.private,
     };
   }));
@@ -108,15 +119,15 @@ export default function HomeScreen() {
       return <Text style={styles.sparklineEmpty}>no scans</Text>;
     }
 
-    const min = Math.min(...points);
+    // at least a 10 point range, so a 1 point change doesn't look like a cliff
     const max = Math.max(...points);
-    const range = max - min || 1;
+    const floor = Math.min(...points, max - 10);
 
     return (
       <View style={styles.sparklineContainer}>
         {points.map((val, idx) => {
-          const heightPct = Math.max(15, ((val - min) / range) * 100);
-          const isUp = idx > 0 && val >= points[idx - 1];
+          const heightPct = 20 + ((val - floor) / (max - floor)) * 80;
+          const isDown = idx > 0 && val < points[idx - 1];
           return (
             <View
               key={idx}
@@ -124,7 +135,7 @@ export default function HomeScreen() {
                 styles.sparklineBar,
                 {
                   height: `${heightPct}%`,
-                  backgroundColor: isUp ? colors.success : colors.warning,
+                  backgroundColor: isDown ? colors.warning : colors.success,
                 },
               ]}
             />
@@ -393,17 +404,23 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: 'flex-end',
       gap: 4,
     },
+    // fixed width so every card lays out the same however many scans it has
     sparklineContainer: {
       flexDirection: 'row',
       alignItems: 'flex-end',
+      justifyContent: 'flex-end',
+      width: 72,
       height: 22,
-      gap: 2,
+      gap: 1,
     },
     sparklineBar: {
-      width: 3,
+      flex: 1,
+      maxWidth: 3,
       borderRadius: 1,
     },
     sparklineEmpty: {
+      width: 72,
+      textAlign: 'right',
       fontSize: 11,
       color: c.textMuted,
       height: 22,
