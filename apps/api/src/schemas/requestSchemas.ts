@@ -53,6 +53,10 @@ export const availableReposQuerySchema = z.object({
   query: z.object({ orgId: id.optional() }).passthrough(),
 });
 
+export const mobileSummaryQuerySchema = z.object({
+  query: z.object({ orgId: id.optional() }).passthrough(),
+});
+
 export const trendQuerySchema = z.object({
   query: z.object({
     days: optionalNumericString,

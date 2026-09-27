@@ -3,20 +3,32 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireRepoAccess } from '../middleware/requireRepoAccess';
 import { validateRequest } from '../middleware/zodValidate';
-import { deviceIdParamsSchema, registerDeviceSchema, repoIdParamsSchema } from '../schemas/requestSchemas';
+import {
+  deviceIdParamsSchema,
+  mobileSummaryQuerySchema,
+  registerDeviceSchema,
+  repoIdParamsSchema,
+} from '../schemas/requestSchemas';
 import { getMobileSummary, getRepoSmells, registerDevice, unregisterDevice } from '../services/mobileService';
 
 export const mobileRouter = Router();
 
 // GET /api/mobile/summary : aggregated home-screen data, single call
-mobileRouter.get('/api/mobile/summary', requireAuth, async (req, res, next) => {
-  try {
-    const summary = await getMobileSummary(req.user!.id);
-    res.status(200).json(summary);
-  } catch (err) {
-    next(err);
-  }
-});
+// ?orgId= narrows it to one org, like the web dashboard
+mobileRouter.get(
+  '/api/mobile/summary',
+  requireAuth,
+  validateRequest(mobileSummaryQuerySchema),
+  async (req, res, next) => {
+    try {
+      const orgId = typeof req.query.orgId === 'string' ? req.query.orgId : undefined;
+      const summary = await getMobileSummary(req.user!.id, orgId);
+      res.status(200).json(summary);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // GET /api/mobile/repos/:repoId/smells : quick-view findings for the latest snapshot
 mobileRouter.get(

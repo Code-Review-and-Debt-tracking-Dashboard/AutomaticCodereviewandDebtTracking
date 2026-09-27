@@ -42,7 +42,19 @@ export async function unregisterDevice(userId: string, deviceId: string): Promis
   }
 }
 
-export async function getMobileSummary(userId: string) {
+// no orgId = every org, which older app builds still ask for
+export async function getMobileSummary(userId: string, orgId?: string) {
+  if (orgId) {
+    // same rule as requireOrgAccess, non-members get 404
+    const membership = await prisma.organizationMember.findUnique({
+      where: { orgId_userId: { orgId, userId } },
+      select: { status: true },
+    });
+    if (membership?.status !== 'ACTIVE') {
+      throw new AppError(404, 'NOT_FOUND', 'Organization not found');
+    }
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { username: true, avatarUrl: true },
@@ -55,6 +67,7 @@ export async function getMobileSummary(userId: string) {
   const repos = await prisma.repository.findMany({
     where: {
       isActive: true,
+      ...(orgId ? { orgId } : {}),
       OR: [{ ownerId: userId }, { members: { some: { userId, status: 'ACTIVE' } } }],
     },
     select: {
