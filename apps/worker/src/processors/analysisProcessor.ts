@@ -6,6 +6,7 @@ import type {
   GateResult,
 } from '@codehealth/shared';
 import type { Job } from 'bullmq';
+import type { Logger } from 'pino';
 
 import { runEslint } from '../analyzers/eslint';
 import { runJscpd } from '../analyzers/jscpd';
@@ -21,7 +22,7 @@ import { logger } from '../lib/logger';
 import { cleanupWorkspace, cloneRepository, createWorkspace } from '../stages/clone';
 import { buildPrComment } from '../stages/comment';
 import { computeDebtDelta } from '../stages/debt';
-import { detectLanguages } from '../stages/detect';
+import { type Analyzer, detectLanguages } from '../stages/detect';
 import { DEFAULT_GATE, evaluateGate } from '../stages/gate';
 import { matchFindings } from '../stages/match';
 import { type AnalyzerReports, normalize } from '../stages/normalize';
@@ -57,24 +58,29 @@ export function buildResultsPayload(input: {
 }
 
 async function runAnalyzer<T>(
-  analyzer: string,
-  analysisId: string,
+  analyzer: Analyzer,
+  log: Logger,
   fn: () => Promise<T>,
+  summary: (report: T) => object,
 ): Promise<T | undefined> {
   try {
-    return await fn();
+    const report = await fn();
+    log.info({ analyzer, ...summary(report) }, 'Analyzer finished');
+    return report;
   } catch (err) {
-    logger.error({ analysisId, analyzer, err }, 'Analyzer failed');
+    log.error({ analyzer, err }, 'Analyzer failed');
     return undefined;
   }
 }
 
 export async function analysisProcessor(job: Job<AnalysisJobData>) {
   const { analysisId, repoId, branch, commitSha } = job.data;
+  // every log below carries the analysisId
+  const log = logger.child({ analysisId });
 
   await startJob(analysisId);
 
-  logger.info({ jobId: job.id, analysisId, repoId, branch, commitSha }, 'Analysis started');
+  log.info({ jobId: job.id, repoId, branch, commitSha }, 'Analysis started');
 
   let stage: AnalysisStage = 'clone';
   const workspace = await createWorkspace();
@@ -89,142 +95,65 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
     stage = 'analyze';
     const reports: AnalyzerReports = {};
 
-    if (detected.analyzers.includes('eslint')) {
-      reports.eslint = await runAnalyzer('eslint', analysisId, async () => {
-        const eslint = await runEslint(cloned.repoPath);
-        logger.info(
-          {
-            analysisId,
-            files: eslint.results.length,
-            errors: eslint.errorCount,
-            warnings: eslint.warningCount,
-          },
-          'ESLint finished',
-        );
-        return eslint;
-      });
-    }
+    // skips tools that weren't detected
+    const run = <T>(
+      analyzer: Analyzer,
+      fn: (repoPath: string) => Promise<T>,
+      summary: (report: T) => object,
+    ) =>
+      detected.analyzers.includes(analyzer)
+        ? runAnalyzer(analyzer, log, () => fn(cloned.repoPath), summary)
+        : undefined;
 
-    if (detected.analyzers.includes('pylint')) {
-      reports.pylint = await runAnalyzer('pylint', analysisId, async () => {
-        const pylint = await runPylint(cloned.repoPath);
-        logger.info(
-          { analysisId, messages: pylint.messages.length, counts: pylint.counts },
-          'PyLint finished',
-        );
-        return pylint;
-      });
-    }
-
-    if (detected.analyzers.includes('bandit')) {
-      reports.bandit = await runAnalyzer('bandit', analysisId, async () => {
-        const bandit = await runBandit(cloned.repoPath);
-        logger.info(
-          {
-            analysisId,
-            results: bandit.results.length,
-            counts: bandit.counts,
-            nosec: bandit.nosec,
-          },
-          'Bandit finished',
-        );
-        return bandit;
-      });
-    }
-
-    if (detected.analyzers.includes('radon')) {
-      reports.radon = await runAnalyzer('radon', analysisId, async () => {
-        const radon = await runRadon(cloned.repoPath);
-        logger.info(
-          {
-            analysisId,
-            blocks: radon.blocks.length,
-            files: radon.maintainability.length,
-            counts: radon.counts,
-            miCounts: radon.miCounts,
-          },
-          'Radon finished',
-        );
-        return radon;
-      });
-    }
-
-    if (detected.analyzers.includes('checkstyle')) {
-      reports.checkstyle = await runAnalyzer('checkstyle', analysisId, async () => {
-        const checkstyle = await runCheckstyle(cloned.repoPath);
-        logger.info(
-          {
-            analysisId,
-            violations: checkstyle.violations.length,
-            counts: checkstyle.counts,
-            unparsed: checkstyle.errors.length,
-          },
-          'Checkstyle finished',
-        );
-        return checkstyle;
-      });
-    }
-
-    if (detected.analyzers.includes('pmd')) {
-      reports.pmd = await runAnalyzer('pmd', analysisId, async () => {
-        const pmd = await runPmd(cloned.repoPath);
-        logger.info(
-          {
-            analysisId,
-            violations: pmd.violations.length,
-            counts: pmd.counts,
-            unparsed: pmd.errors.length,
-          },
-          'PMD finished',
-        );
-        return pmd;
-      });
-    }
-
-    if (detected.analyzers.includes('cppcheck')) {
-      reports.cppcheck = await runAnalyzer('cppcheck', analysisId, async () => {
-        const cppcheck = await runCppcheck(cloned.repoPath);
-        logger.info(
-          {
-            analysisId,
-            findings: cppcheck.findings.length,
-            counts: cppcheck.counts,
-            unparsed: cppcheck.errors.length,
-          },
-          'Cppcheck finished',
-        );
-        return cppcheck;
-      });
-    }
-
-    if (detected.analyzers.includes('jscpd')) {
-      reports.jscpd = await runAnalyzer('jscpd', analysisId, async () => {
-        const jscpd = await runJscpd(cloned.repoPath);
-        logger.info(
-          { analysisId, duplicates: jscpd.duplicates.length, percentage: jscpd.percentage },
-          'jscpd finished',
-        );
-        return jscpd;
-      });
-    }
-
-    if (detected.analyzers.includes('todo-scan')) {
-      reports.todoScan = await runAnalyzer('todo-scan', analysisId, async () => {
-        const todoScan = await runTodoScan(cloned.repoPath);
-        logger.info(
-          { analysisId, matches: todoScan.matches.length, counts: todoScan.counts },
-          'TODO scan finished',
-        );
-        return todoScan;
-      });
-    }
+    reports.eslint = await run('eslint', runEslint, (r) => ({
+      files: r.results.length,
+      errors: r.errorCount,
+      warnings: r.warningCount,
+    }));
+    reports.pylint = await run('pylint', runPylint, (r) => ({
+      messages: r.messages.length,
+      counts: r.counts,
+    }));
+    reports.bandit = await run('bandit', runBandit, (r) => ({
+      results: r.results.length,
+      counts: r.counts,
+      nosec: r.nosec,
+    }));
+    reports.radon = await run('radon', runRadon, (r) => ({
+      blocks: r.blocks.length,
+      files: r.maintainability.length,
+      counts: r.counts,
+      miCounts: r.miCounts,
+    }));
+    reports.checkstyle = await run('checkstyle', runCheckstyle, (r) => ({
+      violations: r.violations.length,
+      counts: r.counts,
+      unparsed: r.errors.length,
+    }));
+    reports.pmd = await run('pmd', runPmd, (r) => ({
+      violations: r.violations.length,
+      counts: r.counts,
+      unparsed: r.errors.length,
+    }));
+    reports.cppcheck = await run('cppcheck', runCppcheck, (r) => ({
+      findings: r.findings.length,
+      counts: r.counts,
+      unparsed: r.errors.length,
+    }));
+    reports.jscpd = await run('jscpd', runJscpd, (r) => ({
+      duplicates: r.duplicates.length,
+      percentage: r.percentage,
+    }));
+    reports.todoScan = await run('todo-scan', runTodoScan, (r) => ({
+      matches: r.matches.length,
+      counts: r.counts,
+    }));
 
     stage = 'normalize';
     const { findings, duplicationPct } = normalize(reports);
 
-    logger.info(
+    log.info(
       {
-        analysisId,
         findings: findings.length,
         duplicationPct,
         linesOfCode: detected.linesOfCode,
@@ -238,9 +167,8 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
     const baseline = await fetchBaseline(analysisId);
     const matched = matchFindings({ findings, baseline: baseline?.findings ?? null });
 
-    logger.info(
+    log.info(
       {
-        analysisId,
         new: matched.findings.filter((f) => f.state === 'NEW').length,
         existing: matched.findings.filter((f) => f.state === 'EXISTING').length,
         resolved: matched.resolved.length,
@@ -259,9 +187,8 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
       baseline: baseline?.findings ?? null,
     });
 
-    logger.info(
+    log.info(
       {
-        analysisId,
         healthScore: score.healthScore,
         debtMinutes: score.debtMinutes,
         debtDeltaMinutes,
@@ -275,9 +202,8 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
 
     const gateEvaluation = evaluateGate({ gate, score });
 
-    logger.info(
+    log.info(
       {
-        analysisId,
         gateResult: gateEvaluation.result,
         blockPR: gateEvaluation.blockPR,
         breached: gateEvaluation.metrics.filter((m) => !m.passed).length,
@@ -301,7 +227,7 @@ export async function analysisProcessor(job: Job<AnalysisJobData>) {
 
     await postResults(payload);
 
-    logger.info({ analysisId, findings: matched.findings.length }, 'Results persisted');
+    log.info({ findings: matched.findings.length }, 'Results persisted');
 
     // after persist so a retry doesn't post twice
     await postPrComment({
