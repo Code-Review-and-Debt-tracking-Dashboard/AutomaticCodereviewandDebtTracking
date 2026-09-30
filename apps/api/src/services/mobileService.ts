@@ -68,7 +68,11 @@ export async function getMobileSummary(userId: string, orgId?: string) {
     where: {
       isActive: true,
       ...(orgId ? { orgId } : {}),
-      OR: [{ ownerId: userId }, { members: { some: { userId, status: 'ACTIVE' } } }],
+      OR: [
+        { ownerId: userId },
+        { members: { some: { userId, status: 'ACTIVE' } } },
+        { organization: { members: { some: { userId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } } } } },
+      ],
     },
     select: {
       id: true,

@@ -65,6 +65,12 @@ describe('GET /api/mobile/summary', () => {
     expect(empty.body.repos).toEqual([]);
   });
 
+  it('includes every repo in orgs where the caller is owner or admin', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get('/api/mobile/summary').set(bearer(t.admin));
+    expect(res.body.repos.map((r: { name: string }) => r.name)).toEqual([t.repo.name]);
+  });
+
   it('narrows to one org with ?orgId', async () => {
     const acme = await seedTenant('acme');
     const globex = await seedTenant('globex');

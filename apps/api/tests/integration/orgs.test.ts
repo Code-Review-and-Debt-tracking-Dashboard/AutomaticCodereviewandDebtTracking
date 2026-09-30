@@ -60,6 +60,16 @@ describe('GET /api/orgs/:orgId/pulls', () => {
       status: 'Pending',
     });
   });
+
+  it('org admins see PRs from every repo, members only from their granted repos', async () => {
+    const t = await seedTenant('acme');
+
+    const admin = await api().get(`/api/orgs/${t.org.id}/pulls`).set(bearer(t.admin));
+    expect(admin.body.pullRequests.map((p: { repoId: string }) => p.repoId)).toContain(t.repo.id);
+
+    const bystander = await api().get(`/api/orgs/${t.org.id}/pulls`).set(bearer(t.bystander));
+    expect(bystander.body.pullRequests).toEqual([]);
+  });
 });
 
 describe('POST /api/orgs/sync', () => {
@@ -143,6 +153,13 @@ describe('GET /api/orgs/:orgId/repos', () => {
     const res = await api().get(`/api/orgs/${t.org.id}/repos`).set(bearer(t.bystander));
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([]);
+  });
+
+  it('org admins see every repo in the org without a repo grant', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get(`/api/orgs/${t.org.id}/repos`).set(bearer(t.admin));
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((r: { id: string }) => r.id)).toEqual([t.repo.id]);
   });
 
   it('shows owned and member repos with the latest snapshot, excluding inactive ones', async () => {

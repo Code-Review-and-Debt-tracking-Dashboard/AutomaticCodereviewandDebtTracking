@@ -179,13 +179,17 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
   }));
 }
 
-// caller must own the repo or be a member of it
+// caller must own the repo, be a member of it, or be an org owner/admin
 export async function listOrgRepositories(orgId: string, userId: string) {
   const repositories = await prisma.repository.findMany({
     where: {
       orgId,
       isActive: true,
-      OR: [{ ownerId: userId }, { members: { some: { userId, status: 'ACTIVE' } } }],
+      OR: [
+        { ownerId: userId },
+        { members: { some: { userId, status: 'ACTIVE' } } },
+        { organization: { members: { some: { userId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } } } } },
+      ],
     },
     select: {
       id: true,
@@ -252,7 +256,11 @@ export async function getOrgPullRequests(orgId: string, userId: string) {
     where: {
       orgId,
       isActive: true,
-      OR: [{ ownerId: userId }, { members: { some: { userId, status: 'ACTIVE' } } }],
+      OR: [
+        { ownerId: userId },
+        { members: { some: { userId, status: 'ACTIVE' } } },
+        { organization: { members: { some: { userId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } } } } },
+      ],
     },
     select: { id: true, name: true },
   });
