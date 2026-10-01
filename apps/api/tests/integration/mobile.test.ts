@@ -1,3 +1,4 @@
+import { prisma } from '@codehealth/db';
 import { describe, expect, it } from 'vitest';
 
 import { api } from '../helpers/app';
@@ -69,6 +70,16 @@ describe('GET /api/mobile/summary', () => {
     const t = await seedTenant('acme');
     const res = await api().get('/api/mobile/summary').set(bearer(t.admin));
     expect(res.body.repos.map((r: { name: string }) => r.name)).toEqual([t.repo.name]);
+  });
+
+  it('leaves out repos from orgs the caller was removed from', async () => {
+    const t = await seedTenant('acme');
+    await prisma.organizationMember.update({
+      where: { orgId_userId: { orgId: t.org.id, userId: t.developer.id } },
+      data: { status: 'REMOVED' },
+    });
+    const res = await api().get('/api/mobile/summary').set(bearer(t.developer));
+    expect(res.body.repos).toEqual([]);
   });
 
   it('narrows to one org with ?orgId', async () => {

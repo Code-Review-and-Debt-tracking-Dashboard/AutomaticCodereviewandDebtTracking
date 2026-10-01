@@ -71,6 +71,12 @@ describe('GET /api/repos/:repoId', () => {
     expect(res.body).toEqual({ error: { code: 'NOT_FOUND', message: 'Repository not found' } });
   });
 
+  it('ignores trend query params', async () => {
+    const t = await seedTenant('acme');
+    const res = await api().get(`/api/repos/${t.repo.id}`).query({ days: 'abc' }).set(bearer(t.owner));
+    expect(res.status).toBe(200);
+  });
+
   it('404 for an unlinked (inactive) repo, even for its owner', async () => {
     const t = await seedTenant('acme');
     const inactive = await createRepo(t.org, t.owner, { isActive: false });
@@ -229,6 +235,15 @@ describe('GET /api/repos/:repoId/trend', () => {
       .set(bearer(t.owner));
     expect(res.status).toBe(400);
     expect(res.body.error.message).toMatch(/together/);
+  });
+
+  it('accepts plain dates for from and to', async () => {
+    const t = await seedTenant('acme');
+    const res = await api()
+      .get(`/api/repos/${t.repo.id}/trend`)
+      .query({ from: '2026-01-01', to: '2026-01-31' })
+      .set(bearer(t.owner));
+    expect(res.status).toBe(200);
   });
 
   it('400 when from is after to', async () => {

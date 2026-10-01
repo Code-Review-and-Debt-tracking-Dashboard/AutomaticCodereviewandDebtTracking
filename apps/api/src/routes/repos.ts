@@ -10,7 +10,7 @@ import { getRepoAnalyses, getRepoDebt, getRepoDetail, getRepoHotspots, getRepoPu
 import { triggerManualAnalysis } from '../services/queueService';
 import { validateRequest } from '../middleware/zodValidate';
 import { addMemberSchema } from '../schemas/repoSchemas';
-import { availableReposQuerySchema, hotspotsQuerySchema, memberParamsSchema, prParamsSchema, repoIdParamsSchema, trendQuerySchema } from '../schemas/requestSchemas';
+import { availableReposQuerySchema, memberParamsSchema, prParamsSchema, repoIdParamsSchema } from '../schemas/requestSchemas';
 
 export const reposRouter = Router();
 
@@ -56,7 +56,6 @@ reposRouter.get(
   '/api/repos/:repoId',
   requireAuth,
   validateRequest(repoIdParamsSchema),
-  validateRequest(trendQuerySchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {
@@ -74,7 +73,6 @@ reposRouter.get(
   '/api/repos/:repoId/trend',
   requireAuth,
   validateRequest(repoIdParamsSchema),
-  validateRequest(hotspotsQuerySchema),
   requireRepoAccess('read'),
   async (req, res, next) => {
     try {

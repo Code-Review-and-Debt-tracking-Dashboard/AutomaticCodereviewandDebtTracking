@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { analysisQueue } from '../../src/lib/queue';
 import { api } from '../helpers/app';
 import {
+  addOrgMember,
   addRepoMember,
   createAnalysisJob,
   createDevice,
@@ -94,6 +95,7 @@ describe('agent job endpoints', () => {
   beforeEach(async () => {
     owner = await createUser();
     org = await createOrg();
+    await addOrgMember(org, owner);
     repo = await createRepo(org, owner);
     job = await createAnalysisJob(repo, { status: 'PENDING', commitSha: 'HEAD' });
     auth = await createAgent(org, 'test-agent-token');
@@ -362,6 +364,8 @@ describe('agent job endpoints', () => {
       const member = await createUser();
       const removed = await createUser();
       await createUser(); // no membership at all
+      await addOrgMember(org, member);
+      await addOrgMember(org, removed);
       await addRepoMember(repo, member, 'DEVELOPER', 'ACTIVE');
       await addRepoMember(repo, removed, 'DEVELOPER', 'REMOVED');
       // the owner holding a member row too must not double up
@@ -371,6 +375,17 @@ describe('agent job endpoints', () => {
 
       const found = await rows('QUALITY_GATE_FAILED');
       expect(found.map((n) => n.userId).sort()).toEqual([owner.id, member.id].sort());
+    });
+
+    it('skips repo members who have left the org', async () => {
+      const leaver = await createUser();
+      await addOrgMember(org, leaver, 'MEMBER', 'REMOVED');
+      await addRepoMember(repo, leaver, 'DEVELOPER', 'ACTIVE');
+
+      await ingest();
+
+      const found = await rows('QUALITY_GATE_FAILED');
+      expect(found.map((n) => n.userId)).toEqual([owner.id]);
     });
 
     it('does not notify twice when the same results arrive again', async () => {

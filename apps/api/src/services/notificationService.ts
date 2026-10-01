@@ -47,6 +47,7 @@ export async function createAnalysisNotifications(
     where: { id: repoId },
     select: {
       name: true,
+      orgId: true,
       ownerId: true,
       members: { where: { status: 'ACTIVE' }, select: { userId: true } },
     },
@@ -87,7 +88,14 @@ export async function createAnalysisNotifications(
   }
 
   // owner is usually a member too
-  const userIds = [...new Set([repo.ownerId, ...repo.members.map((m) => m.userId)])];
+  const candidates = [...new Set([repo.ownerId, ...repo.members.map((m) => m.userId)])];
+
+  // skip anyone who has left the org
+  const stillInOrg = await tx.organizationMember.findMany({
+    where: { orgId: repo.orgId, userId: { in: candidates }, status: 'ACTIVE' },
+    select: { userId: true },
+  });
+  const userIds = stillInOrg.map((m) => m.userId);
 
   await tx.notification.createMany({
     data: userIds.flatMap((userId) =>
