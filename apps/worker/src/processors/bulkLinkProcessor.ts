@@ -40,7 +40,7 @@ const CREDENTIAL_FAILURE_MESSAGE: Record<CredentialFailure, string> = {
     'Stored GitHub token could not be read on the server; signing in again will not help',
 };
 
-async function octokitFor(userId: string): Promise<{ octokit: Octokit } | { error: CredentialFailure }> {
+export async function octokitFor(userId: string): Promise<{ octokit: Octokit } | { error: CredentialFailure }> {
   const credential = await prisma.gitHubCredential.findUnique({ where: { userId } });
   if (!credential) return { error: 'NO_CREDENTIAL' };
 
