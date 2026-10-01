@@ -11,7 +11,7 @@ import { prisma } from '@codehealth/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { api, app } from '../helpers/app';
-import { createOrg, createQualityGate, createRepo, createUser } from '../helpers/factories';
+import { addOrgMember, createOrg, createQualityGate, createRepo, createUser } from '../helpers/factories';
 import { TEST_WEBHOOK_SECRET } from '../setup/env';
 
 // runs the real worker as a separate process
@@ -112,6 +112,7 @@ describe('analysis pipeline, end to end', () => {
   it('turns a push webhook into a stored snapshot, findings and a notification', async () => {
     const owner = await createUser();
     const org = await createOrg();
+    await addOrgMember(org, owner);
     const repo = await createRepo(org, owner, { githubRepoId: '5001' });
     // Any finding at all fails a gate of 100.
     await createQualityGate(repo, { minHealthScore: 100 });
