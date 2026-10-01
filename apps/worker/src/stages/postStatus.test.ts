@@ -62,16 +62,16 @@ describe('createGateStatus', () => {
     });
   });
 
-  it('marks the commit red when the gate failed', async () => {
+  it('marks the commit red when the gate failed and PRs are blocked', async () => {
     const { octokit, calls } = fakeOctokit();
 
     await createGateStatus(
       octokit,
       target(),
-      evaluation({ result: 'FAIL', metrics: [metric({ passed: false })] }),
+      evaluation({ result: 'FAIL', blockPR: true, metrics: [metric({ passed: false })] }),
     );
 
-    expect(calls[0]).toMatchObject({ state: 'failure' });
+    expect(calls[0]).toMatchObject({ state: 'failure', description: '1 of 1 checks failed' });
   });
 
   it('says how many checks broke', async () => {
@@ -82,6 +82,7 @@ describe('createGateStatus', () => {
       target(),
       evaluation({
         result: 'FAIL',
+        blockPR: true,
         metrics: [
           metric({ passed: false }),
           metric({ key: 'vulnerabilities', passed: false }),
@@ -106,7 +107,7 @@ describe('createGateStatus', () => {
     expect(calls[0]).toMatchObject({ description: 'All 2 checks passed' });
   });
 
-  it('still reports a failure on a repo that does not block PRs', async () => {
+  it('keeps the commit green but says so when the gate failed on a repo that does not block PRs', async () => {
     const { octokit, calls } = fakeOctokit();
 
     await createGateStatus(
@@ -115,6 +116,9 @@ describe('createGateStatus', () => {
       evaluation({ result: 'FAIL', blockPR: false, metrics: [metric({ passed: false })] }),
     );
 
-    expect(calls[0]).toMatchObject({ state: 'failure' });
+    expect(calls[0]).toMatchObject({
+      state: 'success',
+      description: '1 of 1 checks failed (not blocking)',
+    });
   });
 });
