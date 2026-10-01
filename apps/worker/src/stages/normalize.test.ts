@@ -700,6 +700,18 @@ describe('normalize', () => {
     ]);
   });
 
+  it('uses forward slashes in file paths, even on windows', () => {
+    const { findings } = normalize({
+      eslint: {
+        results: [{ filePath: 'src\\lib\\run.js', messages: [lint('semi')] }],
+        errorCount: 0,
+        warningCount: 0,
+      },
+    });
+
+    expect(findings.map((f) => f.file)).toEqual(['src/lib/run.js']);
+  });
+
   it('puts file-level findings with no line before line findings', () => {
     const radon = normalize(everything).findings.filter((f) => f.tool === 'radon');
 

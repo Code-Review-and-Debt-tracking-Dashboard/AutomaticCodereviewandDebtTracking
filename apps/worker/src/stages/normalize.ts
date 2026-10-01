@@ -461,7 +461,9 @@ export function normalize(reports: AnalyzerReports) {
     ...(reports.cppcheck ? fromCppcheck(reports.cppcheck) : []),
     ...(reports.jscpd ? fromJscpd(reports.jscpd) : []),
     ...(reports.todoScan ? fromTodoScan(reports.todoScan) : []),
-  ].filter((f) => !f.file || !isTestPath(f.file));
+  ]
+    .map((f) => (f.file ? { ...f, file: f.file.split('\\').join('/') } : f))
+    .filter((f) => !f.file || !isTestPath(f.file));
 
   // sort so the same commit always gives the same list
   findings.sort(
