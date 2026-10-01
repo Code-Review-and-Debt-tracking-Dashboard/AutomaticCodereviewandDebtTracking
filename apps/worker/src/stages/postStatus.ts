@@ -20,17 +20,19 @@ export async function createGateStatus(
   evaluation: GateEvaluation,
 ): Promise<void> {
   const failed = evaluation.metrics.filter((metric) => !metric.passed);
+  // only go red when the repo wants PRs blocked
+  const blocking = evaluation.result === 'FAIL' && evaluation.blockPR;
 
   await octokit.rest.repos.createCommitStatus({
     owner: target.owner,
     repo: target.repo,
     sha: target.sha,
-    state: evaluation.result === 'PASS' ? 'success' : 'failure',
+    state: blocking ? 'failure' : 'success',
     context: STATUS_CONTEXT,
     description:
       failed.length === 0
         ? `All ${evaluation.metrics.length} checks passed`
-        : `${failed.length} of ${evaluation.metrics.length} checks failed`,
+        : `${failed.length} of ${evaluation.metrics.length} checks failed${blocking ? '' : ' (not blocking)'}`,
   });
 }
 
