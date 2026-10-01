@@ -107,7 +107,7 @@ describe('formatMinutes', () => {
 });
 
 describe('scoreBand', () => {
-  it('maps each boundary from scoring_algorithm.md §7', () => {
+  it('maps each score band boundary', () => {
     expect(scoreBand(100).label).toBe('Excellent');
     expect(scoreBand(90).label).toBe('Excellent');
     expect(scoreBand(89.9).label).toBe('Good');
