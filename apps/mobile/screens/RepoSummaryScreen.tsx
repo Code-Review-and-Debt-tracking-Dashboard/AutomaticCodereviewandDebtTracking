@@ -15,6 +15,8 @@ import { useAsyncData } from '../hooks/useAsyncData';
 import { useThemedStyles, useTheme } from '../contexts/PreferencesContext';
 import { Card, ErrorState, LoadingState } from '../components';
 import { ScreenTour } from '../components/ScreenTour';
+import { TrendChart } from '../components/TrendChart';
+import type { TrendPoint } from '../components/TrendChart';
 import { fonts, healthBand, radius, spacing } from '../theme';
 import type { ThemeColors } from '../theme';
 import type { HomeStackParamList } from '../navigation/TabNavigator';
@@ -26,11 +28,6 @@ interface RepoDetail {
   openFindings: number;
   debtMinutes: number;
   lastAnalyzedAt: string | null;
-}
-
-interface TrendPoint {
-  date: string;
-  healthScore: number;
 }
 
 type DebtCategory = 'vulnerability' | 'complexity' | 'duplication' | 'code_smell' | 'maintainability';
@@ -91,11 +88,7 @@ const formatDebt = (minutes: number) => {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-
-// api sends one point per scan. a busy repo has so many that the 3px gaps
-// take the whole width and every bar ends up 0px, so keep each day's last scan
+// api sends one point per scan, keep each day's last scan so the chart has one point a day
 const lastScanPerDay = (points: TrendPoint[]) => {
   const byDay = new Map<string, TrendPoint>();
   for (const point of points) {
@@ -208,11 +201,6 @@ export default function RepoSummaryScreen({ route }: Props) {
   const deltaColor = delta > 0 ? colors.success : delta < 0 ? colors.danger : colors.textMuted;
   const deltaLabel = delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : '— no change';
 
-  const trendScores = trend.map((p) => p.healthScore);
-  const trendMin = Math.min(...trendScores);
-  const trendMax = Math.max(...trendScores);
-  const trendRange = trendMax - trendMin || 1;
-
   const maxCategoryMinutes = debt
     ? Math.max(...CATEGORIES.map((c) => debt.breakdown[c.key]?.debtMinutes ?? 0))
     : 0;
@@ -276,30 +264,7 @@ export default function RepoSummaryScreen({ route }: Props) {
         {trend.length === 0 ? (
           <Text style={styles.emptyText}>No scans in the last 30 days.</Text>
         ) : (
-          <>
-            <View style={styles.trendChart}>
-              {trend.map((point, idx) => {
-                const heightPct = Math.max(10, ((point.healthScore - trendMin) / trendRange) * 100);
-                const isUp = idx > 0 && point.healthScore >= trend[idx - 1].healthScore;
-                return (
-                  <View
-                    key={point.date + idx}
-                    style={[
-                      styles.trendBar,
-                      { height: `${heightPct}%`, backgroundColor: isUp ? colors.success : colors.warning },
-                    ]}
-                  />
-                );
-              })}
-            </View>
-            <View style={styles.trendAxis}>
-              <Text style={styles.axisText}>{formatDate(trend[0].date)}</Text>
-              <Text style={styles.axisText}>
-                {Math.round(trendMin)} – {Math.round(trendMax)}
-              </Text>
-              <Text style={styles.axisText}>{formatDate(trend[trend.length - 1].date)}</Text>
-            </View>
-          </>
+          <TrendChart points={trend} />
         )}
       </Card>
 
@@ -459,25 +424,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 15,
       fontWeight: '700',
       color: c.text,
-    },
-    trendChart: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      height: 64,
-      gap: 3,
-    },
-    trendBar: {
-      flex: 1,
-      borderRadius: 2,
-    },
-    trendAxis: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: 6,
-    },
-    axisText: {
-      fontSize: 10,
-      color: c.textMuted,
     },
     categoryRow: {
       marginBottom: 10,
