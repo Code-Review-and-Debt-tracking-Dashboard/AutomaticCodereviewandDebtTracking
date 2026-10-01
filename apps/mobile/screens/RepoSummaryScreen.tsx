@@ -94,6 +94,16 @@ const formatDebt = (minutes: number) => {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
+// api sends one point per scan. a busy repo has so many that the 3px gaps
+// take the whole width and every bar ends up 0px, so keep each day's last scan
+const lastScanPerDay = (points: TrendPoint[]) => {
+  const byDay = new Map<string, TrendPoint>();
+  for (const point of points) {
+    byDay.set(new Date(point.date).toDateString(), point);
+  }
+  return [...byDay.values()];
+};
+
 export default function RepoSummaryScreen({ route }: Props) {
   const gaugeRef = useRef<View>(null);
   const trendRef = useRef<View>(null);
@@ -184,13 +194,16 @@ export default function RepoSummaryScreen({ route }: Props) {
     );
   }
 
-  const { detail, trend, debt, smells } = data;
+  const { detail, debt, smells } = data;
+  const scans = data.trend;
+  const trend = lastScanPerDay(scans);
 
   const band = healthBand(detail.healthScore, colors);
   const color = band.color;
+  // raw scans here, the label says "vs previous scan"
   const delta =
-    trend.length >= 2
-      ? Math.round(trend[trend.length - 1].healthScore - trend[trend.length - 2].healthScore)
+    scans.length >= 2
+      ? Math.round(scans[scans.length - 1].healthScore - scans[scans.length - 2].healthScore)
       : 0;
   const deltaColor = delta > 0 ? colors.success : delta < 0 ? colors.danger : colors.textMuted;
   const deltaLabel = delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : '— no change';
@@ -282,7 +295,7 @@ export default function RepoSummaryScreen({ route }: Props) {
             <View style={styles.trendAxis}>
               <Text style={styles.axisText}>{formatDate(trend[0].date)}</Text>
               <Text style={styles.axisText}>
-                {trendMin} – {trendMax}
+                {Math.round(trendMin)} – {Math.round(trendMax)}
               </Text>
               <Text style={styles.axisText}>{formatDate(trend[trend.length - 1].date)}</Text>
             </View>
