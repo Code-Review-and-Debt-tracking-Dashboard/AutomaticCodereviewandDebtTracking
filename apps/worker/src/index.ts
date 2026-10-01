@@ -8,7 +8,7 @@ import {
   type AnalysisStage,
   type BulkLinkJobData,
 } from '@codehealth/shared';
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 
 import { reportFailure } from './lib/apiClient';
 import { env } from './config/env';
@@ -16,6 +16,7 @@ import { logger } from './lib/logger';
 import { redis } from './lib/redis';
 import { analysisProcessor } from './processors/analysisProcessor';
 import { bulkLinkProcessor } from './processors/bulkLinkProcessor';
+import { PR_SYNC_EVERY_MS, PR_SYNC_QUEUE_NAME, prSyncProcessor } from './processors/prSyncProcessor';
 
 // retry options are set by the API when it adds the job
 const worker = new Worker<AnalysisJobData>(ANALYSIS_QUEUE_NAME, analysisProcessor, {
@@ -73,15 +74,38 @@ bulkLinkWorker.on('error', (err) => {
   logger.error({ err }, 'Bulk link worker error');
 });
 
+// fixes PRs left OPEN by a missed "closed" webhook
+const prSyncQueue = new Queue(PR_SYNC_QUEUE_NAME, { connection: redis });
+// upsert, so restarts and extra replicas don't stack schedules
+void prSyncQueue
+  .upsertJobScheduler('pr-sync', { every: PR_SYNC_EVERY_MS }, {
+    name: 'pr-sync',
+    opts: { removeOnComplete: 10, removeOnFail: 10 },
+  })
+  .catch((err) => logger.error({ err }, 'Could not schedule PR sync'));
+
+const prSyncWorker = new Worker(PR_SYNC_QUEUE_NAME, prSyncProcessor, {
+  connection: redis,
+  concurrency: 1,
+});
+
+prSyncWorker.on('failed', (job, err) => {
+  logger.error({ jobId: job?.id, err }, 'PR sync job failed');
+});
+
+prSyncWorker.on('error', (err) => {
+  logger.error({ err }, 'PR sync worker error');
+});
+
 logger.info(
-  { queues: [ANALYSIS_QUEUE_NAME, BULK_LINK_QUEUE_NAME], concurrency: env.concurrency },
+  { queues: [ANALYSIS_QUEUE_NAME, BULK_LINK_QUEUE_NAME, PR_SYNC_QUEUE_NAME], concurrency: env.concurrency },
   'Worker listening',
 );
 
 // let running jobs finish before exit
 async function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down worker');
-  await Promise.all([worker.close(), bulkLinkWorker.close()]);
+  await Promise.all([worker.close(), bulkLinkWorker.close(), prSyncWorker.close(), prSyncQueue.close()]);
   await redis.quit();
   await prisma.$disconnect();
   process.exit(0);
