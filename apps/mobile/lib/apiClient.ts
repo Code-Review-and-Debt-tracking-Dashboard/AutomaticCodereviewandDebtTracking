@@ -152,4 +152,5 @@ export const api = {
     axiosInstance.delete<T>(url).then((r) => r.data),
 };
 
-export { axiosInstance };
+// refreshClient is exported so the tests can mock it too
+export { axiosInstance, refreshClient };
