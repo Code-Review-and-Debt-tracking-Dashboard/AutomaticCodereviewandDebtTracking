@@ -77,6 +77,22 @@ jobs:
 
       - run: npm run test --workspace apps/api
 
+  # jest only, no services. kept out of deploy's needs so it can't block an API deploy
+  mobile-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # @testing-library/react-native needs node 22
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run test --workspace apps/mobile
+
   # main only, after both jobs pass. runs scripts/deploy.sh over SSM
   deploy:
     needs: [lint-and-typecheck, test]
